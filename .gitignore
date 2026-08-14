@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.zip
+*.exe
+data/sermons/*.json
+!data/sermons/62-1014m_a_estatura_de_um_homem_perfeito.json
+data/favicon.ico
+.gemini/
+.system_generated/
+package-lock.json

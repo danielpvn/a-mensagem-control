@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>A Mensagem Control - Painel do Operador</title>
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-container">
+        <img src="assets/logo.png" alt="A Mensagem Control Logo" class="app-logo">
+        <div class="logo-text">
+          <h1>A MENSAGEM</h1>
+          <span>CONTROL</span>
+        </div>
+      </div>
+      <div class="status-indicator">
+        <span id="ws-status" class="status-badge disconnected">Desconectado</span>
+      </div>
+    </header>
+
+    <!-- Update Notification Banner -->
+    <div id="update-banner" class="update-banner-container" style="display: none;">
+      <div class="update-banner-content">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <svg class="update-icon" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5M7 16h.01M7 20h.01M11 16h.01M11 20h.01M15 16h.01M15 20h.01M19 16h.01M19 20h.01M7 12h.01M11 12h.01M15 12h.01M19 12h.01"/></svg>
+          <span>Uma nova atualização está disponível (<strong id="update-version-text">v1.1.0</strong>)!</span>
+        </div>
+        <button id="btn-start-update" class="btn btn-primary btn-sm">Atualizar Agora</button>
+      </div>
+    </div>
+
+    <!-- Update Progress Overlay -->
+    <div id="update-progress-overlay" class="modal-overlay" style="display: none; z-index: 9999; backdrop-filter: blur(20px);">
+      <div class="modal-content card" style="text-align: center; max-width: 400px; padding: 40px 30px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;">
+        <div class="spinner"></div>
+        <h2>Atualizando Aplicativo</h2>
+        <p style="color: var(--text-secondary); line-height: 1.5; font-size: 0.95rem; margin: 0;">Baixando e instalando a nova versão em segundo plano. O programa fechará e reabrirá automaticamente em instantes. Por favor, aguarde...</p>
+      </div>
+    </div>
+
+    <!-- Main Grid Layout -->
+    <main class="main-grid">
+      <!-- Left Column: Sermons and Import -->
+      <section class="sidebar-panel">
+        <div class="card">
+          <h2>Biblioteca de Mensagens</h2>
+          <p class="section-desc">Selecione uma mensagem salva na biblioteca para exibir no culto.</p>
+          
+          <div class="select-wrapper">
+            <select id="sermon-select">
+              <option value="">-- Carregando mensagens... --</option>
+            </select>
+          </div>
+
+          <div id="active-sermon-details" class="sermon-details" style="display: none;">
+            <p><strong>Título:</strong> <span id="details-title">-</span></p>
+            <p><strong>Data:</strong> <span id="details-date">-</span></p>
+            <p><strong>Parágrafos:</strong> <span id="details-count">0</span></p>
+          </div>
+
+          <button id="btn-open-import" class="btn btn-secondary">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Importar Nova Mensagem
+          </button>
+        </div>
+
+        <div class="card card-shortcuts">
+          <h3>Atalhos e Apresentador</h3>
+          <ul class="shortcuts-list">
+            <li><span>Próximo parágrafo:</span> <div><kbd>Espaço</kbd> <kbd>→</kbd> <kbd>PageDown</kbd></div></li>
+            <li><span>Parágrafo anterior:</span> <div><kbd>←</kbd> <kbd>PageUp</kbd></div></li>
+            <li><span>Limpar/Exibir tela:</span> <div><kbd>Esc</kbd> <kbd>.</kbd> <kbd>B</kbd></div></li>
+            <li><span>Focar na busca:</span> <div><kbd>Enter</kbd></div></li>
+            <li style="border: none; padding-top: 10px; display: block; text-align: center;"><small style="color: var(--text-muted); font-size: 0.75rem;">100% Compatível com Logitech R400</small></li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Center Column: Controller -->
+      <section class="control-panel">
+        <!-- Live Preview Monitor -->
+        <div class="card monitor-card">
+          <div class="monitor-header">
+            <h3>Monitor em Tempo Real (OBS / Telão)</h3>
+            <span id="monitor-cleared-badge" class="badge badge-clear">Tela Limpa</span>
+          </div>
+          <div class="monitor-screen">
+            <div id="monitor-overlay-box" class="monitor-box">
+              <div id="monitor-title" class="monitor-sermon-title">A Estatura de um Homem Perfeito</div>
+              <div id="monitor-text" class="monitor-paragraph-text">O parágrafo selecionado aparecerá aqui...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Paragraphs Search and list -->
+        <div class="card list-card">
+          <div class="list-controls">
+            <div class="search-box">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              <input type="text" id="paragraph-search" placeholder="Buscar parágrafo (ex: 54 ou palavra-chave)..." disabled>
+            </div>
+            <div class="action-buttons">
+              <button id="btn-prev" class="btn btn-icon" title="Anterior" disabled>←</button>
+              <button id="btn-clear" class="btn btn-danger" title="Limpar/Exibir Tela" disabled>Limpar Tela (Esc)</button>
+              <button id="btn-next" class="btn btn-icon btn-primary" title="Próximo" disabled>→</button>
+            </div>
+          </div>
+
+          <div class="paragraphs-list-container">
+            <div id="paragraphs-list" class="paragraphs-list">
+              <div class="list-placeholder">Nenhuma mensagem carregada. Selecione uma na barra lateral.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Settings & Customs -->
+      <section class="settings-panel">
+        <div class="card">
+          <h2>Estilo do Overlay</h2>
+          <p class="section-desc">Personalize a exibição do texto no OBS e telão em tempo real.</p>
+          
+          <div class="form-group">
+            <label for="style-font">Fonte do Texto</label>
+            <select id="style-font">
+              <option value="Outfit, sans-serif">Outfit (Moderna/Sleek)</option>
+              <option value="Montserrat, sans-serif">Montserrat (Larga/Forte)</option>
+              <option value="'Lora', serif">Lora (Elegante/Com Serifa)</option>
+              <option value="'Playfair Display', serif">Playfair Display (Tradicional)</option>
+              <option value="Arial, sans-serif">Arial (Clássica/Limpa)</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="style-size">Tamanho do Texto</label>
+              <select id="style-size">
+                <option value="1.6rem">Pequeno (1.6rem)</option>
+                <option value="2.0rem">Médio (2.0rem)</option>
+                <option value="2.4rem" selected>Grande (2.4rem)</option>
+                <option value="2.8rem">Extra Grande (2.8rem)</option>
+                <option value="3.4rem">Maxi (3.4rem)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="style-title-size">Tamanho do Título</label>
+              <select id="style-title-size">
+                <option value="0.7rem">Pequeno (0.7rem)</option>
+                <option value="0.85rem" selected>Médio (0.85rem)</option>
+                <option value="1.1rem">Grande (1.1rem)</option>
+                <option value="1.4rem">Extra Grande (1.4rem)</option>
+                <option value="1.8rem">Maxi (1.8rem)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="style-animation">Transição</label>
+            <select id="style-animation">
+              <option value="slide-up">Deslizar (Cima)</option>
+              <option value="slide-down">Deslizar (Baixo)</option>
+              <option value="slide-side">Deslizar (Esquerda)</option>
+              <option value="fade" selected>Esvanecer (Fade Rápido)</option>
+              <option value="fade-slow">Esvanecer Lento (Suave)</option>
+              <option value="zoom-in">Zoom Elegante</option>
+              <option value="blur">Desfoque Suave (Moderno)</option>
+              <option value="clip-reveal">Revelar Cortina</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="style-text-color">Cor da Letra</label>
+              <div class="color-picker-wrapper">
+                <input type="color" id="style-text-color" value="#ffffff">
+                <span class="color-hex">#ffffff</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="style-accent-color">Cor do Destaque</label>
+              <div class="color-picker-wrapper">
+                <input type="color" id="style-accent-color" value="#2563eb">
+                <span class="color-hex">#2563eb</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="style-bg-color">Fundo da Caixa</label>
+            <div class="color-picker-wrapper">
+              <!-- input type color can't do transparency natively easily, so we have standard selections or input -->
+              <input type="color" id="style-bg-color-picker" value="#0a0f1e">
+              <span class="color-hex">#0a0f1e</span>
+            </div>
+            <div class="opacity-slider-group">
+              <span>Opacidade:</span>
+              <input type="range" id="style-bg-opacity" min="0" max="100" value="85">
+              <span id="opacity-val">85%</span>
+            </div>
+          </div>
+
+          <div class="form-group checkbox-group">
+            <input type="checkbox" id="style-show-title" checked>
+            <label for="style-show-title">Mostrar Título da Mensagem</label>
+          </div>
+
+          <div class="form-group checkbox-group">
+            <input type="checkbox" id="style-telao-mode">
+            <label for="style-telao-mode"><strong>Modo Telão (Fundo Preto Inteiro)</strong></label>
+          </div>
+
+          <div class="settings-actions">
+            <button id="btn-reset-styles" class="btn btn-text">Restaurar Padrão</button>
+          </div>
+        </div>
+
+        <div class="card card-links">
+          <h3>Link para o OBS</h3>
+          <p class="section-desc">Copie o link abaixo para colar na sua fonte de navegador no OBS Studio:</p>
+          <button id="btn-copy-link" class="btn btn-secondary btn-sm" style="width: 100%; display: inline-flex; justify-content: center; gap: 8px;">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+            <span id="copy-btn-text">Copiar Link do OBS</span>
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <!-- Import Modal Overlay -->
+    <div id="import-modal" class="modal-overlay" style="display: none;">
+      <div class="modal-content card">
+        <div class="modal-header">
+          <h2>Importar Nova Mensagem</h2>
+          <button id="btn-close-import" class="btn-close">&times;</button>
+        </div>
+        <form id="import-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="import-id">Identificador/Código (ex: 62-1014m)</label>
+              <input type="text" id="import-id" placeholder="Código único do sermão" required>
+            </div>
+            <div class="form-group">
+              <label for="import-date">Data da Mensagem</label>
+              <input type="text" id="import-date" placeholder="Ex: 14 de Outubro de 1962" required>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="import-title">Título da Mensagem</label>
+            <input type="text" id="import-title" placeholder="Ex: A Estatura de um Homem Perfeito" required>
+          </div>
+
+          <div class="form-group">
+            <label for="import-text">Texto Completo da Mensagem (Copie e cole)</label>
+            <p class="input-tip">Os parágrafos devem começar com o número (ex: "54 Agora observem..." ou "[54] Agora...") para serem indexados corretamente.</p>
+            <textarea id="import-text" placeholder="Cole o texto aqui..." required></textarea>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" id="btn-cancel-import" class="btn btn-secondary">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Processar e Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

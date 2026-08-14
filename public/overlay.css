@@ -1,0 +1,186 @@
+/* Overlay CSS - A Mensagem Control */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body, html {
+  background-color: transparent !important;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-size: 16px;
+}
+
+/* Container limits overlay area */
+.overlay-container {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end; /* Align to the bottom of the screen */
+  align-items: center;
+  padding: 40px 10%; /* Left/Right padding to keep text centered but narrow enough */
+  padding-bottom: 60px; /* Safe area for lower-third */
+  transition: all 0.3s ease;
+}
+
+/* Box styles */
+.overlay-box {
+  width: 100%;
+  max-width: 1200px;
+  background-color: rgba(10, 15, 30, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-left: 5px solid #2563eb;
+  border-radius: 16px;
+  padding: 24px 40px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  color: #ffffff;
+  transition: 
+    opacity 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+    transform 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+    clip-path 0.5s cubic-bezier(0.25, 1, 0.5, 1),
+    filter 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+    background 0.3s ease,
+    border-radius 0.3s ease,
+    padding 0.3s ease;
+  will-change: transform, opacity, clip-path, filter;
+}
+
+.overlay-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 8px;
+  color: #3b82f6;
+  opacity: 0.9;
+}
+
+.overlay-text {
+  font-size: 2.2rem;
+  font-weight: 500;
+  line-height: 1.4;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  word-wrap: break-word;
+}
+
+/* --- Telão Mode (Full Screen Slide/Black BG) --- */
+.telao-mode {
+  justify-content: center !important;
+  padding: 0 !important;
+}
+
+.telao-mode .overlay-box {
+  max-width: 100% !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  border-left: none !important;
+  border-radius: 0 !important;
+  background-color: #000000 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 80px 15% !important;
+  text-align: center;
+}
+
+.telao-mode .overlay-title {
+  font-size: 1.2rem;
+  margin-bottom: 24px;
+}
+
+.telao-mode .overlay-text {
+  font-size: 3.2rem;
+  text-shadow: none;
+}
+
+
+/* --- Transitions & Animations --- */
+
+/* 1. Slide Up Animation */
+.anim-slide-up.hidden {
+  opacity: 0;
+  transform: translateY(40px);
+}
+.anim-slide-up {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 2. Slide Side Animation */
+.anim-slide-side.hidden {
+  opacity: 0;
+  transform: translateX(-50px);
+}
+.anim-slide-side {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* 3. Fade Animation */
+.anim-fade.hidden {
+  opacity: 0;
+}
+.anim-fade {
+  opacity: 1;
+}
+
+/* 4. Clip Reveal Animation (Curtain door effect) */
+.anim-clip-reveal.hidden {
+  opacity: 0;
+  clip-path: inset(0 50% 0 50%);
+}
+.anim-clip-reveal {
+  opacity: 1;
+  clip-path: inset(0 0% 0 0%);
+}
+
+/* 5. Zoom In Animation */
+.anim-zoom-in.hidden {
+  opacity: 0;
+  transform: scale(0.92);
+}
+.anim-zoom-in {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* 6. Blur Animation */
+.anim-blur.hidden {
+  opacity: 0;
+  filter: blur(15px);
+  transform: scale(0.98);
+}
+.anim-blur {
+  opacity: 1;
+  filter: blur(0);
+  transform: scale(1);
+}
+
+/* 7. Slide Down Animation */
+.anim-slide-down.hidden {
+  opacity: 0;
+  transform: translateY(-40px);
+}
+.anim-slide-down {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 8. Fade Slow Animation */
+.anim-fade-slow.hidden {
+  opacity: 0;
+}
+.anim-fade-slow {
+  opacity: 1;
+  transition-duration: 0.8s;
+}

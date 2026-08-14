@@ -1,0 +1,49 @@
+{
+  "name": "a-mensagem-control",
+  "version": "1.0.0",
+  "description": "Controle de overlay para transmissão de sermões de William Branham",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "start-server-only": "node server.js",
+    "build-installer": "electron-builder build --win --publish never"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "electron": "^31.0.1",
+    "electron-builder": "^24.13.3",
+    "electron-packager": "^17.1.2"
+  },
+  "build": {
+    "appId": "com.amensagem.control",
+    "productName": "A Mensagem Control",
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "A Mensagem Control",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "runAfterFinish": true
+    },
+    "files": [
+      "**/*",
+      "!dist/**/*",
+      "!AMensagemControl.exe",
+      "!package-lock.json"
+    ],
+    "directories": {
+      "output": "dist"
+    }
+  }
+}
