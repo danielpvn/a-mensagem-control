@@ -66,10 +66,10 @@ let globalState = {
   isCleared: true,
   styles: {
     fontFamily: 'Outfit, sans-serif',
-    fontSize: '2.2rem',
+    fontSize: '2.6rem',
     textColor: '#ffffff',
     titleColor: '#3b82f6',
-    titleSize: '0.85rem',
+    titleSize: '1.1rem',
     bgColor: 'rgba(10, 15, 30, 0.85)',
     accentColor: '#2563eb',
     animationType: 'slide-up',
@@ -78,7 +78,10 @@ let globalState = {
     borderRadius: '16px',
     shadow: '0 20px 40px rgba(0,0,0,0.5)',
     borderSize: '4px',
-    showTitle: true
+    showTitle: true,
+    telaoMode: false,
+    textOutline: false,
+    outlineColor: '#000000'
   }
 };
 
@@ -506,31 +509,44 @@ function createDesktopShortcut() {
 
 
 // --- AUTOPUPDATER BACKEND IMPLEMENTATION ---
-const CURRENT_VERSION = '1.0.0';
+const CURRENT_VERSION = '1.0.1';
 const UPDATE_JSON_URL = 'https://raw.githubusercontent.com/danielpvn/a-mensagem-control/main/update.json';
 
 function downloadFile(url, destPath) {
   return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(destPath);
     const protocol = url.startsWith('https') ? https : http;
-    protocol.get(url, (response) => {
+    
+    const request = protocol.get(url, (response) => {
+      // Trata redirecionamentos (301 e 302) sem abrir múltiplos streams concorrentes
       if (response.statusCode === 302 || response.statusCode === 301) {
-        downloadFile(response.headers.location, destPath).then(resolve).catch(reject);
+        downloadFile(response.headers.location, destPath)
+          .then(resolve)
+          .catch(reject);
         return;
       }
+      
       if (response.statusCode !== 200) {
         reject(new Error(`Falha no download: Status ${response.statusCode}`));
         return;
       }
+      
+      const file = fs.createWriteStream(destPath);
       response.pipe(file);
+      
       file.on('finish', () => {
-        file.close();
-        resolve();
+        file.close((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
       });
-    }).on('error', (err) => {
-      fs.unlink(destPath, () => {});
-      reject(err);
+      
+      file.on('error', (err) => {
+        fs.unlink(destPath, () => {});
+        reject(err);
+      });
     });
+    
+    request.on('error', reject);
   });
 }
 
@@ -538,11 +554,12 @@ function extractZip(zipPath, destDir) {
   return new Promise((resolve, reject) => {
     const escapedZipPath = zipPath.replace(/'/g, "''");
     const escapedDestDir = destDir.replace(/'/g, "''");
-    const cmd = `powershell -Command "Expand-Archive -Path '${escapedZipPath}' -DestinationPath '${escapedDestDir}' -Force"`;
+    // Força o PowerShell a lançar erro se a descompactação falhar e ignora perfis
+    const cmd = `powershell -NoProfile -NonInteractive -Command "$ErrorActionPreference = 'Stop'; Expand-Archive -Path '${escapedZipPath}' -DestinationPath '${escapedDestDir}' -Force"`;
     
     exec(cmd, (err, stdout, stderr) => {
       if (err) {
-        reject(new Error(`PowerShell descompactação falhou: ${stderr || err.message}`));
+        reject(new Error(`PowerShell descompactacao falhou: ${stderr || err.message}`));
       } else {
         resolve();
       }
@@ -631,10 +648,15 @@ app.post('/api/trigger-update', async (req, res) => {
     const currentExePath = process.versions.electron ? require('electron').app.getPath('exe') : process.argv[0];
     const appDir = path.dirname(currentExePath);
     
-    // A pasta gerada no zip extraído será A Mensagem Control-win32-x64
-    const sourceDir = path.join(extractDir, 'A Mensagem Control-win32-x64');
+    // A pasta gerada no zip extraído pode ser a pasta raiz ou a pasta filha A Mensagem Control-win32-x64
+    let sourceDir = path.join(extractDir, 'A Mensagem Control-win32-x64');
     if (!fs.existsSync(sourceDir)) {
-      throw new Error('Pasta compactada incorreta: pasta A Mensagem Control-win32-x64 não encontrada no ZIP.');
+      if (fs.existsSync(path.join(extractDir, 'A Mensagem Control.exe'))) {
+        sourceDir = extractDir;
+      } else {
+        const files = fs.readdirSync(extractDir);
+        throw new Error(`Pasta compactada incorreta: arquivos do aplicativo nao encontrados no ZIP. Encontrado na raiz: [${files.join(', ')}]`);
+      }
     }
     
     // Script .bat que roda silencioso para substituir os arquivos e reabrir o app

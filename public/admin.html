@@ -139,25 +139,19 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label for="style-size">Tamanho do Texto</label>
-              <select id="style-size">
-                <option value="1.6rem">Pequeno (1.6rem)</option>
-                <option value="2.0rem">Médio (2.0rem)</option>
-                <option value="2.4rem" selected>Grande (2.4rem)</option>
-                <option value="2.8rem">Extra Grande (2.8rem)</option>
-                <option value="3.4rem">Maxi (3.4rem)</option>
-              </select>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label for="style-size-slider" style="margin: 0;">Tamanho do Texto</label>
+                <span id="size-slider-val" style="font-size: 0.85rem; font-weight: 600; color: var(--accent-color);">2.6rem</span>
+              </div>
+              <input type="range" id="style-size-slider" min="1.8" max="4.5" step="0.1" value="2.6" style="width: 100%;">
             </div>
 
             <div class="form-group">
-              <label for="style-title-size">Tamanho do Título</label>
-              <select id="style-title-size">
-                <option value="0.7rem">Pequeno (0.7rem)</option>
-                <option value="0.85rem" selected>Médio (0.85rem)</option>
-                <option value="1.1rem">Grande (1.1rem)</option>
-                <option value="1.4rem">Extra Grande (1.4rem)</option>
-                <option value="1.8rem">Maxi (1.8rem)</option>
-              </select>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label for="style-title-size-slider" style="margin: 0;">Tamanho do Título</label>
+                <span id="title-size-slider-val" style="font-size: 0.85rem; font-weight: 600; color: var(--accent-color);">1.1rem</span>
+              </div>
+              <input type="range" id="style-title-size-slider" min="0.8" max="2.5" step="0.05" value="1.1" style="width: 100%;">
             </div>
           </div>
 
@@ -193,15 +187,27 @@
             </div>
           </div>
 
-          <div class="form-group">
-            <label for="style-bg-color">Fundo da Caixa</label>
-            <div class="color-picker-wrapper">
-              <!-- input type color can't do transparency natively easily, so we have standard selections or input -->
-              <input type="color" id="style-bg-color-picker" value="#0a0f1e">
-              <span class="color-hex">#0a0f1e</span>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="style-bg-color-picker">Fundo da Caixa</label>
+              <div class="color-picker-wrapper">
+                <input type="color" id="style-bg-color-picker" value="#0a0f1e">
+                <span class="color-hex">#0a0f1e</span>
+              </div>
             </div>
+
+            <div class="form-group">
+              <label for="style-outline-color">Cor do Contorno</label>
+              <div class="color-picker-wrapper">
+                <input type="color" id="style-outline-color" value="#000000">
+                <span class="color-hex">#000000</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
             <div class="opacity-slider-group">
-              <span>Opacidade:</span>
+              <span>Opacidade Fundo:</span>
               <input type="range" id="style-bg-opacity" min="0" max="100" value="85">
               <span id="opacity-val">85%</span>
             </div>
@@ -215,6 +221,11 @@
           <div class="form-group checkbox-group">
             <input type="checkbox" id="style-telao-mode">
             <label for="style-telao-mode"><strong>Modo Telão (Fundo Preto Inteiro)</strong></label>
+          </div>
+
+          <div class="form-group checkbox-group">
+            <input type="checkbox" id="style-text-outline">
+            <label for="style-text-outline">Adicionar Borda de Contraste nas Letras</label>
           </div>
 
           <div class="settings-actions">
@@ -243,18 +254,13 @@
         <form id="import-form">
           <div class="form-row">
             <div class="form-group">
-              <label for="import-id">Identificador/Código (ex: 62-1014m)</label>
-              <input type="text" id="import-id" placeholder="Código único do sermão" required>
-            </div>
-            <div class="form-group">
               <label for="import-date">Data da Mensagem</label>
               <input type="text" id="import-date" placeholder="Ex: 14 de Outubro de 1962" required>
             </div>
-          </div>
-          
-          <div class="form-group">
-            <label for="import-title">Título da Mensagem</label>
-            <input type="text" id="import-title" placeholder="Ex: A Estatura de um Homem Perfeito" required>
+            <div class="form-group">
+              <label for="import-title">Título da Mensagem</label>
+              <input type="text" id="import-title" placeholder="Ex: A Estatura de um Homem Perfeito" required>
+            </div>
           </div>
 
           <div class="form-group">

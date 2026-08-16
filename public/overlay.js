@@ -135,6 +135,15 @@ function applyStyles() {
   overlayTitle.style.color = styleConfig.accentColor;
   overlayBox.style.borderColor = styleConfig.accentColor;
 
+  if (styleConfig.textOutline) {
+    const oColor = styleConfig.outlineColor || '#000000';
+    overlayText.style.textShadow = `-1.5px -1.5px 0 ${oColor}, 1.5px -1.5px 0 ${oColor}, -1.5px 1.5px 0 ${oColor}, 1.5px 1.5px 0 ${oColor}, 0px 2px 4px rgba(0,0,0,0.5)`;
+    overlayTitle.style.textShadow = `-1px -1px 0 ${oColor}, 1px -1px 0 ${oColor}, -1px 1px 0 ${oColor}, 1px 1px 0 ${oColor}, 0px 2px 4px rgba(0,0,0,0.5)`;
+  } else {
+    overlayText.style.textShadow = 'none';
+    overlayTitle.style.textShadow = 'none';
+  }
+
   // 4. Background styling
   if (styleConfig.telaoMode) {
     overlayContainer.classList.add('telao-mode');

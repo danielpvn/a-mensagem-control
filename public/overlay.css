@@ -24,15 +24,15 @@ body, html {
   flex-direction: column;
   justify-content: flex-end; /* Align to the bottom of the screen */
   align-items: center;
-  padding: 40px 10%; /* Left/Right padding to keep text centered but narrow enough */
-  padding-bottom: 60px; /* Safe area for lower-third */
+  padding: 30px 2%; /* Widened to the sides to reduce height of long text */
+  padding-bottom: 25px; /* Shifted down to prevent text from rising too high */
   transition: all 0.3s ease;
 }
 
 /* Box styles */
 .overlay-box {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1800px; /* Increased max width to prevent text from rising too high */
   background-color: rgba(10, 15, 30, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);

@@ -36,8 +36,10 @@ const monitorClearedBadge = document.getElementById('monitor-cleared-badge');
 
 // Style inputs
 const styleFont = document.getElementById('style-font');
-const styleSize = document.getElementById('style-size');
-const styleTitleSize = document.getElementById('style-title-size');
+const styleSizeSlider = document.getElementById('style-size-slider');
+const sizeSliderVal = document.getElementById('size-slider-val');
+const styleTitleSizeSlider = document.getElementById('style-title-size-slider');
+const titleSizeSliderVal = document.getElementById('title-size-slider-val');
 const styleAnimation = document.getElementById('style-animation');
 const styleTextColor = document.getElementById('style-text-color');
 const styleAccentColor = document.getElementById('style-accent-color');
@@ -46,6 +48,8 @@ const styleBgOpacity = document.getElementById('style-bg-opacity');
 const opacityVal = document.getElementById('opacity-val');
 const styleShowTitle = document.getElementById('style-show-title');
 const styleTelaoMode = document.getElementById('style-telao-mode');
+const styleTextOutline = document.getElementById('style-text-outline');
+const styleOutlineColor = document.getElementById('style-outline-color');
 const btnResetStyles = document.getElementById('btn-reset-styles');
 
 // Modal Elements
@@ -455,18 +459,27 @@ function gatherAndSendStyles() {
   document.querySelector('#style-bg-color-picker + .color-hex').textContent = hexBg;
   document.querySelector('#style-text-color + .color-hex').textContent = styleTextColor.value;
   document.querySelector('#style-accent-color + .color-hex').textContent = styleAccentColor.value;
+  document.querySelector('#style-outline-color + .color-hex').textContent = styleOutlineColor.value;
   opacityVal.textContent = `${opacityPercent}%`;
+
+  const fontSizeVal = `${styleSizeSlider.value}rem`;
+  sizeSliderVal.textContent = fontSizeVal;
+
+  const titleSizeVal = `${styleTitleSizeSlider.value}rem`;
+  titleSizeSliderVal.textContent = titleSizeVal;
 
   const updatedStyles = {
     fontFamily: styleFont.value,
-    fontSize: styleSize.value,
-    titleSize: styleTitleSize.value,
+    fontSize: fontSizeVal,
+    titleSize: titleSizeVal,
     textColor: styleTextColor.value,
     accentColor: styleAccentColor.value,
     bgColor: bgRgba,
     animationType: styleAnimation.value,
     showTitle: styleShowTitle.checked,
-    telaoMode: styleTelaoMode.checked
+    telaoMode: styleTelaoMode.checked,
+    textOutline: styleTextOutline.checked,
+    outlineColor: styleOutlineColor.value
   };
 
   styleConfig = { ...styleConfig, ...updatedStyles };
@@ -517,11 +530,17 @@ function updateUIStyles(styles) {
   if (!styles) return;
 
   styleFont.value = styles.fontFamily || 'Outfit, sans-serif';
-  styleSize.value = styles.fontSize || '2.2rem';
-  styleTitleSize.value = styles.titleSize || '0.85rem';
+  const sizeNum = parseFloat(styles.fontSize || '2.6rem');
+  styleSizeSlider.value = isNaN(sizeNum) ? 2.6 : sizeNum;
+  sizeSliderVal.textContent = `${styleSizeSlider.value}rem`;
+  const titleSizeNum = parseFloat(styles.titleSize || '1.1rem');
+  styleTitleSizeSlider.value = isNaN(titleSizeNum) ? 1.1 : titleSizeNum;
+  titleSizeSliderVal.textContent = `${styleTitleSizeSlider.value}rem`;
   styleAnimation.value = styles.animationType || 'slide-up';
   styleTextColor.value = styles.textColor || '#ffffff';
   styleAccentColor.value = styles.accentColor || '#2563eb';
+  styleOutlineColor.value = styles.outlineColor || '#000000';
+  document.querySelector('#style-outline-color + .color-hex').textContent = styleOutlineColor.value;
   
   if (styles.bgColor) {
     const { hex, opacity } = parseRgba(styles.bgColor);
@@ -532,6 +551,7 @@ function updateUIStyles(styles) {
   
   styleShowTitle.checked = styles.showTitle !== false;
   styleTelaoMode.checked = styles.telaoMode === true;
+  styleTextOutline.checked = styles.textOutline === true;
   
   applyStyleToMonitor();
 }
@@ -562,13 +582,28 @@ function applyStyleToMonitor() {
     monitorOverlayBox.style.display = 'block';
   }
   
+  const previewScale = 0.38;
+  const pSize = parseFloat(styleConfig.fontSize || '2.6rem') * previewScale;
+  const tSize = parseFloat(styleConfig.titleSize || '1.1rem') * previewScale;
+  
+  monitorText.style.fontSize = `${pSize}rem`;
+  monitorTitle.style.fontSize = `${tSize}rem`;
   monitorTitle.style.color = styleConfig.accentColor;
-  monitorTitle.style.fontSize = styleConfig.titleSize || '0.85rem';
+  
+  if (styleConfig.textOutline) {
+    const oColor = styleConfig.outlineColor || '#000000';
+    monitorText.style.textShadow = `-1px -1px 0 ${oColor}, 1px -1px 0 ${oColor}, -1px 1px 0 ${oColor}, 1px 1px 0 ${oColor}, 0px 2px 4px rgba(0,0,0,0.5)`;
+    monitorTitle.style.textShadow = `-1px -1px 0 ${oColor}, 1px -1px 0 ${oColor}, -1px 1px 0 ${oColor}, 1px 1px 0 ${oColor}, 0px 2px 4px rgba(0,0,0,0.5)`;
+  } else {
+    monitorText.style.textShadow = 'none';
+    monitorTitle.style.textShadow = 'none';
+  }
+  
   updateMonitor();
 }
 
 // Bind style inputs
-[styleFont, styleSize, styleTitleSize, styleAnimation, styleTextColor, styleAccentColor, styleBgColorPicker, styleBgOpacity, styleShowTitle, styleTelaoMode].forEach(input => {
+[styleFont, styleSizeSlider, styleTitleSizeSlider, styleAnimation, styleTextColor, styleAccentColor, styleBgColorPicker, styleBgOpacity, styleShowTitle, styleTelaoMode, styleTextOutline, styleOutlineColor].forEach(input => {
   input.onchange = gatherAndSendStyles;
   input.oninput = gatherAndSendStyles;
 });
@@ -576,14 +611,16 @@ function applyStyleToMonitor() {
 btnResetStyles.onclick = () => {
   const defaultStyles = {
     fontFamily: 'Outfit, sans-serif',
-    fontSize: '2.4rem',
-    titleSize: '0.85rem',
+    fontSize: '2.6rem',
+    titleSize: '1.1rem',
     textColor: '#ffffff',
     accentColor: '#2563eb',
     bgColor: 'rgba(10, 15, 30, 0.85)',
     animationType: 'slide-up',
     showTitle: true,
-    telaoMode: false
+    telaoMode: false,
+    textOutline: false,
+    outlineColor: '#000000'
   };
   styleConfig = { ...styleConfig, ...defaultStyles };
   updateUIStyles(styleConfig);
@@ -599,7 +636,7 @@ btnResetStyles.onclick = () => {
 // Modal controls
 btnOpenImport.onclick = () => {
   importModal.style.display = 'flex';
-  document.getElementById('import-id').focus();
+  document.getElementById('import-date').focus();
 };
 
 function closeModal() {
@@ -614,10 +651,16 @@ btnCancelImport.onclick = closeModal;
 importForm.onsubmit = async (e) => {
   e.preventDefault();
   
-  const id = document.getElementById('import-id').value.trim();
   const date = document.getElementById('import-date').value.trim();
   const title = document.getElementById('import-title').value.trim();
   const rawText = document.getElementById('import-text').value;
+
+  // Gera o ID automaticamente a partir do título para simplificar o formulário
+  const id = title.toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remove acentos
+    .replace(/[^a-z0-9\s-]/g, "") // remove caracteres especiais
+    .trim()
+    .replace(/\s+/g, "_");
 
   try {
     const res = await fetch('/api/import', {
