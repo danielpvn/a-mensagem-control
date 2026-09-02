@@ -72,9 +72,17 @@ function updateContent(useTransition = true) {
     return;
   }
 
-  const titleStr = activeSermonTitle && styleConfig.showTitle && currentParagraphNumber
-    ? `${activeSermonTitle} - Parágrafo ${currentParagraphNumber}`
-    : '';
+  const showTitle = styleConfig.showTitle !== false;
+  const showNum = styleConfig.showParagraphNumber !== false;
+  let titleStr = '';
+
+  if (activeSermonTitle && showTitle && showNum && currentParagraphNumber) {
+    titleStr = `${activeSermonTitle} - Parágrafo ${currentParagraphNumber}`;
+  } else if (activeSermonTitle && showTitle) {
+    titleStr = activeSermonTitle;
+  } else if (showNum && currentParagraphNumber) {
+    titleStr = `Parágrafo ${currentParagraphNumber}`;
+  }
 
   if (useTransition && !overlayBox.classList.contains('hidden')) {
     // If it's already visible, hide it first, change text, and show it again for a smooth transition

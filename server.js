@@ -79,6 +79,7 @@ let globalState = {
     shadow: '0 20px 40px rgba(0,0,0,0.5)',
     borderSize: '4px',
     showTitle: true,
+    showParagraphNumber: true,
     telaoMode: false,
     textOutline: false,
     outlineColor: '#000000'
@@ -215,7 +216,8 @@ wss.on('connection', (ws) => {
 
               if (file) {
                 const sermonContent = fs.readFileSync(path.join(SERMONS_DIR, file), 'utf-8');
-                activeSermonParagraphs = JSON.parse(sermonContent).paragraphs || [];
+                const parsed = JSON.parse(sermonContent);
+                activeSermonParagraphs = processSermonParagraphs(parsed.paragraphs || []);
                 console.log(`Carregados ${activeSermonParagraphs.length} parágrafos em memória no servidor.`);
               } else {
                 console.warn('Arquivo do sermão não encontrado para ID:', globalState.activeSermonId);
@@ -251,6 +253,107 @@ wss.on('connection', (ws) => {
   });
 });
 
+// Quebra texto de parágrafo longo em partes inteligentes com base em pontuação
+function splitParagraphText(text, maxChars = 280) {
+  text = (text || '').trim();
+  if (!text || text.length <= maxChars) return [text];
+
+  const chunks = [];
+  let remaining = text;
+
+  while (remaining.length > 0) {
+    if (remaining.length <= maxChars) {
+      chunks.push(remaining.trim());
+      break;
+    }
+
+    // Procura o ponto ideal de quebra até maxChars + margem
+    let sliceTarget = remaining.substring(0, maxChars + 30);
+
+    // Prioridade 1: Pontuação forte (. ! ?) seguida de espaço/aspas
+    let bestIndex = -1;
+    const sentenceRegex = /[.!?]+[\s"”'’]+/g;
+    let match;
+    while ((match = sentenceRegex.exec(sliceTarget)) !== null) {
+      const idx = match.index + match[0].length;
+      if (idx <= maxChars + 30 && idx >= 80) {
+        bestIndex = idx;
+      }
+    }
+
+    // Prioridade 2: Ponto e vírgula, dois pontos ou travessão
+    if (bestIndex === -1) {
+      const clauseRegex = /[;:\u2014\-]+[\s"”'’]+/g;
+      while ((match = clauseRegex.exec(sliceTarget)) !== null) {
+        const idx = match.index + match[0].length;
+        if (idx <= maxChars + 30 && idx >= 80) {
+          bestIndex = idx;
+        }
+      }
+    }
+
+    // Prioridade 3: Vírgulas
+    if (bestIndex === -1) {
+      const commaRegex = /[,]+[\s"”'’]+/g;
+      while ((match = commaRegex.exec(sliceTarget)) !== null) {
+        const idx = match.index + match[0].length;
+        if (idx <= maxChars + 30 && idx >= 70) {
+          bestIndex = idx;
+        }
+      }
+    }
+
+    // Prioridade 4: Espaço entre palavras
+    if (bestIndex === -1) {
+      const lastSpace = sliceTarget.lastIndexOf(' ', maxChars);
+      if (lastSpace > 40) {
+        bestIndex = lastSpace + 1;
+      } else {
+        bestIndex = maxChars;
+      }
+    }
+
+    const chunk = remaining.substring(0, bestIndex).trim();
+    if (chunk) {
+      chunks.push(chunk);
+    }
+    remaining = remaining.substring(bestIndex).trim();
+  }
+
+  return chunks.length > 0 ? chunks : [text];
+}
+
+// Processa uma lista de parágrafos para paginar parágrafos longos
+function processSermonParagraphs(paragraphs) {
+  if (!Array.isArray(paragraphs)) return [];
+  const result = [];
+
+  paragraphs.forEach(p => {
+    // Se o parágrafo já foi paginado previamente com (x/y), não re-divide
+    if (typeof p.number === 'string' && /\(\d+\/\d+\)/.test(p.number)) {
+      result.push(p);
+      return;
+    }
+
+    const chunks = splitParagraphText(p.text, 280);
+    if (chunks.length <= 1) {
+      result.push({
+        number: p.number,
+        text: p.text
+      });
+    } else {
+      chunks.forEach((chunk, idx) => {
+        result.push({
+          number: `${p.number} (${idx + 1}/${chunks.length})`,
+          text: chunk
+        });
+      });
+    }
+  });
+
+  return result;
+}
+
 // API: Listar sermões disponíveis
 app.get('/api/sermons', (req, res) => {
   ensureSermonsDir();
@@ -266,7 +369,7 @@ app.get('/api/sermons', (req, res) => {
           title: json.title,
           date: json.date,
           fileName: file,
-          paragraphCount: json.paragraphs ? json.paragraphs.length : 0
+          paragraphCount: json.paragraphs ? processSermonParagraphs(json.paragraphs).length : 0
         };
       });
     res.json(sermons);
@@ -291,9 +394,52 @@ app.get('/api/sermons/:id', (req, res) => {
     }
 
     const sermonContent = fs.readFileSync(path.join(SERMONS_DIR, file), 'utf-8');
-    res.json(JSON.parse(sermonContent));
+    const json = JSON.parse(sermonContent);
+    json.paragraphs = processSermonParagraphs(json.paragraphs || []);
+    res.json(json);
   } catch (err) {
     res.status(500).json({ error: 'Erro ao obter sermão', details: err.message });
+  }
+});
+
+// API: Excluir sermão por ID
+app.delete('/api/sermons/:id', (req, res) => {
+  ensureSermonsDir();
+  try {
+    const files = fs.readdirSync(SERMONS_DIR);
+    const file = files.find(f => {
+      if (!f.endsWith('.json')) return false;
+      try {
+        const content = fs.readFileSync(path.join(SERMONS_DIR, f), 'utf-8');
+        const json = JSON.parse(content);
+        return json.id === req.params.id;
+      } catch (e) {
+        return false;
+      }
+    });
+
+    if (!file) {
+      return res.status(404).json({ error: 'Sermão não encontrado' });
+    }
+
+    fs.unlinkSync(path.join(SERMONS_DIR, file));
+
+    // Se o sermão excluído era o ativo, limpa o estado global
+    if (globalState.activeSermonId === req.params.id) {
+      globalState.activeSermonId = null;
+      globalState.activeSermonTitle = '';
+      globalState.activeSermonDate = '';
+      globalState.currentParagraphIndex = -1;
+      globalState.currentParagraphText = '';
+      globalState.currentParagraphNumber = null;
+      globalState.isCleared = true;
+      activeSermonParagraphs = [];
+      broadcast('update-content', globalState);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao excluir sermão', details: err.message });
   }
 });
 
@@ -355,17 +501,19 @@ app.post('/api/import', (req, res) => {
       });
     }
 
+    const processedParagraphs = processSermonParagraphs(paragraphs);
+
     const sermonData = {
       id,
       title,
       date: date || 'Data desconhecida',
-      paragraphs
+      paragraphs: processedParagraphs
     };
 
     const fileName = `${id.toLowerCase().replace(/[^a-z0-9]/g, '_')}.json`;
     fs.writeFileSync(path.join(SERMONS_DIR, fileName), JSON.stringify(sermonData, null, 2), 'utf-8');
 
-    res.json({ success: true, fileName, paragraphCount: paragraphs.length });
+    res.json({ success: true, fileName, paragraphCount: processedParagraphs.length });
   } catch (err) {
     res.status(500).json({ error: 'Erro ao processar importação', details: err.message });
   }
@@ -509,7 +657,7 @@ function createDesktopShortcut() {
 
 
 // --- AUTOPUPDATER BACKEND IMPLEMENTATION ---
-const CURRENT_VERSION = '1.0.1';
+const CURRENT_VERSION = '1.0.2';
 const UPDATE_JSON_URL = 'https://raw.githubusercontent.com/danielpvn/a-mensagem-control/main/update.json';
 
 function downloadFile(url, destPath) {

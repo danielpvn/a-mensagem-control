@@ -47,10 +47,12 @@ const styleBgColorPicker = document.getElementById('style-bg-color-picker');
 const styleBgOpacity = document.getElementById('style-bg-opacity');
 const opacityVal = document.getElementById('opacity-val');
 const styleShowTitle = document.getElementById('style-show-title');
+const styleShowParagraphNumber = document.getElementById('style-show-paragraph-number');
 const styleTelaoMode = document.getElementById('style-telao-mode');
 const styleTextOutline = document.getElementById('style-text-outline');
 const styleOutlineColor = document.getElementById('style-outline-color');
 const btnResetStyles = document.getElementById('btn-reset-styles');
+const btnDeleteSermon = document.getElementById('btn-delete-sermon');
 
 // Modal Elements
 const importModal = document.getElementById('import-modal');
@@ -211,11 +213,12 @@ function renderParagraphsList() {
 
   paragraphsList.innerHTML = '';
   
-  // Filtra parágrafos pela busca
+  // Filtra parágrafos pela busca preservando o índice original
   const query = currentSearchQuery.toLowerCase().trim();
-  const filtered = currentParagraphs.filter(p => {
+  const indexedList = currentParagraphs.map((p, idx) => ({ ...p, _origIndex: idx }));
+  const filtered = indexedList.filter(p => {
     if (!query) return true;
-    return p.number.toString().includes(query) || p.text.toLowerCase().includes(query);
+    return (p.number !== null && p.number.toString().toLowerCase().includes(query)) || p.text.toLowerCase().includes(query);
   });
 
   if (filtered.length === 0) {
@@ -224,8 +227,7 @@ function renderParagraphsList() {
   }
 
   filtered.forEach(p => {
-    // Acha o índice real no array original
-    const realIndex = currentParagraphs.findIndex(orig => orig.number === p.number);
+    const realIndex = p._origIndex;
     
     const row = document.createElement('div');
     row.className = `p-row ${realIndex === activeParagraphIndex ? 'active' : ''}`;
@@ -342,13 +344,25 @@ function updateMonitor() {
     monitorClearedBadge.className = 'badge badge-live';
     const p = currentParagraphs[activeParagraphIndex];
     
-    if (currentSermon && styleConfig.showTitle) {
+    const showTitle = styleConfig.showTitle !== false;
+    const showNum = styleConfig.showParagraphNumber !== false;
+    let headerText = '';
+
+    if (currentSermon && showTitle && showNum && p && p.number) {
+      headerText = `${currentSermon.title} - Parágrafo ${p.number}`;
+    } else if (currentSermon && showTitle) {
+      headerText = currentSermon.title;
+    } else if (showNum && p && p.number) {
+      headerText = `Parágrafo ${p.number}`;
+    }
+
+    if (headerText) {
       monitorTitle.style.display = 'block';
-      monitorTitle.textContent = `${currentSermon.title} - Parágrafo ${p.number}`;
+      monitorTitle.textContent = headerText;
     } else {
       monitorTitle.style.display = 'none';
     }
-    monitorText.textContent = p.text;
+    monitorText.textContent = p ? p.text : '';
   }
 }
 
@@ -477,6 +491,7 @@ function gatherAndSendStyles() {
     bgColor: bgRgba,
     animationType: styleAnimation.value,
     showTitle: styleShowTitle.checked,
+    showParagraphNumber: styleShowParagraphNumber.checked,
     telaoMode: styleTelaoMode.checked,
     textOutline: styleTextOutline.checked,
     outlineColor: styleOutlineColor.value
@@ -550,6 +565,7 @@ function updateUIStyles(styles) {
   }
   
   styleShowTitle.checked = styles.showTitle !== false;
+  styleShowParagraphNumber.checked = styles.showParagraphNumber !== false;
   styleTelaoMode.checked = styles.telaoMode === true;
   styleTextOutline.checked = styles.textOutline === true;
   
@@ -603,7 +619,7 @@ function applyStyleToMonitor() {
 }
 
 // Bind style inputs
-[styleFont, styleSizeSlider, styleTitleSizeSlider, styleAnimation, styleTextColor, styleAccentColor, styleBgColorPicker, styleBgOpacity, styleShowTitle, styleTelaoMode, styleTextOutline, styleOutlineColor].forEach(input => {
+[styleFont, styleSizeSlider, styleTitleSizeSlider, styleAnimation, styleTextColor, styleAccentColor, styleBgColorPicker, styleBgOpacity, styleShowTitle, styleShowParagraphNumber, styleTelaoMode, styleTextOutline, styleOutlineColor].forEach(input => {
   input.onchange = gatherAndSendStyles;
   input.oninput = gatherAndSendStyles;
 });
@@ -618,6 +634,7 @@ btnResetStyles.onclick = () => {
     bgColor: 'rgba(10, 15, 30, 0.85)',
     animationType: 'slide-up',
     showTitle: true,
+    showParagraphNumber: true,
     telaoMode: false,
     textOutline: false,
     outlineColor: '#000000'
@@ -630,6 +647,30 @@ btnResetStyles.onclick = () => {
       type: 'update-styles',
       payload: defaultStyles
     }));
+  }
+};
+
+// Delete sermon button handler
+btnDeleteSermon.onclick = async () => {
+  if (!currentSermon) return;
+  const confirmDelete = confirm(`Tem certeza que deseja excluir a mensagem "${currentSermon.title}" da biblioteca? Esta ação não pode ser desfeita.`);
+  if (!confirmDelete) return;
+
+  try {
+    const res = await fetch(`/api/sermons/${encodeURIComponent(currentSermon.id)}`, {
+      method: 'DELETE'
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert('Mensagem excluída com sucesso da biblioteca.');
+      unloadSermon();
+      await fetchSermons();
+    } else {
+      alert('Erro ao excluir mensagem: ' + (data.error || 'Erro desconhecido'));
+    }
+  } catch (err) {
+    console.error('Erro ao excluir mensagem:', err);
+    alert('Erro de conexão ao excluir a mensagem.');
   }
 };
 

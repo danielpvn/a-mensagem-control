@@ -1,5 +1,5 @@
 {
-  "version": "1.0.1",
-  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v1.0.1/A_Mensagem_Control.zip",
-  "notes": "Tamanho de fonte controlado por controle deslizante, cores dinamicas de contorno e importacao simplificada."
+  "version": "1.0.2",
+  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v1.0.2/A_Mensagem_Control.zip",
+  "notes": "Divisao inteligente de paragrafos longos, exclusao de mensagens da biblioteca e controle de exibicao de numero de paragrafo."
 }
