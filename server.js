@@ -254,7 +254,7 @@ wss.on('connection', (ws) => {
 });
 
 // Quebra texto de parágrafo longo em partes inteligentes com base em pontuação
-function splitParagraphText(text, maxChars = 280) {
+function splitParagraphText(text, maxChars = 150) {
   text = (text || '').trim();
   if (!text || text.length <= maxChars) return [text];
 
@@ -268,7 +268,7 @@ function splitParagraphText(text, maxChars = 280) {
     }
 
     // Procura o ponto ideal de quebra até maxChars + margem
-    let sliceTarget = remaining.substring(0, maxChars + 30);
+    let sliceTarget = remaining.substring(0, maxChars + 25);
 
     // Prioridade 1: Pontuação forte (. ! ?) seguida de espaço/aspas
     let bestIndex = -1;
@@ -276,7 +276,7 @@ function splitParagraphText(text, maxChars = 280) {
     let match;
     while ((match = sentenceRegex.exec(sliceTarget)) !== null) {
       const idx = match.index + match[0].length;
-      if (idx <= maxChars + 30 && idx >= 80) {
+      if (idx <= maxChars + 25 && idx >= 50) {
         bestIndex = idx;
       }
     }
@@ -286,7 +286,7 @@ function splitParagraphText(text, maxChars = 280) {
       const clauseRegex = /[;:\u2014\-]+[\s"”'’]+/g;
       while ((match = clauseRegex.exec(sliceTarget)) !== null) {
         const idx = match.index + match[0].length;
-        if (idx <= maxChars + 30 && idx >= 80) {
+        if (idx <= maxChars + 25 && idx >= 50) {
           bestIndex = idx;
         }
       }
@@ -297,7 +297,7 @@ function splitParagraphText(text, maxChars = 280) {
       const commaRegex = /[,]+[\s"”'’]+/g;
       while ((match = commaRegex.exec(sliceTarget)) !== null) {
         const idx = match.index + match[0].length;
-        if (idx <= maxChars + 30 && idx >= 70) {
+        if (idx <= maxChars + 25 && idx >= 45) {
           bestIndex = idx;
         }
       }
@@ -306,7 +306,7 @@ function splitParagraphText(text, maxChars = 280) {
     // Prioridade 4: Espaço entre palavras
     if (bestIndex === -1) {
       const lastSpace = sliceTarget.lastIndexOf(' ', maxChars);
-      if (lastSpace > 40) {
+      if (lastSpace > 30) {
         bestIndex = lastSpace + 1;
       } else {
         bestIndex = maxChars;
@@ -335,7 +335,7 @@ function processSermonParagraphs(paragraphs) {
       return;
     }
 
-    const chunks = splitParagraphText(p.text, 280);
+    const chunks = splitParagraphText(p.text, 150);
     if (chunks.length <= 1) {
       result.push({
         number: p.number,
@@ -657,7 +657,7 @@ function createDesktopShortcut() {
 
 
 // --- AUTOPUPDATER BACKEND IMPLEMENTATION ---
-const CURRENT_VERSION = '1.0.2';
+const CURRENT_VERSION = '1.0.3';
 const UPDATE_JSON_URL = 'https://raw.githubusercontent.com/danielpvn/a-mensagem-control/main/update.json';
 
 function downloadFile(url, destPath) {

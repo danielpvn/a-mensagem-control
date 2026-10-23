@@ -1,5 +1,5 @@
 {
-  "version": "1.0.2",
-  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v1.0.2/A_Mensagem_Control.zip",
-  "notes": "Divisao inteligente de paragrafos longos, exclusao de mensagens da biblioteca e controle de exibicao de numero de paragrafo."
+  "version": "1.0.3",
+  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v1.0.3/A_Mensagem_Control.zip",
+  "notes": "Reducao da altura da caixa do overlay: limite de 2 a 3 linhas por bloco, padding vertical mais compacto e margem rebaixada."
 }
