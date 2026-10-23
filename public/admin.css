@@ -99,6 +99,18 @@ body {
   margin-top: -2px;
 }
 
+.version-tag {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  padding: 1px 7px;
+  border-radius: 4px;
+  text-transform: none;
+}
+
 .status-badge {
   font-size: 0.8rem;
   padding: 6px 12px;

@@ -759,6 +759,11 @@ async function checkUpdates() {
     const res = await fetch('/api/check-update');
     const data = await res.json();
     
+    if (data.currentVersion) {
+      const badge = document.getElementById('app-version-badge');
+      if (badge) badge.textContent = `v${data.currentVersion}`;
+    }
+
     if (data.updateAvailable) {
       const banner = document.getElementById('update-banner');
       const versionText = document.getElementById('update-version-text');
