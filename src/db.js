@@ -209,6 +209,8 @@ function migrateLegacyJson() {
 migrateLegacyJson();
 
 module.exports = {
+  connection: db,
+  transaction,
   DATA_DIR,
   listSermons,
   getSermon,

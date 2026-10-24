@@ -1,19 +1,73 @@
 // Ponto de entrada do painel do operador.
-import { $, setupTabs } from './ui.js';
+import { $, setupTabs, selectTab, getActiveTab, isModalOpen } from './ui.js';
 import * as ws from './ws.js';
-import { setupMessage } from './message.js';
+import { setupLive } from './live.js';
+import { setupMessage, messageControls } from './message.js';
+import { setupHymns, hymnControls } from './hymns.js';
 import { setupAppearance } from './appearance.js';
+import { setupHymnAppearance } from './hymn-appearance.js';
 import { setupConfig } from './config.js';
 
-// Prévia: o overlay real do OBS dentro de um iframe, reduzido para caber no painel
-function setupStage() {
-  const stage = $('stage');
-  const frame = $('stage-frame');
-  const fit = () => {
-    frame.style.transform = `scale(${stage.clientWidth / 1920})`;
+// Prévias: o overlay real do OBS dentro de um iframe, reduzido para caber no painel
+function setupStages() {
+  document.querySelectorAll('[data-stage]').forEach(stage => {
+    const frame = stage.querySelector('iframe');
+    const fit = () => {
+      frame.style.transform = `scale(${stage.clientWidth / 1920})`;
+    };
+    new ResizeObserver(fit).observe(stage);
+    fit();
+  });
+}
+
+// Teclado e passador: comandam a aba aberta (Mensagem ou Hinos);
+// nas outras abas, comandam o que foi para o ar por último
+function setupKeyboard() {
+  const controlsForTab = () => {
+    const tab = getActiveTab();
+    if (tab === 'hinos') return hymnControls;
+    if (tab === 'mensagem') return messageControls;
+    return null;
   };
-  new ResizeObserver(fit).observe(stage);
-  fit();
+
+  window.addEventListener('keydown', (e) => {
+    if (isModalOpen()) return;
+    const tag = e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+      if (e.key === 'Escape') e.target.blur();
+      return;
+    }
+
+    const controls = controlsForTab();
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'PageDown':
+      case ' ':
+        e.preventDefault();
+        if (controls) controls.next();
+        else ws.send('next');
+        break;
+      case 'ArrowLeft':
+      case 'PageUp':
+        e.preventDefault();
+        if (controls) controls.prev();
+        else ws.send('prev');
+        break;
+      case 'Escape':
+      case '.':
+      case 'b':
+      case 'B':
+        e.preventDefault();
+        if (controls) controls.toggle();
+        else ws.send('toggle-clear');
+        break;
+      case 'Enter':
+        if (tag === 'BUTTON' || !controls) return;
+        e.preventDefault();
+        controls.focusSearch();
+        break;
+    }
+  });
 }
 
 ws.onConnectionChange((connected) => {
@@ -23,9 +77,13 @@ ws.onConnectionChange((connected) => {
   document.body.classList.toggle('offline', !connected);
 });
 
-setupTabs();
-setupStage();
+setupStages();
+setupLive(selectTab);
 setupMessage();
+setupHymns();
 setupAppearance();
+setupHymnAppearance();
 setupConfig();
+setupKeyboard();
+setupTabs();
 ws.connect();

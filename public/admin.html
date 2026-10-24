@@ -6,7 +6,7 @@
   <title>A Mensagem Control - Painel do Operador</title>
   <link rel="icon" type="image/png" href="assets/favicon.png">
   <link rel="stylesheet" href="fonts.css">
-  <link rel="stylesheet" href="admin.css?v=1.1.0">
+  <link rel="stylesheet" href="admin.css?v=1.2.0">
 </head>
 <body>
   <div class="app">
@@ -27,7 +27,7 @@
         </button>
         <button class="tab" role="tab" data-tab="hinos">
           <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-          Hinos <span class="soon">em breve</span>
+          Hinos
         </button>
         <button class="tab" role="tab" data-tab="biblia">
           <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
@@ -91,11 +91,11 @@
             <div class="card monitor-card">
               <div class="card-head">
                 <h3>Prévia do OBS</h3>
-                <span id="monitor-badge" class="badge badge-off">Tela limpa</span>
+                <span class="badge badge-off" data-monitor-badge>Tela limpa</span>
               </div>
               <div class="monitor-body">
-                <div id="stage" class="stage">
-                  <iframe id="stage-frame" src="overlay.html" title="Prévia do overlay" tabindex="-1"></iframe>
+                <div class="stage" data-stage>
+                  <iframe src="overlay.html" title="Prévia do overlay" tabindex="-1"></iframe>
                 </div>
                 <div class="next-preview">
                   <span id="next-label" class="next-label">Próximo</span>
@@ -222,11 +222,159 @@
 
       <!-- ============ ABAS FUTURAS ============ -->
       <section class="panel" data-panel="hinos">
-        <div class="coming-soon card">
-          <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-          <h2>Hinos</h2>
-          <p>Encontre o hino digitando <strong>qualquer trecho da letra</strong> que o obreiro começou a cantar e passe estrofe por estrofe, com o coro entrando automaticamente.</p>
-          <span class="badge badge-soft">Próxima fase</span>
+        <div class="workspace">
+          <!-- Busca de hinos -->
+          <aside class="card library hymn-library">
+            <div class="card-head">
+              <h2>Hinos</h2>
+              <div class="head-actions">
+                <button id="btn-hymn-import" class="btn btn-secondary btn-sm" title="Importar vários hinos de arquivos .txt">Importar</button>
+                <button id="btn-hymn-new" class="btn btn-primary btn-sm">
+                  <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                  Novo
+                </button>
+              </div>
+            </div>
+            <label class="search search-lg">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="search" id="hymn-search" placeholder="Digite o que estão cantando, o número ou o título..." autocomplete="off" spellcheck="false">
+            </label>
+            <p id="hymn-search-hint" class="muted small">Ex.: <em>"quando a aurora"</em>. <kbd>↑</kbd> <kbd>↓</kbd> escolhem e <kbd>Enter</kbd> deixa pronto.</p>
+            <div id="hymn-results" class="sermon-list hymn-results" role="listbox" aria-label="Hinos">
+              <div class="empty">Carregando hinos...</div>
+            </div>
+          </aside>
+
+          <!-- Centro: prévia + estrofes -->
+          <section class="center">
+            <div class="card monitor-card">
+              <div class="card-head">
+                <h3>Prévia do OBS</h3>
+                <span class="badge badge-off" data-monitor-badge>Tela limpa</span>
+              </div>
+              <div class="monitor-body">
+                <div class="stage" data-stage>
+                  <iframe src="overlay.html" title="Prévia do overlay" tabindex="-1"></iframe>
+                </div>
+                <div class="next-preview">
+                  <span id="hymn-next-label" class="next-label">Próximo</span>
+                  <p id="hymn-next-text">—</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="card reader">
+              <div class="reader-head">
+                <div class="reader-title-wrap">
+                  <h2 id="hymn-title">Nenhum hino aberto</h2>
+                  <p id="hymn-meta" class="muted">Busque um hino pelo trecho da letra.</p>
+                </div>
+                <div class="head-actions">
+                  <button id="btn-hymn-edit" class="btn btn-secondary btn-sm" hidden>
+                    <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+                    Editar
+                  </button>
+                  <button id="btn-hymn-delete" class="btn btn-ghost-danger btn-sm" hidden title="Excluir este hino">
+                    <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <div id="hymn-slides" class="hymn-slides">
+                <div class="empty">As estrofes do hino aparecem aqui.</div>
+              </div>
+
+              <div class="transport">
+                <button id="btn-hymn-prev" class="btn btn-transport" disabled title="Tela anterior (← ou PageUp)">
+                  <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+                  <span>Anterior</span>
+                </button>
+                <button id="btn-hymn-toggle" class="btn btn-transport btn-toggle" disabled title="Exibir/ocultar (Esc ou B)">
+                  <span id="btn-hymn-toggle-label">Exibir</span>
+                </button>
+                <button id="btn-hymn-next" class="btn btn-transport btn-primary" disabled title="Próxima tela (Espaço, → ou PageDown)">
+                  <span>Próximo</span>
+                  <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+              </div>
+              <p class="hint"><kbd>Enter</kbd> buscar · <kbd>Espaço</kbd> <kbd>→</kbd> próxima · <kbd>←</kbd> anterior · <kbd>Esc</kbd> <kbd>B</kbd> exibir/ocultar</p>
+            </div>
+          </section>
+
+          <!-- Aparência dos hinos -->
+          <aside class="card appearance" id="hymn-appearance">
+            <div class="card-head">
+              <h2>Aparência</h2>
+              <button id="btn-hymn-reset-styles" class="btn btn-text btn-sm">Restaurar padrão</button>
+            </div>
+
+            <fieldset>
+              <legend>Temas prontos</legend>
+              <div class="theme-grid" id="hymn-themes"></div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Formato</legend>
+              <div class="segmented" role="radiogroup" aria-label="Formato">
+                <label><input type="radio" name="hymn-layout" value="fullscreen" checked><span>Tela cheia</span></label>
+                <label><input type="radio" name="hymn-layout" value="lower-third"><span>Faixa embaixo</span></label>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="hymn-lines">Linhas por tela</label><output id="hymn-lines-val">4</output></div>
+                <input type="range" id="hymn-lines" min="1" max="8" step="1" value="4">
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Texto</legend>
+              <div class="field">
+                <label for="hymn-font">Fonte</label>
+                <select id="hymn-font">
+                  <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
+                  <option value="Outfit, sans-serif">Outfit (moderna)</option>
+                  <option value="'Lora', serif">Lora (elegante, com serifa)</option>
+                  <option value="'Playfair Display', serif">Playfair Display (tradicional)</option>
+                  <option value="Arial, sans-serif">Arial (clássica)</option>
+                </select>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="hymn-size">Tamanho da letra</label><output id="hymn-size-val">4.2</output></div>
+                <input type="range" id="hymn-size" min="2" max="7" step="0.1" value="4.2">
+              </div>
+              <div class="field">
+                <label for="hymn-animation">Transição entre estrofes</label>
+                <select id="hymn-animation">
+                  <option value="fade">Esvanecer rápido</option>
+                  <option value="fade-slow">Esvanecer lento</option>
+                  <option value="slide-up">Deslizar para cima</option>
+                  <option value="zoom-in">Zoom suave</option>
+                  <option value="blur">Desfoque</option>
+                </select>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Cores</legend>
+              <div class="color-grid">
+                <label class="color-field"><input type="color" id="hymn-text-color" value="#ffffff"><span>Letra</span></label>
+                <label class="color-field"><input type="color" id="hymn-accent-color" value="#93c5fd"><span>Destaque</span></label>
+                <label class="color-field"><input type="color" id="hymn-bg-color" value="#050814"><span>Fundo</span></label>
+                <label class="color-field"><input type="color" id="hymn-outline-color" value="#000000"><span>Contorno</span></label>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="hymn-bg-opacity">Opacidade do fundo</label><output id="hymn-opacity-val">90%</output></div>
+                <input type="range" id="hymn-bg-opacity" min="0" max="100" value="90">
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Mostrar</legend>
+              <label class="switch"><input type="checkbox" id="hymn-show-title" checked><span class="switch-ui"></span>Número e título do hino</label>
+              <label class="switch"><input type="checkbox" id="hymn-show-label" checked><span class="switch-ui"></span>Nome da estrofe (tela cheia)</label>
+              <label class="switch"><input type="checkbox" id="hymn-uppercase"><span class="switch-ui"></span>Letras maiúsculas</label>
+              <label class="switch"><input type="checkbox" id="hymn-outline"><span class="switch-ui"></span>Contorno nas letras</label>
+            </fieldset>
+          </aside>
         </div>
       </section>
       <section class="panel" data-panel="biblia">
@@ -320,6 +468,70 @@
     </form>
   </div>
 
+  <!-- Editor de hino -->
+  <div id="hymn-modal" class="modal" hidden>
+    <form id="hymn-form" class="modal-card card modal-wide">
+      <div class="card-head">
+        <h2 id="hymn-form-title">Novo hino</h2>
+        <button type="button" class="btn-x" data-close>&times;</button>
+      </div>
+      <div class="field-grid field-grid-3">
+        <div class="field">
+          <label for="hymn-form-number">Número</label>
+          <input type="text" id="hymn-form-number" placeholder="Ex: 12" inputmode="numeric">
+        </div>
+        <div class="field span-2">
+          <label for="hymn-form-name">Título</label>
+          <input type="text" id="hymn-form-name" placeholder="Ex: Lá no Alto da Colina" required>
+        </div>
+      </div>
+      <div class="field-grid">
+        <div class="field">
+          <label for="hymn-form-collection">Hinário / coletânea (opcional)</label>
+          <input type="text" id="hymn-form-collection" placeholder="Ex: Hinos da Igreja">
+        </div>
+        <label class="switch switch-field"><input type="checkbox" id="hymn-form-autochorus" checked><span class="switch-ui"></span>Repetir o coro depois de cada estrofe</label>
+      </div>
+      <div class="editor-split">
+        <div class="field grow">
+          <label for="hymn-form-lyrics">Letra</label>
+          <textarea id="hymn-form-lyrics" spellcheck="false" placeholder="1. Primeira linha da estrofe&#10;segunda linha&#10;&#10;Coro:&#10;Linha do coro&#10;&#10;2. Segunda estrofe..." required></textarea>
+          <p class="muted small">Separe as estrofes com uma <strong>linha em branco</strong>. Escreva <strong>Coro:</strong> antes do coro (escreva só uma vez).</p>
+        </div>
+        <div class="field grow">
+          <label>Como vai ficar</label>
+          <div id="hymn-form-preview" class="editor-preview"><div class="empty">A sequência aparece aqui enquanto você digita.</div></div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar hino</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Importação de hinos -->
+  <div id="hymn-import-modal" class="modal" hidden>
+    <div class="modal-card card">
+      <div class="card-head">
+        <h2>Importar hinos</h2>
+        <button type="button" class="btn-x" data-close>&times;</button>
+      </div>
+      <p class="muted">Escolha arquivos <strong>.txt</strong> (um hino por arquivo). A primeira linha é o título, podendo começar com o número (ex: <em>"12 - Lá no Alto da Colina"</em>); o resto é a letra.</p>
+      <label class="dropzone" id="hymn-dropzone">
+        <input type="file" id="hymn-files" accept=".txt,.json" multiple>
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>
+        <strong>Clique para escolher</strong>
+        <span class="muted small">ou arraste os arquivos para cá</span>
+      </label>
+      <div id="hymn-import-summary" class="import-summary" hidden></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" data-close>Cancelar</button>
+        <button type="button" id="btn-hymn-import-confirm" class="btn btn-primary" disabled>Importar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Confirmação genérica -->
   <div id="confirm-modal" class="modal" hidden>
     <div class="modal-card card modal-small" role="alertdialog" aria-labelledby="confirm-title">
@@ -343,6 +555,6 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script type="module" src="js/admin/main.js?v=1.1.0"></script>
+  <script type="module" src="js/admin/main.js?v=1.2.0"></script>
 </body>
 </html>

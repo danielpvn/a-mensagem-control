@@ -59,11 +59,11 @@ app.whenReady().then(() => {
 
   // Registra atalhos globais para controle (Logitech R400 ou teclado) mesmo com o app minimizado
   globalShortcut.register('PageDown', () => {
-    server.nextParagraph();
+    server.next();
   });
 
   globalShortcut.register('PageUp', () => {
-    server.prevParagraph();
+    server.prev();
   });
 
   app.on('activate', () => {
