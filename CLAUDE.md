@@ -13,13 +13,20 @@
 ---
 
 ## 2. Visão Geral do Sistema
-- **Objetivo:** Software desktop para transmissão de culto e projeção de sermões do pregador William Marrion Branham.
+- **Objetivo:** Software desktop para transmissão de culto e projeção de sermões do pregador William Marrion Branham (e, nas próximas fases, hinos, Bíblia ACF, mídias e lower third do pregador).
 - **Arquitetura:**
-  - **Desktop:** Electron `v31.x` (`main.js`).
-  - **Servidor Integrado:** Node.js + Express + WebSocket nativo `ws` na porta `3000` (`server.js`).
-  - **Painel do Operador:** `http://localhost:3000/admin.html` (`public/admin.js`, `public/admin.css`).
+  - **Desktop:** Electron `v44.x` (`main.js`), Node 24 embutido.
+  - **Servidor Integrado:** Node.js + Express + WebSocket nativo `ws` na porta `3000` (`server.js` + módulos em `src/`).
+  - **Banco local:** SQLite nativo do Node (`node:sqlite`, sem módulo para compilar) em `Documentos/A Mensagem Control/data/amc.db` (`src/db.js`). Os JSON antigos de `data/sermons/` são importados uma única vez e ficam como backup.
+  - **Painel do Operador:** `http://localhost:3000/admin.html` (`public/admin.css` + módulos ES em `public/js/admin/`).
   - **Overlay OBS / Telão:** `http://localhost:3000/overlay.html` (`public/overlay.js`, `public/overlay.css`).
-  - **Banco de Sermões:** Arquivos JSON locais salvos em `data/sermons/`.
+  - **Fontes:** servidas localmente via `@fontsource` (`public/fonts.css`), funcionam sem internet.
+- **Testes sem tocar nos dados reais:** `AMC_DATA_DIR=<pasta>` e `PORT=<porta>` (com `AMC_DATA_DIR` o app também não mexe no atalho da Área de Trabalho).
+
+## 2.1 Branches
+- `main`: só o que foi lançado. O atualizador das igrejas lê o `update.json` da `main`, então nada fora dela chega ao pessoal.
+- `dev`: integração e testes. Cada fase sai da `dev` (`fase-0`, `fase-1`, ...) e volta para ela quando aprovada.
+- Release: juntar `dev` na `main`, atualizar versão/`update.json` e seguir o fluxo da seção 4.
 
 ---
 
@@ -43,9 +50,9 @@ Quando o usuário pedir para lançar ou atualizar uma versão (ex: `vX.Y.Z`):
 3. Em `update.json`: atualizar `"version": "X.Y.Z"`, a URL do ZIP para a nova tag `vX.Y.Z`, e as notas da versão.
 
 ### Passo 2: Compilar e Gerar o Executável
-Execute exatamente este comando no terminal (o `--ignore=dist` é obrigatório para não duplicar builds antigos e manter o ZIP em ~125MB):
+Execute exatamente este comando no terminal (os `--ignore` são obrigatórios: `dist` evita duplicar builds antigos e `AMensagemControl.exe` é um executável antigo de ~40MB que não deve ir no ZIP; com Electron 44 o ZIP fica em ~160MB):
 ```powershell
-cmd /c npx electron-packager . "A Mensagem Control" --platform=win32 --arch=x64 --icon=build/icon.ico --overwrite --out=dist --ignore=dist
+cmd /c npx electron-packager . "A Mensagem Control" --platform=win32 --arch=x64 --icon=build/icon.ico --overwrite --out=dist --ignore=dist --ignore=scratch --ignore=AMensagemControl\.exe
 ```
 
 ### Passo 3: Compactar o Pacote ZIP
@@ -75,14 +82,14 @@ Forneça sempre o link direto pronto para o usuário:
 
 ## 5. Estrutura de Arquivos e Funções Principais
 
-- `main.js`: Inicialização do Electron, registro de atalhos globais (`PageDown`, `PageUp`) para passadores Logitech R400.
-- `server.js`:
-  - `splitParagraphText(text, maxChars = 150)`: Divide parágrafos longos em frases nas pontuações.
-  - `processSermonParagraphs(paragraphs)`: Pagina em `Parágrafo X (1/Y)`.
-  - `GET /api/check-update` e `POST /api/trigger-update`: Motor do atualizador automático de 1 clique.
-  - `DELETE /api/sermons/:id`: Exclui sermões da biblioteca.
-- `public/admin.js`:
-  - Sliders de fonte: `styleSizeSlider` (`1.8rem` a `4.5rem`) e `styleTitleSizeSlider` (`0.8rem` a `2.5rem`).
-  - Cor do contorno: `styleOutlineColor` com envio em tempo real.
-  - Checkboxes independentes: `styleShowTitle` e `styleShowParagraphNumber`.
-  - Preview escalonado proporcionalmente com fator `0.38`.
+- `main.js`: Inicialização do Electron (instância única), atalhos globais (`PageDown`, `PageUp`) para passadores Logitech R400.
+- `server.js`: estado ao vivo (`globalState`), protocolo WebSocket e rotas REST.
+  - Mensagens WS do painel: `select-sermon`, `show-paragraph`, `arm-paragraph`, `next`, `prev`, `toggle-clear`, `clear-screen`, `update-styles`, `reset-styles`. O servidor responde com `update-content` / `update-style` para todos (painel, celular e OBS).
+  - "Armado" (`armed`): parágrafo posicionado e oculto; o próximo `next` exibe ele. Usado no "continuar de onde parou".
+  - Rotas: `/api/info`, `/api/sermons` (GET/DELETE), `/api/import`, `/api/check-update`, `/api/trigger-update`.
+- `src/db.js`: SQLite (sermões, parágrafos, `settings` com os estilos, `reading_progress` com onde a leitura parou).
+- `src/sermon-text.js`: `splitParagraphText(text, maxChars = 150)`, `processSermonParagraphs` (`Parágrafo X (1/Y)`), `parseRawSermonText`.
+- `src/updater.js`: atualizador de 1 clique. A URL do ZIP é sempre lida do `update.json` oficial e precisa começar com `https://github.com/danielpvn/a-mensagem-control/releases/download/` (nunca aceitar URL vinda do navegador).
+- `src/shortcut.js`: atalho na Área de Trabalho.
+- `public/js/admin/`: `main.js` (entrada), `ws.js`, `ui.js` (toasts, confirmação, abas), `message.js` (aba Mensagem), `appearance.js` (estilos), `config.js` (aba Configurações).
+  - A prévia do painel é o próprio `overlay.html` dentro de um iframe escalado (1920x1080), então é fiel ao OBS.

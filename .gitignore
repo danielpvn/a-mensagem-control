@@ -8,3 +8,6 @@ data/favicon.ico
 .gemini/
 .system_generated/
 package-lock.json
+data/*.db
+data/*.db-wal
+data/*.db-shm

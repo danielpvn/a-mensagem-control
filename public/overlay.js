@@ -96,8 +96,8 @@ function updateContent(useTransition = true) {
     }
     
     setTimeout(() => {
-      overlayTitle.innerHTML = titleStr;
-      overlayText.innerHTML = currentParagraphText;
+      overlayTitle.textContent = titleStr;
+      overlayText.textContent = currentParagraphText;
       
       if (titleStr) {
         overlayTitle.style.display = 'block';
@@ -109,8 +109,8 @@ function updateContent(useTransition = true) {
     }, transitionTimeout);
   } else {
     // Immediate update
-    overlayTitle.innerHTML = titleStr;
-    overlayText.innerHTML = currentParagraphText;
+    overlayTitle.textContent = titleStr;
+    overlayText.textContent = currentParagraphText;
     
     if (titleStr) {
       overlayTitle.style.display = 'block';
