@@ -90,7 +90,12 @@ Forneça sempre o link direto pronto para o usuário:
   - Rotas: `/api/info`, `/api/sermons` (GET/DELETE), `/api/import`, `/api/hymns` (GET/POST), `/api/hymns/search?q=`, `/api/hymns/:id` (GET/PUT/DELETE), `/api/hymns/import`, `/api/check-update`, `/api/trigger-update`.
 - `src/db.js`: SQLite (sermões, parágrafos, `settings` com os estilos, `reading_progress` com onde a leitura parou).
 - `src/hymns.js`: hinos no SQLite e busca por trecho da letra em memória (sem acento, palavra pela metade, erro de digitação, frase que atravessa duas linhas).
-- `public/js/shared/hymn-text.js`: módulo ES usado pelo servidor (via `require`) e pelo painel/overlay: `parseLyrics` (blocos separados por linha em branco, `Coro:` marca o coro), `buildSequence` (coro automático depois de cada estrofe), `buildSlides` (divide em telas de N linhas), `slideName`.
+- `public/js/shared/hymn-text.js`: módulo ES usado pelo servidor (via `require`) e pelo painel/overlay. Segue o formato dos arquivos da igreja (`C:	f_slides Hinos`, ~3.270 hinos .txt, uma subpasta por categoria):
+  - **Linha em branco = nova TELA** (não nova estrofe). Linhas com só `*` abrem/fecham o **coro**, que nesses arquivos vem escrito toda vez que se repete (por isso hinos importados têm `autoChorus = false`).
+  - **Estrofe = tudo entre um coro e outro.** Hino sem coro e sem número vira uma parte só ("Tela 1, 2...") e não mostra "Estrofe N" na transmissão.
+  - Também aceita `Coro:` (vale só para aquele bloco) e estrofes numeradas (`2.`, `Estrofe 2`).
+  - `parseLyrics`, `sectionsToLyrics` (inverso, para o editor), `buildSequence` (coro automático), `buildSlides` (cada tela escrita vira uma tela; só divide se passar de N linhas), `slideName` (painel), `screenLabel` (transmissão).
+- Categoria do hino = coluna `collection` (vem do caminho da pasta na importação, ex: `Diversos / SALMOS E HINOS`; o filtro por "Diversos" inclui as subpastas). Números são guardados sem zeros à esquerda ("001" -> "1").
 - `src/sermon-text.js`: `splitParagraphText(text, maxChars = 150)`, `processSermonParagraphs` (`Parágrafo X (1/Y)`), `parseRawSermonText`.
 - `src/updater.js`: atualizador de 1 clique. A URL do ZIP é sempre lida do `update.json` oficial e precisa começar com `https://github.com/danielpvn/a-mensagem-control/releases/download/` (nunca aceitar URL vinda do navegador).
 - `src/shortcut.js`: atalho na Área de Trabalho.

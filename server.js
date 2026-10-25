@@ -53,6 +53,8 @@ const DEFAULT_HYMN_STYLES = {
   bgColor: 'rgba(5, 8, 20, 0.9)',
   uppercase: false,
   showTitle: true,
+  showNumber: true,
+  titleSize: '1.25rem',
   showLabel: true,
   textOutline: false,
   outlineColor: '#000000',
@@ -209,6 +211,7 @@ function setHymnState(hymn, slideIndex = -1) {
     id: hymn ? hymn.id : null,
     number: hymn ? hymn.number : null,
     title: hymn ? hymn.title : '',
+    collection: hymn ? hymn.collection : null,
     slides: hymn ? hymn.slides : [],
     slideIndex,
     isCleared: true,
@@ -285,7 +288,7 @@ function refreshActiveHymn() {
     const same = hymn.slides.findIndex(s => s.seq === old.seq && old.firstLine >= s.firstLine && old.firstLine < s.firstLine + s.lineCount);
     index = same !== -1 ? same : Math.min(index, hymn.slides.length - 1);
   }
-  Object.assign(current, { number: hymn.number, title: hymn.title, slides: hymn.slides, slideIndex: index });
+  Object.assign(current, { number: hymn.number, title: hymn.title, collection: hymn.collection, slides: hymn.slides, slideIndex: index });
   broadcastContent();
 }
 
@@ -505,11 +508,15 @@ app.post('/api/import', (req, res) => {
 // ---------- API de hinos ----------
 
 app.get('/api/hymns', (req, res) => {
-  res.json(hymns.listHymns());
+  res.json(hymns.listHymns(req.query.category || null));
+});
+
+app.get('/api/hymns/categories', (req, res) => {
+  res.json(hymns.listCategories());
 });
 
 app.get('/api/hymns/search', (req, res) => {
-  res.json(hymns.search(req.query.q, Number(req.query.limit) || 12));
+  res.json(hymns.search(req.query.q, Number(req.query.limit) || 12, req.query.category || null));
 });
 
 app.get('/api/hymns/:id', (req, res) => {

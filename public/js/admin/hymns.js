@@ -12,6 +12,9 @@ let searchSeq = 0;
 let searchTimer = null;
 let lastQuery = '';
 let editingId = null;
+let categories = [];      // [{ name, count }] vindas do servidor
+let category = null;      // categoria escolhida nos chips (null = todas)
+try { category = localStorage.getItem('amc.hymnCategory') || null; } catch (e) { /* sem armazenamento */ }
 
 const el = {
   search: $('hymn-search'),
@@ -33,13 +36,70 @@ const hymnName = (h) => (h.number ? `${h.number} · ${h.title}` : h.title);
 
 // ---------- Busca ----------
 
+const categoryParam = () => (category ? `category=${encodeURIComponent(category)}` : '');
+
 async function fetchHymnList() {
   try {
-    hymnList = await (await fetch('/api/hymns')).json();
+    hymnList = await (await fetch(`/api/hymns?${categoryParam()}`)).json();
     if (!el.search.value.trim()) showAll();
   } catch (err) {
     el.results.innerHTML = '<div class="empty">Erro ao carregar os hinos.</div>';
   }
+}
+
+// Seletor com as categorias principais ("Diversos / X" entra em "Diversos")
+async function fetchCategories() {
+  try {
+    categories = await (await fetch('/api/hymns/categories')).json();
+  } catch (err) {
+    categories = [];
+  }
+  const totals = new Map();
+  let total = 0;
+  categories.forEach(c => {
+    total += c.count;
+    if (!c.name) return;
+    const top = c.name.split(' / ')[0];
+    totals.set(top, (totals.get(top) || 0) + c.count);
+  });
+  if (category && !totals.has(category)) category = null;
+
+  const select = $('hymn-category');
+  select.innerHTML = '';
+  $('hymn-category-wrap').hidden = totals.size === 0;
+  const addOption = (value, label) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    select.appendChild(option);
+  };
+  addOption('', `Todas (${total})`);
+  [...totals.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR')).forEach(([name, count]) => addOption(name, `${name} (${count})`));
+  select.value = category || '';
+
+  // Sugestões de categoria no editor
+  const options = $('hymn-category-options');
+  options.innerHTML = '';
+  categories.filter(c => c.name).forEach(c => {
+    const option = document.createElement('option');
+    option.value = c.name;
+    options.appendChild(option);
+  });
+}
+
+function selectCategory(name) {
+  category = name;
+  $('hymn-category').value = name || '';
+  try {
+    if (name) localStorage.setItem('amc.hymnCategory', name);
+    else localStorage.removeItem('amc.hymnCategory');
+  } catch (e) { /* sem armazenamento */ }
+  fetchHymnList().then(() => { if (el.search.value.trim()) runSearch(); });
+  el.search.focus();
+}
+
+function refreshLibrary() {
+  fetchCategories().then(() => fetchHymnList()).then(() => { if (el.search.value.trim()) runSearch(); });
 }
 
 function showAll() {
@@ -56,7 +116,7 @@ async function runSearch() {
   }
   const seq = ++searchSeq;
   try {
-    const data = await (await fetch(`/api/hymns/search?q=${encodeURIComponent(query)}&limit=15`)).json();
+    const data = await (await fetch(`/api/hymns/search?q=${encodeURIComponent(query)}&limit=15&${categoryParam()}`)).json();
     if (seq !== searchSeq) return; // chegou uma busca mais nova
     lastQuery = query;
     results = data;
@@ -83,6 +143,17 @@ function appendHighlighted(container, text, query) {
   });
 }
 
+// Com uma categoria escolhida, oferece buscar nas outras (o obreiro pode puxar hino de outro hinário)
+function appendSearchEverywhere(query) {
+  if (!category || !query) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn btn-text btn-sm search-everywhere';
+  btn.textContent = `Procurar "${query}" em todas as categorias`;
+  btn.onclick = () => selectCategory(null);
+  el.results.appendChild(btn);
+}
+
 function renderResults(query) {
   el.results.innerHTML = '';
 
@@ -100,6 +171,7 @@ function renderResults(query) {
     btn.onclick = () => openEditor(null);
     empty.appendChild(btn);
     el.results.appendChild(empty);
+    appendSearchEverywhere(query);
     return;
   }
 
@@ -118,6 +190,13 @@ function renderResults(query) {
 
     const body = document.createElement('span');
     body.className = 'hymn-item-body';
+    // Com "Todas", mostra de qual categoria é (o mesmo número existe em vários hinários)
+    if (!category && hymn.collection) {
+      const tag = document.createElement('span');
+      tag.className = 'hymn-category';
+      tag.textContent = hymn.collection;
+      body.appendChild(tag);
+    }
     const title = document.createElement('span');
     title.className = 'hymn-item-title';
     appendHighlighted(title, hymn.title, query);
@@ -127,20 +206,16 @@ function renderResults(query) {
       const snippet = document.createElement('span');
       snippet.className = 'hymn-snippet';
       const label = document.createElement('em');
-      label.textContent = hymn.match.kind === 'chorus' ? 'Coro' : `Estrofe ${hymn.match.label}`;
-      snippet.appendChild(label);
+      label.textContent = hymn.match.kind === 'chorus' ? 'Coro' : hymn.match.label ? `Estrofe ${hymn.match.label}` : '';
+      if (label.textContent) snippet.appendChild(label);
       appendHighlighted(snippet, hymn.match.line, query);
       body.appendChild(snippet);
-    } else if (hymn.collection) {
-      const coll = document.createElement('span');
-      coll.className = 'hymn-snippet';
-      coll.textContent = hymn.collection;
-      body.appendChild(coll);
     }
 
     item.append(num, body);
     el.results.appendChild(item);
   });
+  appendSearchEverywhere(query);
 }
 
 function moveFocus(delta) {
@@ -165,7 +240,7 @@ function renderHymn() {
   const key = has ? `${hymn.id}|${hymn.slides.map(s => s.text).join('¦')}` : '';
 
   el.title.textContent = has ? hymnName(hymn) : 'Nenhum hino aberto';
-  el.meta.textContent = has ? `${hymn.slides.length} telas` : 'Busque um hino pelo trecho da letra.';
+  el.meta.textContent = has ? [hymn.collection, `${hymn.slides.length} telas`].filter(Boolean).join(' · ') : 'Busque um hino pelo trecho da letra.';
   el.btnEdit.hidden = !has;
   el.btnDelete.hidden = !has;
 
@@ -260,7 +335,7 @@ function renderEditorPreview() {
     if (i > 0) order.appendChild(document.createTextNode('→'));
     const chip = document.createElement('span');
     chip.className = `seq-chip ${sections[index].kind === 'chorus' ? 'is-chorus' : ''}`;
-    chip.textContent = sections[index].kind === 'chorus' ? 'Coro' : `Estrofe ${sections[index].label}`;
+    chip.textContent = sections[index].kind === 'chorus' ? 'Coro' : sections[index].label ? `Estrofe ${sections[index].label}` : 'Letra';
     order.appendChild(chip);
   });
   preview.appendChild(order);
@@ -270,7 +345,8 @@ function renderEditorPreview() {
     card.className = `slide-card static ${section.kind === 'chorus' ? 'is-chorus' : ''}`;
     const label = document.createElement('span');
     label.className = 'slide-label';
-    label.textContent = section.kind === 'chorus' ? 'Coro' : `Estrofe ${section.label}`;
+    const screens = section.text.split(/\n\s*\n/).length;
+    label.textContent = (section.kind === 'chorus' ? 'Coro' : section.label ? `Estrofe ${section.label}` : 'Letra') + (screens > 1 ? ` · ${screens} telas` : '');
     const text = document.createElement('span');
     text.className = 'slide-text';
     text.textContent = section.text;
@@ -285,6 +361,7 @@ async function openEditor(id) {
   form.reset();
   $('hymn-form-title').textContent = id ? 'Editar hino' : 'Novo hino';
   $('hymn-form-autochorus').checked = true;
+  $('hymn-form-collection').value = category || '';
 
   if (id) {
     try {
@@ -331,8 +408,7 @@ function setupEditor() {
       if (!res.ok) throw new Error(data.error);
       toast(editingId ? 'Hino atualizado.' : 'Hino cadastrado.', 'success');
       close();
-      await fetchHymnList();
-      if (el.search.value.trim()) runSearch();
+      refreshLibrary();
       if (!editingId) ws.send('hymn-select', { id: data.id });
     } catch (err) {
       toast(`Erro ao salvar: ${err.message}`, 'error');
@@ -354,8 +430,7 @@ function setupEditor() {
     const res = await fetch(`/api/hymns/${hymn.id}`, { method: 'DELETE' });
     if (res.ok) {
       toast('Hino excluído.', 'success');
-      await fetchHymnList();
-      if (el.search.value.trim()) runSearch();
+      refreshLibrary();
     } else {
       toast('Erro ao excluir o hino.', 'error');
     }
@@ -364,40 +439,64 @@ function setupEditor() {
 
 // ---------- Importação ----------
 
-// "12 - Título", "12. Título" ou só "Título"
-function splitNumberTitle(line) {
-  const match = line.match(/^\s*(\d{1,4})\s*[-–.:)]\s*(.+)$/);
-  return match ? { number: match[1], title: match[2].trim() } : { number: '', title: line.trim() };
+// Arquivos da igreja são UTF-8; se algum vier do Bloco de Notas antigo (ANSI), lê como Windows-1252
+async function readText(file) {
+  const buffer = await file.arrayBuffer();
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+  } catch (err) {
+    return new TextDecoder('windows-1252').decode(buffer);
+  }
+}
+
+// Nome do arquivo: "012 - VINDE, POVO DO SENHOR", "003" ou "A ESCOLA DOS PROFETAS"
+function parseFileName(name) {
+  const base = name.replace(/\.[^.]+$/, '').trim();
+  let match = base.match(/^(\d{1,4})\s*[-–.:)]\s*(.+)$/);
+  if (match) return { number: String(parseInt(match[1], 10)), title: match[2].trim() };
+  match = base.match(/^(\d{1,4})$/);
+  if (match) return { number: String(parseInt(match[1], 10)), title: '' };
+  return { number: '', title: base };
+}
+
+// Categoria = pastas entre a pasta escolhida e o arquivo ("Harpa Cristã", "Diversos / Salmos e Hinos")
+function categoryFromPath(relativePath) {
+  const parts = String(relativePath || '').split('/').filter(Boolean);
+  return parts.slice(1, -1).join(' / ');
 }
 
 async function readHymnFile(file) {
-  const text = (await file.text()).replace(/^﻿/, '');
+  const text = (await readText(file)).replace(/^﻿/, '');
+
   if (file.name.toLowerCase().endsWith('.json')) {
     const data = JSON.parse(text);
     const list = Array.isArray(data) ? data : data.hymns || [];
     return list.map(h => ({
       number: h.number ?? '',
       title: h.title || '',
-      collection: h.collection || '',
+      collection: h.collection || h.category || '',
+      autoChorus: h.autoChorus !== false,
       lyrics: h.lyrics || (Array.isArray(h.sections) ? h.sections.map(s => s.text).join('\n\n') : '')
     }));
   }
 
-  const lines = text.replace(/\r\n?/g, '\n').split('\n');
-  const firstIndex = lines.findIndex(l => l.trim());
-  if (firstIndex === -1) return [];
-  const fromTitle = splitNumberTitle(lines[firstIndex]);
-  const fromName = splitNumberTitle(file.name.replace(/\.txt$/i, ''));
+  // .txt no formato da pasta tf_slides: o nome do arquivo é número/título e o arquivo inteiro é a letra.
+  // Sem título no nome (ex: "003.txt"), usa a primeira linha da letra.
+  const { number, title } = parseFileName(file.name);
+  const firstLine = (text.split(/\r?\n/).find(line => /[\p{L}\p{N}]/u.test(line) && line.trim() !== '*') || '').trim();
   return [{
-    number: fromTitle.number || fromName.number,
-    title: fromTitle.title || fromName.title,
-    lyrics: lines.slice(firstIndex + 1).join('\n')
+    number,
+    title: title || firstLine.replace(/[,;:.!?]+$/, ''),
+    collection: categoryFromPath(file.webkitRelativePath),
+    autoChorus: false, // nesses arquivos o coro já vem escrito toda vez que se repete
+    lyrics: text
   }];
 }
 
 function setupImport() {
   const modal = $('hymn-import-modal');
-  const input = $('hymn-files');
+  const folderInput = $('hymn-folder');
+  const filesInput = $('hymn-files');
   const summary = $('hymn-import-summary');
   const confirm = $('btn-hymn-import-confirm');
   const dropzone = $('hymn-dropzone');
@@ -405,18 +504,23 @@ function setupImport() {
 
   const close = () => {
     modal.hidden = true;
-    input.value = '';
+    folderInput.value = '';
+    filesInput.value = '';
     pending = [];
     summary.hidden = true;
     confirm.disabled = true;
+    confirm.textContent = 'Importar';
   };
   setupModalClose(modal, close);
   $('btn-hymn-import').onclick = () => { modal.hidden = false; };
 
   const handleFiles = async (files) => {
+    const hymnFiles = files.filter(f => /\.(txt|json)$/i.test(f.name));
+    summary.hidden = false;
+    summary.textContent = `Lendo ${hymnFiles.length} arquivos...`;
     pending = [];
     const problems = [];
-    for (const file of files) {
+    for (const file of hymnFiles) {
       try {
         pending.push(...await readHymnFile(file));
       } catch (err) {
@@ -424,33 +528,38 @@ function setupImport() {
       }
     }
     pending = pending.filter(h => h.title && h.lyrics.trim());
-    summary.hidden = false;
+
+    // Resumo por categoria
+    const byCategory = new Map();
+    pending.forEach(h => byCategory.set(h.collection || 'Sem categoria', (byCategory.get(h.collection || 'Sem categoria') || 0) + 1));
+
     summary.innerHTML = '';
     const head = document.createElement('strong');
     head.textContent = `${pending.length} hinos prontos para importar`;
     summary.appendChild(head);
     const list = document.createElement('ul');
-    pending.slice(0, 8).forEach(h => {
+    [...byCategory.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR')).forEach(([name, count]) => {
       const li = document.createElement('li');
-      li.textContent = h.number ? `${h.number} · ${h.title}` : h.title;
+      li.textContent = `${name}: ${count}`;
       list.appendChild(li);
     });
-    if (pending.length > 8) {
-      const li = document.createElement('li');
-      li.textContent = `e mais ${pending.length - 8}...`;
-      list.appendChild(li);
-    }
     summary.appendChild(list);
+    const note = document.createElement('p');
+    note.className = 'muted small';
+    note.textContent = 'Hinos que já existem (mesmo número, título e categoria) são pulados.';
+    summary.appendChild(note);
     if (problems.length) {
       const warn = document.createElement('p');
       warn.className = 'muted small';
-      warn.textContent = `Não consegui ler: ${problems.join(', ')}`;
+      warn.textContent = `Não consegui ler: ${problems.slice(0, 5).join(', ')}${problems.length > 5 ? '...' : ''}`;
       summary.appendChild(warn);
     }
     confirm.disabled = pending.length === 0;
+    confirm.textContent = pending.length ? `Importar ${pending.length} hinos` : 'Importar';
   };
 
-  input.onchange = () => handleFiles([...input.files]);
+  folderInput.onchange = () => handleFiles([...folderInput.files]);
+  filesInput.onchange = () => handleFiles([...filesInput.files]);
   dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragging'); });
   dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragging'));
   dropzone.addEventListener('drop', (e) => {
@@ -461,6 +570,7 @@ function setupImport() {
 
   confirm.onclick = async () => {
     confirm.disabled = true;
+    confirm.textContent = 'Importando...';
     try {
       const res = await fetch('/api/hymns/import', {
         method: 'POST',
@@ -474,10 +584,11 @@ function setupImport() {
       toast(message + '.', 'success');
       if (data.errors.length) toast(`${data.errors.length} com problema: ${data.errors[0]}`, 'error');
       close();
-      fetchHymnList();
+      refreshLibrary();
     } catch (err) {
       toast(`Erro na importação: ${err.message}`, 'error');
       confirm.disabled = false;
+      confirm.textContent = 'Tentar de novo';
     }
   };
 }
@@ -494,6 +605,8 @@ export const hymnControls = {
 export function setupHymns() {
   ws.on('init', onServerState);
   ws.on('update-content', onServerState);
+
+  $('hymn-category').onchange = (e) => selectCategory(e.target.value || null);
 
   el.search.oninput = () => {
     clearTimeout(searchTimer);
@@ -519,5 +632,5 @@ export function setupHymns() {
 
   setupEditor();
   setupImport();
-  fetchHymnList();
+  refreshLibrary();
 }

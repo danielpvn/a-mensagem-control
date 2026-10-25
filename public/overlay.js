@@ -1,5 +1,5 @@
 // Overlay do OBS / Telão: camada da Mensagem (caixa no rodapé) e camada dos Hinos.
-import { slideName } from './js/shared/hymn-text.js';
+import { screenLabel } from './js/shared/hymn-text.js';
 
 const wsUrl = `ws://${window.location.host}`;
 const reconnectInterval = 3000;
@@ -130,11 +130,16 @@ function fitHymnText() {
 }
 
 function renderHymnSlide(slide) {
-  const showTitle = hymnStyles.showTitle !== false && hymn.title;
-  hymnTitle.textContent = showTitle ? (hymn.number ? `${hymn.number} · ${hymn.title}` : hymn.title) : '';
-  hymnTitle.style.display = showTitle ? 'block' : 'none';
-  hymnLabel.textContent = hymnStyles.showLabel !== false ? slideName(slide) : '';
-  hymnLabel.style.display = hymnStyles.showLabel !== false ? 'block' : 'none';
+  const showTitle = hymnStyles.showTitle !== false && !!hymn.title;
+  const showNumber = hymnStyles.showNumber !== false && hymn.number;
+  hymnTitle.textContent = showTitle ? (showNumber ? `${hymn.number} · ${hymn.title}` : hymn.title) : '';
+  // Na tela cheia o título só fica invisível (a letra não pula de lugar); na faixa ele sai de vez
+  const lower = hymnStyles.layout === 'lower-third';
+  hymnTitle.style.visibility = showTitle ? 'visible' : 'hidden';
+  hymnTitle.style.display = !showTitle && lower ? 'none' : '';
+  const label = hymnStyles.showLabel !== false ? screenLabel(slide) : '';
+  hymnLabel.textContent = label;
+  hymnLabel.style.visibility = label ? 'visible' : 'hidden';
   hymnText.textContent = slide.text;
   fitHymnText();
 }
@@ -179,6 +184,8 @@ function applyHymnStyles() {
   hymnText.style.color = hymnStyles.textColor;
   hymnText.style.textTransform = hymnStyles.uppercase ? 'uppercase' : 'none';
   hymnTitle.style.color = hymnStyles.accentColor;
+  hymnTitle.style.fontSize = hymnStyles.titleSize || '1.25rem';
+  hymnLabel.style.fontSize = hymnStyles.titleSize || '1.25rem';
   hymnLabel.style.color = hymnStyles.accentColor;
   hymnBox.style.borderColor = hymnStyles.accentColor;
 

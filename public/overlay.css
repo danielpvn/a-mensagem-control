@@ -169,7 +169,6 @@ body, html {
   backdrop-filter: blur(12px);
   gap: 4px;
 }
-.layout-lower .hymn-title, .layout-lower .hymn-label { font-size: 0.95rem; }
 .layout-lower .hymn-label { display: none !important; }
 
 /* --- Transitions & Animations --- */

@@ -30,6 +30,7 @@ const input = {
   lines: $('hymn-lines'),
   font: $('hymn-font'),
   size: $('hymn-size'),
+  titleSize: $('hymn-title-size'),
   animation: $('hymn-animation'),
   textColor: $('hymn-text-color'),
   accentColor: $('hymn-accent-color'),
@@ -37,6 +38,7 @@ const input = {
   bgOpacity: $('hymn-bg-opacity'),
   outlineColor: $('hymn-outline-color'),
   showTitle: $('hymn-show-title'),
+  showNumber: $('hymn-show-number'),
   showLabel: $('hymn-show-label'),
   uppercase: $('hymn-uppercase'),
   outline: $('hymn-outline')
@@ -62,6 +64,8 @@ function parseRgba(rgbaStr) {
 function updateLabels() {
   $('hymn-lines-val').textContent = input.lines.value;
   $('hymn-size-val').textContent = input.size.value;
+  $('hymn-title-size-val').textContent = input.titleSize.value;
+  input.showNumber.closest('.switch').classList.toggle('disabled', !input.showTitle.checked);
   $('hymn-opacity-val').textContent = `${input.bgOpacity.value}%`;
   input.outlineColor.closest('.color-field').classList.toggle('disabled', !input.outline.checked);
 }
@@ -72,12 +76,14 @@ function gatherStyles() {
     linesPerSlide: Number(input.lines.value),
     fontFamily: input.font.value,
     fontSize: `${input.size.value}rem`,
+    titleSize: `${input.titleSize.value}rem`,
     animationType: input.animation.value,
     textColor: input.textColor.value,
     accentColor: input.accentColor.value,
     bgColor: hexToRgba(input.bgColor.value, Number(input.bgOpacity.value) / 100),
     outlineColor: input.outlineColor.value,
     showTitle: input.showTitle.checked,
+    showNumber: input.showNumber.checked,
     showLabel: input.showLabel.checked,
     uppercase: input.uppercase.checked,
     textOutline: input.outline.checked
@@ -90,6 +96,7 @@ function fillInputs(styles) {
   input.lines.value = styles.linesPerSlide || 4;
   input.font.value = styles.fontFamily || 'Montserrat, sans-serif';
   input.size.value = parseFloat(styles.fontSize) || 4.2;
+  input.titleSize.value = parseFloat(styles.titleSize) || 1.25;
   input.animation.value = styles.animationType || 'fade';
   input.textColor.value = styles.textColor || '#ffffff';
   input.accentColor.value = styles.accentColor || '#93c5fd';
@@ -98,6 +105,7 @@ function fillInputs(styles) {
   input.bgColor.value = hex;
   input.bgOpacity.value = opacity;
   input.showTitle.checked = styles.showTitle !== false;
+  input.showNumber.checked = styles.showNumber !== false;
   input.showLabel.checked = styles.showLabel !== false;
   input.uppercase.checked = styles.uppercase === true;
   input.outline.checked = styles.textOutline === true;

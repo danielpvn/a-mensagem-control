@@ -329,6 +329,7 @@ fieldset > legend + * { clear: both; }
 }
 .switch input:checked + .switch-ui { background: var(--accent-strong); }
 .switch input:checked + .switch-ui::after { transform: translateX(16px); }
+.switch.disabled { opacity: 0.4; }
 .switch input:focus-visible + .switch-ui { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ---------- Painéis / abas ---------- */
@@ -759,6 +760,16 @@ fieldset > legend + * { clear: both; }
 }
 .theme-chip:hover { border-color: var(--accent); color: var(--text); }
 .theme-swatch { width: 30px; height: 22px; border-radius: 4px; display: grid; place-items: center; font-weight: 700; font-size: 0.72rem; border: 1px solid var(--border-strong); flex-shrink: 0; }
+
+/* Categorias */
+.search-everywhere { align-self: center; margin: 6px 0; flex-shrink: 0; }
+.category-select { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.category-select span { font-size: 0.78rem; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.category-select select { flex: 1; min-width: 0; padding: 7px 10px; font-size: 0.85rem; }
+.hymn-category { display: inline-block; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.3px; color: var(--text-3); text-transform: uppercase; }
+
+.import-options { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; }
+.dropzone-small { padding: 18px; }
 
 /* Editor de hino */
 .modal-wide { max-width: 1040px; }

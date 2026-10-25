@@ -239,6 +239,10 @@
               <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
               <input type="search" id="hymn-search" placeholder="Digite o que estão cantando, o número ou o título..." autocomplete="off" spellcheck="false">
             </label>
+            <label class="category-select" id="hymn-category-wrap" hidden>
+              <span>Categoria</span>
+              <select id="hymn-category"></select>
+            </label>
             <p id="hymn-search-hint" class="muted small">Ex.: <em>"quando a aurora"</em>. <kbd>↑</kbd> <kbd>↓</kbd> escolhem e <kbd>Enter</kbd> deixa pronto.</p>
             <div id="hymn-results" class="sermon-list hymn-results" role="listbox" aria-label="Hinos">
               <div class="empty">Carregando hinos...</div>
@@ -342,6 +346,10 @@
                 <input type="range" id="hymn-size" min="2" max="7" step="0.1" value="4.2">
               </div>
               <div class="field">
+                <div class="field-row"><label for="hymn-title-size">Tamanho do título</label><output id="hymn-title-size-val">1.25</output></div>
+                <input type="range" id="hymn-title-size" min="0.6" max="3" step="0.05" value="1.25">
+              </div>
+              <div class="field">
                 <label for="hymn-animation">Transição entre estrofes</label>
                 <select id="hymn-animation">
                   <option value="fade">Esvanecer rápido</option>
@@ -369,8 +377,9 @@
 
             <fieldset>
               <legend>Mostrar</legend>
-              <label class="switch"><input type="checkbox" id="hymn-show-title" checked><span class="switch-ui"></span>Número e título do hino</label>
-              <label class="switch"><input type="checkbox" id="hymn-show-label" checked><span class="switch-ui"></span>Nome da estrofe (tela cheia)</label>
+              <label class="switch"><input type="checkbox" id="hymn-show-title" checked><span class="switch-ui"></span>Título do hino</label>
+              <label class="switch"><input type="checkbox" id="hymn-show-number" checked><span class="switch-ui"></span>Número do hino no título</label>
+              <label class="switch"><input type="checkbox" id="hymn-show-label" checked><span class="switch-ui"></span>Estrofe / Coro (tela cheia)</label>
               <label class="switch"><input type="checkbox" id="hymn-uppercase"><span class="switch-ui"></span>Letras maiúsculas</label>
               <label class="switch"><input type="checkbox" id="hymn-outline"><span class="switch-ui"></span>Contorno nas letras</label>
             </fieldset>
@@ -487,16 +496,17 @@
       </div>
       <div class="field-grid">
         <div class="field">
-          <label for="hymn-form-collection">Hinário / coletânea (opcional)</label>
-          <input type="text" id="hymn-form-collection" placeholder="Ex: Hinos da Igreja">
+          <label for="hymn-form-collection">Categoria</label>
+          <input type="text" id="hymn-form-collection" placeholder="Ex: Harpa Cristã" list="hymn-category-options">
+          <datalist id="hymn-category-options"></datalist>
         </div>
         <label class="switch switch-field"><input type="checkbox" id="hymn-form-autochorus" checked><span class="switch-ui"></span>Repetir o coro depois de cada estrofe</label>
       </div>
       <div class="editor-split">
         <div class="field grow">
           <label for="hymn-form-lyrics">Letra</label>
-          <textarea id="hymn-form-lyrics" spellcheck="false" placeholder="1. Primeira linha da estrofe&#10;segunda linha&#10;&#10;Coro:&#10;Linha do coro&#10;&#10;2. Segunda estrofe..." required></textarea>
-          <p class="muted small">Separe as estrofes com uma <strong>linha em branco</strong>. Escreva <strong>Coro:</strong> antes do coro (escreva só uma vez).</p>
+          <textarea id="hymn-form-lyrics" spellcheck="false" placeholder="Primeira tela da estrofe 1&#10;segunda linha&#10;&#10;Segunda tela da estrofe 1&#10;&#10;*&#10;Linhas do coro&#10;*&#10;&#10;Estrofe 2..." required></textarea>
+          <p class="muted small"><strong>Linha em branco</strong> = nova tela. Coloque o coro entre linhas com <strong>*</strong>. Tudo entre um coro e outro é uma estrofe; para separar estrofes sem coro no meio, comece com o número (<strong>2.</strong>).</p>
         </div>
         <div class="field grow">
           <label>Como vai ficar</label>
@@ -517,13 +527,21 @@
         <h2>Importar hinos</h2>
         <button type="button" class="btn-x" data-close>&times;</button>
       </div>
-      <p class="muted">Escolha arquivos <strong>.txt</strong> (um hino por arquivo). A primeira linha é o título, podendo começar com o número (ex: <em>"12 - Lá no Alto da Colina"</em>); o resto é a letra.</p>
-      <label class="dropzone" id="hymn-dropzone">
-        <input type="file" id="hymn-files" accept=".txt,.json" multiple>
-        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>
-        <strong>Clique para escolher</strong>
-        <span class="muted small">ou arraste os arquivos para cá</span>
-      </label>
+      <p class="muted">Escolha a pasta com os hinos (ex: <strong>C:\tf_slides\1 Hinos</strong>). Cada subpasta vira uma <strong>categoria</strong> e cada arquivo <strong>.txt</strong> vira um hino: o nome do arquivo dá o número e o título (ex: <em>"012 - Vinde, Povo do Senhor"</em>).</p>
+      <div class="import-options">
+        <label class="dropzone" id="hymn-dropzone">
+          <input type="file" id="hymn-folder" webkitdirectory directory multiple>
+          <svg viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+          <strong>Escolher pasta</strong>
+          <span class="muted small">com as categorias dentro</span>
+        </label>
+        <label class="dropzone dropzone-small">
+          <input type="file" id="hymn-files" accept=".txt,.json" multiple>
+          <svg viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+          <strong>Escolher arquivos</strong>
+          <span class="muted small">.txt soltos</span>
+        </label>
+      </div>
       <div id="hymn-import-summary" class="import-summary" hidden></div>
       <div class="modal-actions">
         <button type="button" class="btn btn-secondary" data-close>Cancelar</button>

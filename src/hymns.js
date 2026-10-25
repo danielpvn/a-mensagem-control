@@ -2,7 +2,7 @@
 // A busca roda em memória (alguns milhares de linhas são lidas em milissegundos) e tolera
 // acentos, palavras fora de ordem, palavra pela metade e pequenos erros de digitação.
 const { connection: db, transaction } = require('./db');
-const { parseLyrics, sectionsToLyrics, buildSlides } = require('../public/js/shared/hymn-text.js');
+const { parseLyrics, sectionsToLyrics, buildSlides, sectionLines } = require('../public/js/shared/hymn-text.js');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS hymns (
@@ -35,7 +35,8 @@ const stmt = {
   remove: db.prepare('DELETE FROM hymns WHERE id = ?'),
   clearSections: db.prepare('DELETE FROM hymn_sections WHERE hymn_id = ?'),
   insertSection: db.prepare('INSERT INTO hymn_sections (hymn_id, position, kind, label, text) VALUES (?, ?, ?, ?, ?)'),
-  findDuplicate: db.prepare(`SELECT id FROM hymns WHERE lower(title) = lower(?) AND IFNULL(number, '') = IFNULL(?, '')`)
+  findDuplicate: db.prepare(`SELECT id FROM hymns WHERE lower(title) = lower(?) AND IFNULL(number, '') = IFNULL(?, '') AND IFNULL(collection, '') = IFNULL(?, '')`),
+  categories: db.prepare('SELECT collection AS name, COUNT(*) AS count FROM hymns GROUP BY collection ORDER BY collection')
 };
 
 // ---------- Texto normalizado ----------
@@ -49,6 +50,15 @@ function normalize(text) {
 }
 
 const tokenize = (text) => normalize(text).split(' ').filter(Boolean);
+
+// "001" e "1" são o mesmo hino
+const cleanNumber = (value) => {
+  const text = String(value ?? '').trim();
+  return /^\d+$/.test(text) ? String(parseInt(text, 10)) : text;
+};
+
+// A categoria "Diversos" inclui as subpastas ("Diversos / Salmos e Hinos")
+const inCategory = (hymn, category) => !category || hymn.collection === category || String(hymn.collection || '').startsWith(`${category} / `);
 
 // Ordena números de hino de forma natural (2 antes de 10); sem número vai para o fim
 function compareHymns(a, b) {
@@ -78,7 +88,8 @@ function buildIndex() {
   stmt.allSections.all().forEach(section => {
     const hymn = hymns.get(section.hymnId);
     if (!hymn) return;
-    const lines = section.text.split('\n');
+    // Mesma numeração de linhas das telas (sem as linhas em branco que separam telas)
+    const lines = sectionLines(section.text);
     lines.forEach((line, lineIndex) => {
       const text = lineIndex + 1 < lines.length ? `${line} ${lines[lineIndex + 1]}` : line;
       const tokens = tokenize(text);
@@ -174,7 +185,7 @@ function matchScore(tables, tokens) {
   return total ? got / total : 0;
 }
 
-function search(query, limit = 12) {
+function search(query, limit = 12, category = null) {
   if (!index) buildIndex();
   const raw = String(query || '').trim();
   if (!raw) return [];
@@ -182,16 +193,18 @@ function search(query, limit = 12) {
   const queryTokens = tokenize(raw);
   const phrase = queryTokens.join(' ');
   const onlyNumber = /^\d+$/.test(raw);
+  const wantedNumber = cleanNumber(raw);
   const tables = buildScoreTables(queryTokens);
   const minimum = queryTokens.length >= 3 ? 0.6 : 0.5;
   const results = [];
 
   index.forEach(hymn => {
+    if (!inCategory(hymn, category)) return;
     let score = 0;
     let match = null;
 
-    if (onlyNumber && hymn.number !== null && String(hymn.number) === raw) score = 2;
-    else if (onlyNumber && hymn.number && String(hymn.number).startsWith(raw)) score = 1.2;
+    if (onlyNumber && hymn.number !== null && cleanNumber(hymn.number) === wantedNumber) score = 2;
+    else if (onlyNumber && hymn.number && cleanNumber(hymn.number).startsWith(wantedNumber)) score = 1.2;
 
     if (tables.length) {
       const titleBonus = phrase && normalize(hymn.title).includes(phrase) ? 0.3 : 0;
@@ -234,8 +247,12 @@ function search(query, limit = 12) {
 
 // ---------- CRUD ----------
 
-function listHymns() {
-  return stmt.list.all().sort(compareHymns);
+function listHymns(category = null) {
+  return stmt.list.all().filter(h => inCategory(h, category)).sort(compareHymns);
+}
+
+function listCategories() {
+  return stmt.categories.all().map(c => ({ name: c.name, count: c.count }));
 }
 
 function getHymn(id) {
@@ -256,7 +273,7 @@ function cleanInput({ number, title, collection, autoChorus, lyrics }) {
   if (!String(title || '').trim()) throw new Error('O hino precisa de um título.');
   if (sections.length === 0) throw new Error('A letra do hino está vazia.');
   return {
-    number: String(number ?? '').trim() || null,
+    number: cleanNumber(number) || null,
     title: String(title).trim(),
     collection: String(collection ?? '').trim() || null,
     autoChorus: autoChorus === false ? 0 : 1,
@@ -306,7 +323,7 @@ function importHymns(list) {
     list.forEach((item, i) => {
       try {
         const data = cleanInput(item);
-        if (stmt.findDuplicate.get(data.title, data.number)) {
+        if (stmt.findDuplicate.get(data.title, data.number, data.collection)) {
           skipped++;
           return;
         }
@@ -325,6 +342,7 @@ function importHymns(list) {
 module.exports = {
   search,
   listHymns,
+  listCategories,
   getHymn,
   getHymnSlides,
   createHymn,
