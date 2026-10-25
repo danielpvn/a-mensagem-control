@@ -193,7 +193,11 @@ let globalState = {
     index: -1,
     isCleared: true,
     armed: false,
-    playback: { playing: true, muted: false, volume: 1, loop: false, token: 0 }
+    playback: { playing: true, muted: false, volume: 1, loop: false, token: 0 },
+    // Zoom do item no ar: scale 1 = sem zoom; x/y = ponto (em %) que fica no centro da tela
+    zoom: { scale: 1, x: 50, y: 50 },
+    // Zoom preparado para cada arquivo da pasta (o operador ajusta antes do culto)
+    zooms: {}
   },
   mediaStyles: { ...DEFAULT_MEDIA_STYLES, ...db.getSetting('styles.media', {}) },
 
@@ -559,9 +563,52 @@ function updateBibleStyles(partial) {
 
 // ---------- Mídia ao vivo ----------
 
+const NO_ZOOM = { scale: 1, x: 50, y: 50 };
+
+// Zoom válido: até 6x, e o ponto central limitado para a imagem não "sair" da tela
+function cleanZoom(zoom) {
+  const scale = Math.min(6, Math.max(1, Number(zoom && zoom.scale) || 1));
+  const limit = 50 - 50 / scale; // quanto o centro pode se afastar do meio sem mostrar borda
+  const clamp = (v) => Math.min(50 + limit, Math.max(50 - limit, Number.isFinite(Number(v)) ? Number(v) : 50));
+  return { scale: Math.round(scale * 100) / 100, x: Math.round(clamp(zoom && zoom.x) * 10) / 10, y: Math.round(clamp(zoom && zoom.y) * 10) / 10 };
+}
+
+const zoomKey = (folder, name) => `${folder}/${name}`;
+const savedZooms = () => db.getSetting('mediaZooms', {});
+
+// Zooms preparados da pasta aberta (guardados no banco: valem para o culto inteiro)
+function zoomsFor(folder) {
+  const all = savedZooms();
+  const result = {};
+  Object.keys(all).forEach(key => {
+    if (key.startsWith(`${folder}/`)) result[key.slice(folder.length + 1)] = all[key];
+  });
+  return result;
+}
+
+// Ajusta o zoom de um arquivo. Se ele estiver no ar, o OBS aproxima na hora (com movimento suave).
+function setMediaZoom({ name, zoom }) {
+  const m = globalState.media;
+  if (!m.folder || !name) return;
+  const clean = cleanZoom(zoom);
+  const all = savedZooms();
+  if (clean.scale === 1) {
+    delete all[zoomKey(m.folder, name)];
+    delete m.zooms[name];
+  } else {
+    all[zoomKey(m.folder, name)] = clean;
+    m.zooms[name] = clean;
+  }
+  db.setSetting('mediaZooms', all);
+  const live = m.items[m.index];
+  if (live && live.name === name && !m.isCleared) m.zoom = clean;
+  broadcastContent();
+}
+
 function openMediaFolder(folder) {
   const m = globalState.media;
   m.folder = folder || null;
+  m.zooms = folder ? zoomsFor(folder) : {};
   m.items = folder ? media.listItems(folder).map(({ name, type, url }) => ({ name, type, url })) : [];
   m.index = -1;
   m.isCleared = true;
@@ -593,6 +640,8 @@ function showMediaItem(index) {
   m.index = index;
   m.isCleared = false;
   m.armed = false;
+  // Entra com o zoom que foi preparado para ele (ou sem zoom)
+  m.zoom = m.zooms[m.items[index].name] || NO_ZOOM;
   // Cada vez que vai ao ar o vídeo começa do início e tocando
   m.playback = { ...m.playback, playing: true, token: m.playback.token + 1 };
   hideMessage();
@@ -844,6 +893,9 @@ wss.on('connection', (ws, req) => {
           break;
         case 'media-control':
           controlMedia(payload);
+          break;
+        case 'media-zoom':
+          setMediaZoom(payload);
           break;
         case 'update-media-styles':
           updateMediaStyles(payload);

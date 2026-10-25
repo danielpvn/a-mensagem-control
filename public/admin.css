@@ -1023,6 +1023,56 @@ fieldset > legend + * { clear: both; }
 .video-progress { display: flex; align-items: center; gap: 10px; font-size: 0.78rem; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .grow-spacer { flex: 1; }
 
+/* Prévia da mídia selecionada (antes de ir ao ar) com zoom */
+.media-tile.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+.media-preview-wrap { display: flex; flex-direction: column; gap: 8px; }
+.media-preview {
+  position: relative;
+  width: 100%;
+  max-width: calc(34vh * 16 / 9);
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: #000;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.media-preview.dragging { cursor: grabbing; }
+.media-preview .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-3); cursor: default; }
+.media-preview img, .media-preview video {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+  will-change: transform;
+}
+.media-preview.fit-cover img, .media-preview.fit-cover video { object-fit: cover; object-position: var(--media-focus, center); }
+.media-preview .media-backdrop { display: none; position: absolute; inset: -6%; background: center / cover no-repeat; filter: blur(14px) brightness(0.55) saturate(1.15); }
+.media-preview.fit-blur .media-backdrop { display: block; }
+.media-preview .preview-tag {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  padding: 3px 8px;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  pointer-events: none;
+}
+.media-preview .preview-tag.is-live { background: var(--live); }
+.zoom-bar { display: flex; align-items: center; gap: 8px; }
+.zoom-bar input[type="range"] { flex: 1; min-width: 80px; }
+.zoom-bar output { min-width: 3.2em; font-variant-numeric: tabular-nums; color: var(--text-2); font-size: 0.85rem; }
+.btn-icon { width: 32px; padding: 6px 0; justify-content: center; font-size: 1.05rem; line-height: 1; }
+
 /* ---------- Pregador do dia ---------- */
 
 .lt-form { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: var(--radius); background: var(--field); border: 1px solid var(--border); }

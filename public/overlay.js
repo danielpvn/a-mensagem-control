@@ -340,6 +340,20 @@ function stopSlot(slot) {
   slot.innerHTML = '';
 }
 
+// Zoom: aproxima no ponto escolhido (x/y em %) deixando ele no centro da tela.
+// Primeiro desloca o ponto para o centro, depois aumenta a partir do centro.
+function zoomTransform(zoom) {
+  const z = zoom || { scale: 1, x: 50, y: 50 };
+  if (!z.scale || z.scale <= 1) return 'none';
+  return `scale(${z.scale}) translate(${50 - z.x}%, ${50 - z.y}%)`;
+}
+
+function applyZoom(el, zoom, animate) {
+  if (!el) return;
+  el.style.transition = animate ? 'transform 0.8s cubic-bezier(0.45, 0, 0.25, 1)' : 'none';
+  el.style.transform = zoomTransform(zoom);
+}
+
 function applyPlayback(el, playback, restart) {
   if (!el || el.tagName !== 'VIDEO') return;
   el.muted = PREVIEW || !!playback.muted; // a prévia do painel nunca toca som
@@ -426,6 +440,7 @@ async function updateMedia(m) {
     const restart = mediaShown.token !== playback.token;
     mediaShown.token = playback.token;
     applyPlayback(mediaShown.el, playback, restart);
+    applyZoom(mediaShown.el, m.zoom, true); // zoom ao vivo, com movimento suave
     return;
   }
 
@@ -435,6 +450,7 @@ async function updateMedia(m) {
   stopSlot(incoming);
   const { el, ready } = createMediaElement(item, playback, playback.token);
   setSlotStyle(incoming, { opacity: 0 });
+  applyZoom(el, m.zoom, false); // já entra com o zoom preparado
   incoming.append(createBackdrop(item, el), el);
   await ready;
   if (request !== mediaRequest) {

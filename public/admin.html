@@ -616,8 +616,26 @@
               <div class="reader-head">
                 <div class="reader-title-wrap">
                   <h2 id="media-current-title">Nada selecionado</h2>
-                  <p id="media-current-meta" class="muted">Clique numa mídia para colocar no ar.</p>
+                  <p id="media-current-meta" class="muted">Clique numa mídia para ver aqui antes de exibir.</p>
                 </div>
+                <button id="btn-media-show" class="btn btn-primary" disabled title="Colocar a mídia selecionada no ar (Enter ou dois cliques)">
+                  <svg viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                  Exibir
+                </button>
+              </div>
+
+              <div class="media-preview-wrap">
+                <div id="media-preview" class="media-preview" title="Rodinha do mouse: zoom no ponto · arrastar: mover · dois cliques: exibir">
+                  <div class="empty">Selecione uma mídia na lista.</div>
+                </div>
+                <div class="zoom-bar">
+                  <button id="btn-zoom-out" class="btn btn-secondary btn-sm btn-icon" title="Afastar">−</button>
+                  <input type="range" id="media-zoom" min="1" max="6" step="0.05" value="1" aria-label="Zoom">
+                  <button id="btn-zoom-in" class="btn btn-secondary btn-sm btn-icon" title="Aproximar">+</button>
+                  <output id="media-zoom-val">1.0x</output>
+                  <button id="btn-zoom-reset" class="btn btn-text btn-sm" title="Mostrar a mídia inteira">Sem zoom</button>
+                </div>
+                <p class="muted small">Gire a <strong>rodinha do mouse</strong> no ponto que quer aproximar e <strong>arraste</strong> para mover. Se a mídia estiver no ar, o zoom acontece na hora no telão; se não, ela já entra com esse zoom.</p>
               </div>
 
               <div id="media-video-controls" class="video-controls" hidden>
