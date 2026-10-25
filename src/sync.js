@@ -43,6 +43,7 @@ function publicStatus() {
     email: s ? s.email : null,
     role: s ? s.role : null,
     church: s ? s.church : null,
+    requests: status.requests || 0, // pedidos de acesso esperando (só editores veem)
     pending: {
       sermons: db.countDirtySermons(),
       hymns: hymns.countDirtyHymns(),
@@ -111,7 +112,7 @@ async function loadProfile() {
   const s = session();
   const res = await api(`/rest/v1/profiles?select=role,church&user_id=eq.${s.userId}`);
   const rows = await res.json();
-  const profile = rows[0] || { role: 'reader', church: null };
+  const profile = rows[0] || { role: 'pending', church: null };
   saveSession({ ...session(), role: profile.role, church: profile.church });
 }
 
@@ -125,6 +126,65 @@ async function login(email, password) {
   setStatus({ state: 'idle', message: 'Conectado.', lastError: null });
   syncNow();
   return publicStatus();
+}
+
+// "Pedir acesso": cria o login da igreja, que fica aguardando a aprovação de um editor
+async function signup(email, password, church) {
+  if (!isConfigured()) throw new Error('Banco online não configurado.');
+  const cleanChurch = String(church || '').trim();
+  if (!cleanChurch) throw new Error('Digite o nome da igreja.');
+  if (String(password || '').length < 6) throw new Error('A senha precisa de pelo menos 6 caracteres.');
+  const { url, anonKey } = config();
+  const res = await fetch(`${url}/auth/v1/signup`, {
+    method: 'POST',
+    headers: { apikey: anonKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: String(email || '').trim(), password: String(password), data: { church: cleanChurch } }),
+    signal: AbortSignal.timeout(20000)
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = data.msg || data.error_description || data.error || `Erro ${res.status}`;
+    throw new Error(/already registered|already exists/i.test(message) ? 'Esse e-mail já tem login. Use "Entrar".' : message);
+  }
+  // Com a confirmação de e-mail ligada no Supabase, não vem sessão: a pessoa confirma e depois entra
+  if (!data.access_token) return { ...publicStatus(), needsConfirmation: true };
+  saveSession(sessionFrom(data));
+  await loadProfile();
+  setStatus({ state: 'pending', message: 'Pedido enviado. Aguardando a aprovação.' });
+  return publicStatus();
+}
+
+// ---------- Igrejas e pedidos de acesso (só editores) ----------
+
+async function listMembers() {
+  if (!isEditor()) throw new Error('Só editores veem os pedidos de acesso.');
+  const res = await api('/rest/v1/profiles?select=user_id,email,church,role,created_at&order=created_at.desc');
+  const me = session().userId;
+  return (await res.json()).map(m => ({ ...m, isMe: m.user_id === me }));
+}
+
+async function setMemberRole(userId, role) {
+  if (!isEditor()) throw new Error('Só editores aprovam pedidos de acesso.');
+  if (!['pending', 'reader', 'editor', 'blocked'].includes(role)) throw new Error('Papel inválido.');
+  if (userId === session().userId) throw new Error('Você não pode mudar o seu próprio papel por aqui.');
+  await api(`/rest/v1/profiles?user_id=eq.${encodeURIComponent(userId)}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: { role }
+  });
+  await countRequests();
+  setStatus({});
+  return listMembers();
+}
+
+async function countRequests() {
+  if (!isEditor()) {
+    status.requests = 0;
+    return;
+  }
+  const res = await api('/rest/v1/profiles?select=user_id&role=eq.pending', { headers: { Prefer: 'count=exact' } });
+  const range = res.headers.get('content-range') || '';
+  status.requests = Number(range.split('/')[1]) || 0;
 }
 
 function logout() {
@@ -175,6 +235,8 @@ async function pullSermons() {
   return pullTable('library_sermons', 'id', async (row) => {
     // Editor com alteração ainda não enviada: a dele vence (vai ser enviada em seguida)
     if (isEditor() && db.isSermonDirty(row.id)) return false;
+    // Já tem exatamente esta versão (ex: o próprio editor acabou de enviar)
+    if (db.sermonRemoteVersion(row.id) === row.updated_at) return false;
     if (row.deleted) return db.deleteSermon(row.id, { fromSync: true });
     db.saveSermon({ id: row.id, title: row.title, date: row.date, paragraphs: row.paragraphs || [] }, { fromSync: true, remoteUpdatedAt: row.updated_at });
     return true;
@@ -296,7 +358,19 @@ async function runSync() {
   }
   setStatus({ state: 'syncing', message: 'Sincronizando...' });
   try {
-    await loadProfile(); // o papel pode ter mudado no painel do Supabase
+    await loadProfile(); // o papel pode ter mudado (aprovação, acesso retirado)
+    const role = session().role;
+    if (role === 'pending' || role === 'blocked') {
+      setStatus({
+        state: role,
+        requests: 0,
+        message: role === 'pending'
+          ? 'Pedido de acesso enviado. Aguardando a aprovação de um editor.'
+          : 'O acesso desta igreja à biblioteca foi retirado. Fale com o responsável.'
+      });
+      return { changed: {} };
+    }
+    await countRequests();
     const changed = {
       sermons: await pullSermons(),
       hymns: await pullHymns(),
@@ -343,4 +417,4 @@ function stop() {
   clearTimeout(soonTimer);
 }
 
-module.exports = { start, stop, syncNow, login, logout, setConfig, status: publicStatus };
+module.exports = { start, stop, syncNow, login, signup, logout, setConfig, listMembers, setMemberRole, status: publicStatus };

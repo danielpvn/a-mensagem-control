@@ -1157,6 +1157,32 @@ app.post('/api/cloud/login', async (req, res) => {
   }
 });
 
+// "Pedir acesso": a igreja nova cria o login e espera a aprovação de um editor
+app.post('/api/cloud/signup', async (req, res) => {
+  try {
+    res.json(await sync.signup(req.body.email, req.body.password, req.body.church));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Igrejas conectadas e pedidos de acesso (só editores)
+app.get('/api/cloud/members', async (req, res) => {
+  try {
+    res.json(await sync.listMembers());
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/cloud/members/:id', async (req, res) => {
+  try {
+    res.json(await sync.setMemberRole(req.params.id, req.body.role));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.post('/api/cloud/logout', (req, res) => {
   res.json(sync.logout());
 });

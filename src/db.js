@@ -158,7 +158,7 @@ const stmt = {
       dirty = excluded.dirty, remote_updated_at = COALESCE(excluded.remote_updated_at, sermons.remote_updated_at)
   `),
   dirtySermons: db.prepare('SELECT id, title, date FROM sermons WHERE dirty = 1'),
-  sermonState: db.prepare('SELECT dirty FROM sermons WHERE id = ?'),
+  sermonState: db.prepare('SELECT dirty, remote_updated_at AS remoteUpdatedAt FROM sermons WHERE id = ?'),
   markSermonSynced: db.prepare('UPDATE sermons SET dirty = 0, remote_updated_at = ? WHERE id = ?'),
   countDirtySermons: db.prepare('SELECT COUNT(*) AS n FROM sermons WHERE dirty = 1'),
   deleteParagraphs: db.prepare('DELETE FROM sermon_paragraphs WHERE sermon_id = ?'),
@@ -235,6 +235,11 @@ const isSermonDirty = (id) => {
   const row = stmt.sermonState.get(id);
   return !!(row && row.dirty);
 };
+// Versão do banco online que este computador já tem (para não aplicar a mesma de novo)
+const sermonRemoteVersion = (id) => {
+  const row = stmt.sermonState.get(id);
+  return row ? row.remoteUpdatedAt : null;
+};
 const markSermonSynced = (id, remoteUpdatedAt) => stmt.markSermonSynced.run(remoteUpdatedAt, id);
 const countDirtySermons = () => stmt.countDirtySermons.get().n;
 
@@ -303,6 +308,7 @@ module.exports = {
   pendingDeletions,
   dirtySermons,
   isSermonDirty,
+  sermonRemoteVersion,
   markSermonSynced,
   countDirtySermons,
   DATA_DIR,

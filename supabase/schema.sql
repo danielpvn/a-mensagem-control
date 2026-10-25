@@ -5,20 +5,31 @@
 -- =====================================================================
 
 -- ---------- Quem pode fazer o quê ----------
--- Cada login (Authentication > Users) ganha uma linha aqui.
--- 'reader' = recebe a biblioteca; 'editor' = também publica para todas as igrejas.
+-- Cada login ganha uma linha aqui. Papéis:
+--   'pending' = pediu acesso pelo app e espera aprovação (não recebe nada)
+--   'reader'  = recebe a biblioteca
+--   'editor'  = também publica para todas as igrejas e aprova os pedidos de acesso
+--   'blocked' = acesso retirado
 create table if not exists public.profiles (
   user_id uuid primary key references auth.users (id) on delete cascade,
   church text,
-  role text not null default 'reader' check (role in ('reader', 'editor')),
+  role text not null default 'pending',
   created_at timestamptz not null default now()
 );
 
--- Todo login novo já nasce como leitor
+alter table public.profiles add column if not exists email text;
+alter table public.profiles alter column role set default 'pending';
+alter table public.profiles drop constraint if exists profiles_role_check;
+alter table public.profiles add constraint profiles_role_check check (role in ('pending', 'reader', 'editor', 'blocked'));
+
+-- Todo login novo (pedido de acesso pelo app ou criado no painel) nasce aguardando aprovação.
+-- O nome da igreja vem do formulário "Pedir acesso" do app.
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  insert into public.profiles (user_id) values (new.id) on conflict do nothing;
+  insert into public.profiles (user_id, email, church, role)
+  values (new.id, new.email, nullif(trim(new.raw_user_meta_data ->> 'church'), ''), 'pending')
+  on conflict (user_id) do nothing;
   return new;
 end;
 $$;
@@ -28,12 +39,19 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- Logins que já existiam antes deste script
-insert into public.profiles (user_id) select id from auth.users on conflict do nothing;
+-- Logins que já existiam antes deste script (os que já tinham perfil mantêm o papel)
+insert into public.profiles (user_id, email) select id, email from auth.users on conflict do nothing;
+update public.profiles p set email = u.email from auth.users u where p.user_id = u.id and p.email is null;
 
 create or replace function public.is_editor()
 returns boolean language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.profiles where user_id = auth.uid() and role = 'editor');
+$$;
+
+-- Leitor ou editor aprovado
+create or replace function public.is_member()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.profiles where user_id = auth.uid() and role in ('reader', 'editor'));
 $$;
 
 -- ---------- Biblioteca ----------
@@ -98,6 +116,7 @@ create trigger touch_backgrounds before insert or update on public.library_backg
 -- Quem não fez login (anon) não recebe nada; o que cada login pode fazer é decidido pelo RLS abaixo.
 revoke all on public.profiles, public.library_sermons, public.library_hymns, public.library_backgrounds from anon;
 grant select on public.profiles to authenticated;
+grant update (role, church) on public.profiles to authenticated;
 grant select, insert, update on public.library_sermons, public.library_hymns, public.library_backgrounds to authenticated;
 
 -- ---------- Regras de acesso (RLS) ----------
@@ -107,16 +126,23 @@ alter table public.library_sermons enable row level security;
 alter table public.library_hymns enable row level security;
 alter table public.library_backgrounds enable row level security;
 
+-- Cada um vê o próprio perfil; editores veem todos (para aprovar os pedidos de acesso)
 drop policy if exists "ver o proprio perfil" on public.profiles;
 create policy "ver o proprio perfil" on public.profiles
-  for select to authenticated using (user_id = auth.uid());
+  for select to authenticated using (user_id = auth.uid() or public.is_editor());
+
+-- Só editores mudam papéis (aprovar, recusar, tirar acesso)
+drop policy if exists "editores aprovam" on public.profiles;
+create policy "editores aprovam" on public.profiles
+  for update to authenticated using (public.is_editor()) with check (public.is_editor());
 
 do $$
 declare t text;
 begin
   foreach t in array array['library_sermons', 'library_hymns', 'library_backgrounds'] loop
     execute format('drop policy if exists "logados leem" on public.%I', t);
-    execute format('create policy "logados leem" on public.%I for select to authenticated using (true)', t);
+    execute format('drop policy if exists "aprovados leem" on public.%I', t);
+    execute format('create policy "aprovados leem" on public.%I for select to authenticated using (public.is_member())', t);
     execute format('drop policy if exists "editores inserem" on public.%I', t);
     execute format('create policy "editores inserem" on public.%I for insert to authenticated with check (public.is_editor())', t);
     execute format('drop policy if exists "editores alteram" on public.%I', t);
@@ -130,8 +156,9 @@ values ('backgrounds', 'backgrounds', false)
 on conflict (id) do nothing;
 
 drop policy if exists "logados baixam fundos" on storage.objects;
-create policy "logados baixam fundos" on storage.objects
-  for select to authenticated using (bucket_id = 'backgrounds');
+drop policy if exists "aprovados baixam fundos" on storage.objects;
+create policy "aprovados baixam fundos" on storage.objects
+  for select to authenticated using (bucket_id = 'backgrounds' and public.is_member());
 
 drop policy if exists "editores enviam fundos" on storage.objects;
 create policy "editores enviam fundos" on storage.objects
@@ -142,12 +169,10 @@ create policy "editores trocam fundos" on storage.objects
   for update to authenticated using (bucket_id = 'backgrounds' and public.is_editor());
 
 -- =====================================================================
--- Depois de criar os logins em Authentication > Users, defina quem é editor
--- e o nome de cada igreja (troque os e-mails):
+-- As igrejas pedem acesso pelo próprio app (Configurações > Banco online > Pedir acesso)
+-- e um editor aprova no app dele. Só o PRIMEIRO editor precisa ser definido aqui
+-- (troque o e-mail):
 --
 --   update public.profiles set role = 'editor', church = 'Tabernáculo da Fé - Luziânia'
 --   where user_id = (select id from auth.users where email = 'seu-email@exemplo.com');
---
---   update public.profiles set church = 'Tabernáculo da Fé - Outra cidade'
---   where user_id = (select id from auth.users where email = 'igreja@exemplo.com');
 -- =====================================================================

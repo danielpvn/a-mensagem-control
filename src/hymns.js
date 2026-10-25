@@ -47,7 +47,7 @@ const stmt = {
   withoutUid: db.prepare('SELECT id, number, title, collection FROM hymns WHERE uid IS NULL'),
   setUid: db.prepare('UPDATE hymns SET uid = ? WHERE id = ?'),
   insertWithUid: db.prepare('INSERT INTO hymns (number, title, collection, auto_chorus, uid, dirty, remote_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'),
-  byUid: db.prepare('SELECT id, dirty FROM hymns WHERE uid = ?'),
+  byUid: db.prepare('SELECT id, dirty, remote_updated_at AS remoteUpdatedAt FROM hymns WHERE uid = ?'),
   uidOf: db.prepare('SELECT uid FROM hymns WHERE id = ?'),
   markDirty: db.prepare('UPDATE hymns SET dirty = 1 WHERE id = ?'),
   updateFromSync: db.prepare(`UPDATE hymns SET number = ?, title = ?, collection = ?, auto_chorus = ?, dirty = 0, remote_updated_at = ?, updated_at = datetime('now') WHERE id = ?`),
@@ -419,6 +419,8 @@ const countDirtyHymns = () => stmt.countDirty.get().n;
 // ainda não enviada (a dele vence e será enviada); leitor sempre recebe a versão online.
 function applyRemoteHymn(row, { keepLocalChanges }) {
   const local = stmt.byUid.get(row.uid);
+  // Já tem exatamente esta versão (ex: o próprio editor acabou de enviar): nada a fazer
+  if (local && local.remoteUpdatedAt === row.updated_at) return false;
   if (row.deleted) {
     if (local && !(keepLocalChanges && local.dirty)) {
       stmt.remove.run(local.id);

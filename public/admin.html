@@ -841,7 +841,25 @@
               <input type="email" id="cloud-email" placeholder="E-mail da igreja" autocomplete="username" required>
               <input type="password" id="cloud-password" placeholder="Senha" autocomplete="current-password" required>
               <button type="submit" class="btn btn-primary btn-sm">Entrar</button>
+              <button type="button" class="btn btn-text btn-sm" id="btn-cloud-show-signup">Não tem login? Pedir acesso</button>
             </form>
+
+            <form id="cloud-signup-form" class="cloud-login" hidden>
+              <p class="muted small">Crie o login da sua igreja. O responsável pela biblioteca vai aprovar o pedido e, depois disso, as mensagens e os hinos chegam sozinhos.</p>
+              <input type="text" id="cloud-signup-church" placeholder="Nome da igreja (ex: Tabernáculo da Fé - Goiânia)" maxlength="80" required>
+              <input type="email" id="cloud-signup-email" placeholder="E-mail" autocomplete="username" required>
+              <input type="password" id="cloud-signup-password" placeholder="Senha (pelo menos 6 caracteres)" autocomplete="new-password" minlength="6" required>
+              <button type="submit" class="btn btn-primary btn-sm">Pedir acesso</button>
+              <button type="button" class="btn btn-text btn-sm" id="btn-cloud-show-login">Já tenho login</button>
+            </form>
+
+            <div id="cloud-members" class="cloud-members" hidden>
+              <div class="card-head">
+                <h3>Igrejas e pedidos de acesso</h3>
+                <button id="btn-cloud-members-refresh" class="btn btn-text btn-sm">Atualizar</button>
+              </div>
+              <div id="cloud-members-list"></div>
+            </div>
 
             <div class="cloud-actions" id="cloud-actions" hidden>
               <button id="btn-cloud-sync" class="btn btn-secondary btn-sm">Sincronizar agora</button>
