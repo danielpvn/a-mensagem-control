@@ -6,6 +6,8 @@ import { setupMessage, messageControls } from './message.js';
 import { setupHymns, hymnControls } from './hymns.js';
 import { setupBible, bibleControls } from './bible.js';
 import { setupBibleAppearance } from './bible-appearance.js';
+import { setupMedia, mediaControls } from './media.js';
+import { setupLowerThird, toggleLowerThird } from './lowerthird.js';
 import { setupAppearance } from './appearance.js';
 import { setupHymnAppearance } from './hymn-appearance.js';
 import { setupConfig } from './config.js';
@@ -29,6 +31,7 @@ function setupKeyboard() {
     const tab = getActiveTab();
     if (tab === 'hinos') return hymnControls;
     if (tab === 'biblia') return bibleControls;
+    if (tab === 'midia') return mediaControls;
     if (tab === 'mensagem') return messageControls;
     return null;
   };
@@ -64,6 +67,12 @@ function setupKeyboard() {
         if (controls) controls.toggle();
         else ws.send('toggle-clear');
         break;
+      case 'n':
+      case 'N':
+        // Nome do pregador: funciona em qualquer aba
+        e.preventDefault();
+        toggleLowerThird();
+        break;
       case 'Enter':
         if (tag === 'BUTTON' || !controls) return;
         e.preventDefault();
@@ -88,6 +97,8 @@ setupAppearance();
 setupHymnAppearance();
 setupBible();
 setupBibleAppearance();
+setupMedia();
+setupLowerThird();
 setupConfig();
 setupKeyboard();
 setupTabs();

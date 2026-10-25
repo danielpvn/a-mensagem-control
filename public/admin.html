@@ -6,7 +6,7 @@
   <title>A Mensagem Control - Painel do Operador</title>
   <link rel="icon" type="image/png" href="assets/favicon.png">
   <link rel="stylesheet" href="fonts.css">
-  <link rel="stylesheet" href="admin.css?v=1.4.0">
+  <link rel="stylesheet" href="admin.css?v=1.5.0">
 </head>
 <body>
   <div class="app">
@@ -35,7 +35,7 @@
         </button>
         <button class="tab" role="tab" data-tab="midia">
           <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>
-          Mídia <span class="soon">em breve</span>
+          Mídia
         </button>
         <button class="tab" role="tab" data-tab="config">
           <svg viewBox="0 0 24 24"><path d="M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.6a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.6a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -48,6 +48,9 @@
           <span class="live-dot"></span>
           <span id="live-label">Tela limpa</span>
         </div>
+        <button id="lt-chip" class="lt-chip" hidden title="O nome do pregador está na tela. Clique para esconder (N).">
+          <span class="lt-chip-dot"></span><span id="lt-chip-label">Nome no ar</span>
+        </button>
         <button id="btn-panic" class="btn btn-danger btn-panic" title="Tira tudo da tela imediatamente">
           <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m9 9 6 6M15 9l-6 6"/></svg>
           Limpar tela
@@ -95,7 +98,7 @@
               </div>
               <div class="monitor-body">
                 <div class="stage" data-stage>
-                  <iframe src="overlay.html" title="Prévia do overlay" tabindex="-1"></iframe>
+                  <iframe src="overlay.html?preview=1" title="Prévia do overlay" tabindex="-1"></iframe>
                 </div>
                 <div class="next-preview">
                   <span id="next-label" class="next-label">Próximo</span>
@@ -259,7 +262,7 @@
               </div>
               <div class="monitor-body">
                 <div class="stage" data-stage>
-                  <iframe src="overlay.html" title="Prévia do overlay" tabindex="-1"></iframe>
+                  <iframe src="overlay.html?preview=1" title="Prévia do overlay" tabindex="-1"></iframe>
                 </div>
                 <div class="next-preview">
                   <span id="hymn-next-label" class="next-label">Próximo</span>
@@ -418,7 +421,7 @@
               </div>
               <div class="monitor-body">
                 <div class="stage" data-stage>
-                  <iframe src="overlay.html" title="Prévia do overlay" tabindex="-1"></iframe>
+                  <iframe src="overlay.html?preview=1" title="Prévia do overlay" tabindex="-1"></iframe>
                 </div>
                 <div class="next-preview">
                   <span id="bible-next-label" class="next-label">Próximo</span>
@@ -559,11 +562,222 @@
         </div>
       </section>
       <section class="panel" data-panel="midia">
-        <div class="coming-soon card">
-          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>
-          <h2>Mídia e pregador</h2>
-          <p>As imagens e vídeos que o pastor enviar, prontos para ir à tela cheia com a transição que você escolher, e a faixa com o nome do pregador do dia.</p>
-          <span class="badge badge-soft">Em breve</span>
+        <div class="workspace">
+          <!-- Pastas e arquivos -->
+          <aside class="card library media-library" id="media-library">
+            <div class="card-head">
+              <h2>Mídias</h2>
+              <div class="head-actions">
+                <button id="btn-media-new-folder" class="btn btn-secondary btn-sm" title="Criar uma pasta com nome (ex: Santa Ceia)">Nova pasta</button>
+              </div>
+            </div>
+            <div class="folder-row">
+              <select id="media-folder" aria-label="Pasta do culto"></select>
+              <button id="btn-media-delete-folder" class="btn btn-ghost-danger btn-sm" title="Apagar esta pasta e tudo dentro dela">
+                <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+              </button>
+            </div>
+            <form id="media-new-folder-form" class="folder-row" hidden>
+              <input type="text" id="media-new-folder-name" placeholder="Nome da pasta (ex: Santa Ceia)" maxlength="60">
+              <button type="submit" class="btn btn-primary btn-sm">Criar</button>
+            </form>
+            <label class="dropzone media-drop" id="media-drop">
+              <input type="file" id="media-files" accept="image/*,video/*,.mov,.m4v" multiple>
+              <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>
+              <strong>Enviar fotos e vídeos</strong>
+              <span class="muted small">ou arraste para cá (também funciona pelo celular)</span>
+            </label>
+            <div id="media-uploads" class="media-uploads"></div>
+            <div id="media-grid" class="media-grid">
+              <div class="empty">Nenhuma mídia nesta pasta ainda.</div>
+            </div>
+          </aside>
+
+          <!-- Centro: prévia + controles -->
+          <section class="center">
+            <div class="card monitor-card">
+              <div class="card-head">
+                <h3>Prévia do OBS</h3>
+                <span class="badge badge-off" data-monitor-badge>Tela limpa</span>
+              </div>
+              <div class="monitor-body">
+                <div class="stage" data-stage>
+                  <iframe src="overlay.html?preview=1" title="Prévia do overlay" tabindex="-1"></iframe>
+                </div>
+                <div class="next-preview">
+                  <span id="media-next-label" class="next-label">Próximo</span>
+                  <p id="media-next-text">—</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="card reader media-controls-card">
+              <div class="reader-head">
+                <div class="reader-title-wrap">
+                  <h2 id="media-current-title">Nada selecionado</h2>
+                  <p id="media-current-meta" class="muted">Clique numa mídia para colocar no ar.</p>
+                </div>
+              </div>
+
+              <div id="media-video-controls" class="video-controls" hidden>
+                <div class="video-buttons">
+                  <button id="btn-media-play" class="btn btn-secondary" title="Tocar / pausar">
+                    <svg viewBox="0 0 24 24" id="media-play-icon"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                    <span id="media-play-label">Pausar</span>
+                  </button>
+                  <button id="btn-media-restart" class="btn btn-secondary" title="Voltar ao começo">
+                    <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+                    Recomeçar
+                  </button>
+                  <button id="btn-media-mute" class="btn btn-secondary" title="Ligar/desligar o som">
+                    <svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>
+                    <span id="media-mute-label">Som ligado</span>
+                  </button>
+                  <label class="switch"><input type="checkbox" id="media-loop"><span class="switch-ui"></span>Repetir</label>
+                </div>
+                <div class="field">
+                  <div class="field-row"><label for="media-volume">Volume</label><output id="media-volume-val">100%</output></div>
+                  <input type="range" id="media-volume" min="0" max="100" value="100">
+                </div>
+                <div class="video-progress">
+                  <span id="media-time">0:00</span>
+                  <div class="progress-track"><div id="media-progress-bar" class="progress-bar"></div></div>
+                  <span id="media-duration">0:00</span>
+                </div>
+                <p class="muted small">O som do vídeo sai pelo OBS: marque <strong>"Controlar áudio via OBS"</strong> na fonte Navegador.</p>
+              </div>
+
+              <div class="grow-spacer"></div>
+
+              <div class="transport">
+                <button id="btn-media-prev" class="btn btn-transport" disabled title="Mídia anterior (← ou PageUp)">
+                  <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+                  <span>Anterior</span>
+                </button>
+                <button id="btn-media-toggle" class="btn btn-transport btn-toggle" disabled title="Exibir/ocultar (Esc ou B)">
+                  <span id="btn-media-toggle-label">Exibir</span>
+                </button>
+                <button id="btn-media-next" class="btn btn-transport btn-primary" disabled title="Próxima mídia (Espaço, → ou PageDown)">
+                  <span>Próximo</span>
+                  <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+              </div>
+              <p class="hint"><kbd>Espaço</kbd> <kbd>→</kbd> próxima · <kbd>←</kbd> anterior · <kbd>Esc</kbd> <kbd>B</kbd> exibir/ocultar · <kbd>N</kbd> nome do pregador</p>
+            </div>
+          </section>
+
+          <!-- Direita: pregador + aparência -->
+          <aside class="card appearance" id="media-side">
+            <div class="card-head">
+              <h2>Pregador do dia</h2>
+              <button id="btn-lt-add" class="btn btn-secondary btn-sm">+ Pregador</button>
+            </div>
+            <form id="lt-form" class="lt-form" hidden>
+              <input type="text" id="lt-form-name" placeholder="Nome (ex: Pr. João Silva)" maxlength="80" required>
+              <input type="text" id="lt-form-subtitle" placeholder="Abaixo do nome (ex: Tabernáculo da Fé · Luziânia)" maxlength="100">
+              <div class="modal-actions">
+                <button type="button" class="btn btn-text btn-sm" id="btn-lt-cancel">Cancelar</button>
+                <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
+              </div>
+            </form>
+            <div id="lt-list" class="lt-list"></div>
+            <button id="btn-lt-toggle" class="btn btn-primary btn-lt-toggle" disabled>Mostrar nome <kbd>N</kbd></button>
+            <div class="field">
+              <label for="lt-autohide">Esconder sozinho depois de</label>
+              <select id="lt-autohide">
+                <option value="0">Não esconder sozinho</option>
+                <option value="5">5 segundos</option>
+                <option value="8">8 segundos</option>
+                <option value="12">12 segundos</option>
+                <option value="20">20 segundos</option>
+              </select>
+            </div>
+
+            <fieldset>
+              <legend>Aparência do nome</legend>
+              <div class="segmented segmented-3" role="radiogroup" aria-label="Estilo">
+                <label><input type="radio" name="lt-look" value="modern" checked><span>Moderno</span></label>
+                <label><input type="radio" name="lt-look" value="minimal"><span>Minimalista</span></label>
+                <label><input type="radio" name="lt-look" value="solid"><span>Faixa</span></label>
+              </div>
+              <div class="field">
+                <label for="lt-position">Posição</label>
+                <select id="lt-position">
+                  <option value="bottom-left">Embaixo, à esquerda</option>
+                  <option value="bottom-center">Embaixo, no centro</option>
+                  <option value="bottom-right">Embaixo, à direita</option>
+                  <option value="top-left">Em cima, à esquerda</option>
+                  <option value="top-right">Em cima, à direita</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="lt-animation">Entrada</label>
+                <select id="lt-animation">
+                  <option value="slide">Deslizar</option>
+                  <option value="fade">Esvanecer</option>
+                  <option value="reveal">Revelar</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="lt-font">Fonte</label>
+                <select id="lt-font">
+                  <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
+                  <option value="Outfit, sans-serif">Outfit (moderna)</option>
+                  <option value="'Lora', serif">Lora (elegante, com serifa)</option>
+                  <option value="'Playfair Display', serif">Playfair Display (tradicional)</option>
+                  <option value="'Crimson Pro', serif">Crimson Pro (com serifa)</option>
+                </select>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="lt-scale">Tamanho</label><output id="lt-scale-val">100%</output></div>
+                <input type="range" id="lt-scale" min="0.6" max="1.8" step="0.05" value="1">
+              </div>
+              <div class="color-grid">
+                <label class="color-field"><input type="color" id="lt-name-color" value="#ffffff"><span>Nome</span></label>
+                <label class="color-field"><input type="color" id="lt-subtitle-color" value="#cbd5e1"><span>Abaixo</span></label>
+                <label class="color-field"><input type="color" id="lt-accent-color" value="#3b82f6"><span>Destaque</span></label>
+                <label class="color-field"><input type="color" id="lt-bg-color" value="#0a0f1e"><span>Fundo</span></label>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="lt-bg-opacity">Opacidade do fundo</label><output id="lt-opacity-val">85%</output></div>
+                <input type="range" id="lt-bg-opacity" min="0" max="100" value="85">
+              </div>
+              <button id="btn-lt-reset" class="btn btn-text btn-sm">Restaurar padrão do nome</button>
+            </fieldset>
+
+            <fieldset>
+              <legend>Aparência da mídia</legend>
+              <div class="field">
+                <label for="media-transition">Transição</label>
+                <select id="media-transition">
+                  <option value="crossfade">Dissolver (uma na outra)</option>
+                  <option value="fade-black">Passar pelo preto</option>
+                  <option value="cut">Corte seco</option>
+                  <option value="slide">Deslizar</option>
+                  <option value="zoom">Zoom suave</option>
+                </select>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="media-duration-range">Duração da transição</label><output id="media-duration-val">0.6 s</output></div>
+                <input type="range" id="media-duration-range" min="0.2" max="2" step="0.1" value="0.6">
+              </div>
+              <div class="segmented" role="radiogroup" aria-label="Ajuste">
+                <label><input type="radio" name="media-fit" value="contain" checked><span>Inteira</span></label>
+                <label><input type="radio" name="media-fit" value="cover"><span>Preencher a tela</span></label>
+              </div>
+              <div class="color-row">
+                <label class="color-field"><input type="color" id="media-bg" value="#000000"><span>Bordas</span></label>
+                <div class="field grow">
+                  <label for="media-end">Quando o vídeo terminar</label>
+                  <select id="media-end">
+                    <option value="clear">Tirar da tela</option>
+                    <option value="hold">Ficar no último quadro</option>
+                  </select>
+                </div>
+              </div>
+              <button id="btn-media-reset" class="btn btn-text btn-sm">Restaurar padrão da mídia</button>
+            </fieldset>
+          </aside>
         </div>
       </section>
 
@@ -587,6 +801,17 @@
           </div>
 
           <div class="card">
+            <h2>PIN para outros aparelhos</h2>
+            <p class="muted" id="pin-status">Verificando...</p>
+            <form id="pin-set-form" class="copy-field">
+              <input type="password" id="pin-new" inputmode="numeric" maxlength="8" placeholder="Novo PIN (4 a 8 números)" autocomplete="new-password">
+              <button type="submit" class="btn btn-primary btn-sm">Salvar PIN</button>
+            </form>
+            <button id="btn-pin-remove" class="btn btn-text btn-sm" hidden>Remover o PIN</button>
+            <p class="muted small">Este computador nunca pede PIN. O OBS (mesmo em outro computador) também não.</p>
+          </div>
+
+          <div class="card">
             <h2>Bíblia ACF</h2>
             <p class="muted" id="bible-status">Verificando...</p>
             <label class="btn btn-secondary btn-sm file-button">
@@ -602,7 +827,8 @@
               <li><span>Próximo parágrafo</span><span><kbd>Espaço</kbd> <kbd>→</kbd> <kbd>PageDown</kbd></span></li>
               <li><span>Parágrafo anterior</span><span><kbd>←</kbd> <kbd>PageUp</kbd></span></li>
               <li><span>Exibir/ocultar texto</span><span><kbd>Esc</kbd> <kbd>.</kbd> <kbd>B</kbd></span></li>
-              <li><span>Buscar parágrafo</span><span><kbd>Enter</kbd></span></li>
+              <li><span>Buscar (na aba aberta)</span><span><kbd>Enter</kbd></span></li>
+              <li><span>Mostrar/esconder o nome do pregador</span><span><kbd>N</kbd></span></li>
             </ul>
             <p class="muted small">O passador <strong>Logitech R400</strong> funciona mesmo com o app minimizado (PageUp/PageDown).</p>
           </div>
@@ -747,6 +973,6 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script type="module" src="js/admin/main.js?v=1.4.0"></script>
+  <script type="module" src="js/admin/main.js?v=1.5.0"></script>
 </body>
 </html>
