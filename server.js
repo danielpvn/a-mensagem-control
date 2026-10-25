@@ -69,7 +69,15 @@ const DEFAULT_HYMN_STYLES = {
   animationType: 'fade',
   linesPerSlide: 4,
   bgImage: null,                 // '/backgrounds/arquivo.jpg' ou null
-  position: 'center'             // tela cheia: texto no 'center' ou 'bottom'
+  position: 'center',            // tela cheia: texto no 'center' ou 'bottom'
+  bgMode: 'color',               // 'color', 'gradient' ou 'image'
+  gradientFrom: '#1a0b2e',
+  gradientTo: '#5b2a86',
+  gradientAngle: 135,
+  gradientKind: 'linear',        // 'linear' ou 'radial'
+  gradientOpacity: 1,
+  gradientAnimate: false,
+  bgVignette: false
 };
 
 // Padrão baseado nos presets que a igreja já usava (Crimson Pro, versículo branco, referência amarela)
@@ -88,6 +96,14 @@ const DEFAULT_BIBLE_STYLES = {
   bgColor: 'rgba(0, 0, 0, 1)',
   bgImage: null,
   position: 'center',
+  bgMode: 'gradient',
+  gradientFrom: '#0f2027',
+  gradientTo: '#2c5364',
+  gradientAngle: 135,
+  gradientKind: 'linear',
+  gradientOpacity: 1,
+  gradientAnimate: false,
+  bgVignette: true,
   textShadow: true,
   animationType: 'fade'
 };
@@ -356,11 +372,25 @@ function updateHymnStyles(partial) {
 // ---------- Bíblia ao vivo ----------
 
 // Cada versículo vira uma ou mais telas (as quebras já vêm da pasta da Bíblia)
+// Cada versículo é uma tela só. Só divide os enormes, que não caberiam nem diminuindo a letra:
+// acima de ~450 caracteres na tela cheia, ou ~230 quando o espaço é menor (faixa ou texto embaixo).
+// Quando divide, usa os pontos de quebra que a pasta da igreja já marca.
+function verseCharLimit(styles) {
+  return styles.layout === 'lower-third' || styles.position === 'bottom' ? 230 : 450;
+}
+
 function bibleSlides(chapter) {
+  const limit = verseCharLimit(globalState.bibleStyles);
   const slides = [];
   chapter.verses.forEach(v => {
-    const parts = v.text.split('\n').filter(Boolean);
-    parts.forEach((text, i) => slides.push({ verse: v.verse, part: i + 1, parts: parts.length, text }));
+    const pieces = v.text.split('\n').filter(Boolean);
+    const screens = [];
+    pieces.forEach(piece => {
+      const last = screens[screens.length - 1];
+      if (last !== undefined && `${last} ${piece}`.length <= limit) screens[screens.length - 1] = `${last} ${piece}`;
+      else screens.push(piece);
+    });
+    screens.forEach((text, i) => slides.push({ verse: v.verse, part: i + 1, parts: screens.length, text }));
   });
   return slides;
 }
@@ -440,9 +470,26 @@ function toggleBible() {
 }
 
 let saveBibleStylesTimer = null;
+// Recalcula as telas do capítulo aberto (o limite muda com o formato), mantendo o versículo
+function refreshBibleSlides() {
+  const b = globalState.bible;
+  if (!b.book) return;
+  const current = b.slides[b.slideIndex];
+  const chapter = bible.getChapter(b.book, b.chapter);
+  if (!chapter) return;
+  b.slides = bibleSlides(chapter);
+  if (current) {
+    const index = b.slides.findIndex(sl => sl.verse === current.verse);
+    b.slideIndex = index === -1 ? Math.min(b.slideIndex, b.slides.length - 1) : index;
+  }
+  broadcastContent();
+}
+
 function updateBibleStyles(partial) {
+  const oldLimit = verseCharLimit(globalState.bibleStyles);
   globalState.bibleStyles = { ...globalState.bibleStyles, ...partial };
   broadcast('update-bible-style', globalState.bibleStyles);
+  if (verseCharLimit(globalState.bibleStyles) !== oldLimit) refreshBibleSlides();
   clearTimeout(saveBibleStylesTimer);
   saveBibleStylesTimer = setTimeout(() => db.setSetting('styles.bible', globalState.bibleStyles), 400);
 }

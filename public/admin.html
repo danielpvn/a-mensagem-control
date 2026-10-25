@@ -6,7 +6,7 @@
   <title>A Mensagem Control - Painel do Operador</title>
   <link rel="icon" type="image/png" href="assets/favicon.png">
   <link rel="stylesheet" href="fonts.css">
-  <link rel="stylesheet" href="admin.css?v=1.3.0">
+  <link rel="stylesheet" href="admin.css?v=1.4.0">
 </head>
 <body>
   <div class="app">
@@ -369,20 +369,16 @@
 
             <fieldset>
               <legend>Cores</legend>
-              <div class="color-grid">
+              <div class="color-grid color-grid-3">
                 <label class="color-field"><input type="color" id="hymn-text-color" value="#ffffff"><span>Letra</span></label>
                 <label class="color-field"><input type="color" id="hymn-accent-color" value="#93c5fd"><span>Destaque</span></label>
-                <label class="color-field"><input type="color" id="hymn-bg-color" value="#050814"><span>Fundo</span></label>
                 <label class="color-field"><input type="color" id="hymn-outline-color" value="#000000"><span>Contorno</span></label>
               </div>
-              <div class="field">
-                <div class="field-row"><label for="hymn-bg-opacity">Opacidade do fundo</label><output id="hymn-opacity-val">90%</output></div>
-                <input type="range" id="hymn-bg-opacity" min="0" max="100" value="90">
-              </div>
-              <div class="field">
-                <label>Imagem de fundo</label>
-                <div class="bg-picker" id="hymn-bg-picker"></div>
-              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Fundo</legend>
+              <div id="hymn-bg-editor"></div>
             </fieldset>
 
             <fieldset>
@@ -538,19 +534,10 @@
             </fieldset>
 
             <fieldset>
-              <legend>Cores e fundo</legend>
-              <div class="color-grid color-grid-3">
+              <legend>Cores</legend>
+              <div class="color-grid color-grid-2">
                 <label class="color-field"><input type="color" id="bible-text-color" value="#ffffff"><span>Letra</span></label>
                 <label class="color-field"><input type="color" id="bible-ref-color" value="#ffeb07"><span>Referência</span></label>
-                <label class="color-field"><input type="color" id="bible-bg-color" value="#000000"><span>Fundo</span></label>
-              </div>
-              <div class="field">
-                <div class="field-row"><label for="bible-bg-opacity">Opacidade do fundo</label><output id="bible-opacity-val">100%</output></div>
-                <input type="range" id="bible-bg-opacity" min="0" max="100" value="100">
-              </div>
-              <div class="field">
-                <label>Imagem de fundo</label>
-                <div class="bg-picker" id="bible-bg-picker"></div>
               </div>
               <div class="field">
                 <label for="bible-animation">Transição</label>
@@ -562,6 +549,11 @@
                   <option value="blur">Desfoque</option>
                 </select>
               </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Fundo</legend>
+              <div id="bible-bg-editor"></div>
             </fieldset>
           </aside>
         </div>
@@ -755,6 +747,6 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script type="module" src="js/admin/main.js?v=1.3.0"></script>
+  <script type="module" src="js/admin/main.js?v=1.4.0"></script>
 </body>
 </html>

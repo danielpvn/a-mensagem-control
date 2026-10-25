@@ -879,6 +879,24 @@ fieldset > legend + * { clear: both; }
 .verse-result.focused { background: var(--field-hover); border-color: var(--border-strong); }
 .verse-result mark { background: rgba(250, 204, 21, 0.22); color: #fde68a; border-radius: 3px; padding: 0 1px; }
 
+/* Editor de fundo (cor, degradê, imagem) */
+.bg-editor { display: flex; flex-direction: column; gap: 12px; }
+.bg-section { display: flex; flex-direction: column; gap: 12px; }
+.gradient-presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.gradient-chip {
+  aspect-ratio: 16 / 9;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.12s, transform 0.08s;
+}
+.gradient-chip:hover { border-color: var(--border-strong); }
+.gradient-chip.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3); }
+.color-grid-2 { grid-template-columns: repeat(2, 1fr); }
+.color-row { display: flex; gap: 12px; align-items: flex-end; }
+.color-row .color-field { width: 64px; flex-shrink: 0; }
+.field.disabled { opacity: 0.4; pointer-events: none; }
+
 /* Seletor de imagem de fundo */
 .bg-picker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .bg-tile {

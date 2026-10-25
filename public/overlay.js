@@ -23,6 +23,37 @@ function outlineShadow(color, size) {
   return `-${size}px -${size}px 0 ${color}, ${size}px -${size}px 0 ${color}, -${size}px ${size}px 0 ${color}, ${size}px ${size}px 0 ${color}, 0px 2px 4px rgba(0,0,0,0.5)`;
 }
 
+function hexToRgba(hex, alpha) {
+  const h = String(hex || '#000000');
+  return `rgba(${parseInt(h.slice(1, 3), 16)}, ${parseInt(h.slice(3, 5), 16)}, ${parseInt(h.slice(5, 7), 16)}, ${alpha})`;
+}
+
+// Fundo das camadas de tela: cor, degradê (linear ou circular) ou imagem com uma cor por cima.
+// A vinheta escurece de leve as bordas e destaca o texto.
+function backgroundFor(s, fallbackColor) {
+  const mode = s.bgMode || (s.bgImage ? 'image' : 'color');
+  const color = s.bgColor || fallbackColor;
+  let css = color;
+  if (mode === 'image' && s.bgImage) {
+    css = `linear-gradient(${color}, ${color}), url("${s.bgImage}") center / cover no-repeat`;
+  } else if (mode === 'gradient') {
+    const alpha = s.gradientOpacity ?? 1;
+    const from = hexToRgba(s.gradientFrom || '#0f2027', alpha);
+    const to = hexToRgba(s.gradientTo || '#2c5364', alpha);
+    css = s.gradientKind === 'radial'
+      ? `radial-gradient(circle at 50% 38%, ${from}, ${to} 75%)`
+      : `linear-gradient(${s.gradientAngle ?? 135}deg, ${from}, ${to})`;
+  }
+  const animate = mode === 'gradient' && !!s.gradientAnimate;
+  // O movimento estica só o degradê (a vinheta fica parada do tamanho da tela)
+  let size = animate ? '220% 220%' : '';
+  if (s.bgVignette) {
+    css = `radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.5) 100%), ${css}`;
+    if (animate) size = `100% 100%, ${size}`;
+  }
+  return { css, size, animate };
+}
+
 // ================= Mensagem =================
 
 let styleConfig = {};
@@ -182,12 +213,14 @@ function createScreenLayer(prefix, { content, look }) {
     layer.classList.toggle('layout-full', !lower);
     layer.classList.toggle('text-bottom', !lower && l.position === 'bottom');
 
-    // Fundo: cor (com transparência) por cima da imagem, se houver. Na tela cheia cobre
-    // a tela toda; na faixa, só a caixa.
-    const tint = `linear-gradient(${l.bgColor}, ${l.bgColor})`;
-    const background = l.bgImage ? `${tint}, url("${l.bgImage}") center / cover no-repeat` : l.bgColor;
-    layer.style.background = lower ? 'transparent' : background;
-    box.style.background = lower ? background : 'transparent';
+    // Fundo: na tela cheia cobre a tela toda; na faixa, só a caixa
+    const target = lower ? box : layer;
+    const other = lower ? layer : box;
+    target.style.background = l.background.css;
+    if (l.background.size) target.style.backgroundSize = l.background.size;
+    other.style.background = 'transparent';
+    target.classList.toggle('bg-animated', l.background.animate);
+    other.classList.remove('bg-animated');
 
     box.style.fontFamily = l.fontFamily;
     box.style.borderColor = l.accentColor;
@@ -243,8 +276,7 @@ const hymnLayer = createScreenLayer('hymn', {
     textAlign: 'center',
     uppercase: s.uppercase,
     textShadow: s.textOutline ? outlineShadow(s.outlineColor || '#000000', 2) : '0 3px 10px rgba(0,0,0,0.45)',
-    bgColor: s.bgColor || 'rgba(5, 8, 20, 0.9)',
-    bgImage: s.bgImage,
+    background: backgroundFor(s, 'rgba(5, 8, 20, 0.9)'),
     position: s.position,
     animationType: s.animationType
   })
@@ -271,8 +303,7 @@ const bibleLayer = createScreenLayer('bible', {
     textAlign: s.textAlign || 'center',
     uppercase: false,
     textShadow: s.textShadow === false ? 'none' : '0 4px 14px rgba(0,0,0,0.6)',
-    bgColor: s.bgColor || 'rgba(0, 0, 0, 1)',
-    bgImage: s.bgImage,
+    background: backgroundFor(s, 'rgba(0, 0, 0, 1)'),
     position: s.position,
     animationType: s.animationType
   })

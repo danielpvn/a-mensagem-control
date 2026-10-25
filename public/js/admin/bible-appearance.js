@@ -1,36 +1,48 @@
 // Aparência da Bíblia no OBS/telão. Tudo vai ao vivo e fica salvo no banco.
 import { $ } from './ui.js';
 import * as ws from './ws.js';
-import { createBackgroundPicker, refreshBackgrounds, backgroundExists } from './backgrounds.js';
+import { refreshBackgrounds, backgroundExists } from './backgrounds.js';
+import { createBackgroundEditor, gradientCss } from './background-editor.js';
 
-// Temas baseados nos presets que a igreja já usava no programa antigo
+// Campos de fundo que todo tema define (para um tema não herdar o fundo do anterior)
+const plain = { bgMode: 'color', bgImage: null, bgVignette: false, gradientAnimate: false };
+
+// Temas: degradês novos + os presets que a igreja já usava no programa antigo
 const THEMES = [
   {
-    name: 'Padrão',
-    swatch: ['#000000', '#ffffff'],
-    styles: { layout: 'fullscreen', position: 'center', bgColor: 'rgba(0, 0, 0, 1)', bgImage: null, textColor: '#ffffff', refColor: '#ffeb07', fontSize: '4.4rem', textAlign: 'center' }
+    name: 'Azul profundo',
+    preview: gradientCss({ from: '#0f2027', to: '#2c5364', angle: 135 }),
+    styles: { ...plain, layout: 'fullscreen', position: 'center', bgMode: 'gradient', gradientFrom: '#0f2027', gradientTo: '#2c5364', gradientAngle: 135, gradientKind: 'linear', gradientOpacity: 1, bgVignette: true, textColor: '#ffffff', refColor: '#ffeb07', fontSize: '4.4rem' }
   },
   {
-    name: 'Azul',
-    swatch: ['#005a8c', '#ffffff'],
-    styles: { layout: 'fullscreen', position: 'center', bgColor: 'rgba(0, 90, 140, 1)', bgImage: null, textColor: '#ffffff', refColor: '#ffeb07', fontSize: '4.4rem', textAlign: 'center' }
+    name: 'Luz no centro',
+    preview: gradientCss({ from: '#1f5f9a', to: '#050b16', kind: 'radial' }),
+    styles: { ...plain, layout: 'fullscreen', position: 'center', bgMode: 'gradient', gradientFrom: '#1f5f9a', gradientTo: '#050b16', gradientKind: 'radial', gradientOpacity: 1, gradientAnimate: true, textColor: '#ffffff', refColor: '#ffeb07', fontSize: '4.4rem' }
+  },
+  {
+    name: 'Vinho',
+    preview: gradientCss({ from: '#2b0a12', to: '#7b1e3a', angle: 150 }),
+    styles: { ...plain, layout: 'fullscreen', position: 'center', bgMode: 'gradient', gradientFrom: '#2b0a12', gradientTo: '#7b1e3a', gradientAngle: 150, gradientKind: 'linear', gradientOpacity: 1, bgVignette: true, textColor: '#fff7ed', refColor: '#fcd34d', fontSize: '4.4rem' }
+  },
+  {
+    name: 'Padrão (preto)',
+    preview: '#000000',
+    styles: { ...plain, layout: 'fullscreen', position: 'center', bgColor: 'rgba(0, 0, 0, 1)', textColor: '#ffffff', refColor: '#ffeb07', fontSize: '4.4rem' }
   },
   {
     name: 'Com imagem',
     image: '/backgrounds/biblia_e_mensagens_padrao.jpg',
-    swatch: ['#1d5f9a', '#ffffff'],
-    styles: { layout: 'fullscreen', position: 'center', bgColor: 'rgba(0, 0, 0, 0.1)', bgImage: '/backgrounds/biblia_e_mensagens_padrao.jpg', textColor: '#ffffff', refColor: '#ffeb07', fontSize: '4.4rem', textAlign: 'center' }
+    styles: { ...plain, layout: 'fullscreen', position: 'center', bgMode: 'image', bgImage: '/backgrounds/biblia_e_mensagens_padrao.jpg', bgColor: 'rgba(0, 0, 0, 0.1)', textColor: '#ffffff', refColor: '#ffeb07', fontSize: '4.4rem' }
   },
   {
     name: 'Rodapé com imagem',
     image: '/backgrounds/biblia_rodape_padrao.jpg',
-    swatch: ['#0b2238', '#ffffff'],
-    styles: { layout: 'fullscreen', position: 'bottom', bgColor: 'rgba(0, 0, 0, 0)', bgImage: '/backgrounds/biblia_rodape_padrao.jpg', textColor: '#ffffff', refColor: '#ffeb07', fontSize: '3.6rem', textAlign: 'center' }
+    styles: { ...plain, layout: 'fullscreen', position: 'bottom', bgMode: 'image', bgImage: '/backgrounds/biblia_rodape_padrao.jpg', bgColor: 'rgba(0, 0, 0, 0)', textColor: '#ffffff', refColor: '#ffeb07', fontSize: '3.6rem' }
   },
   {
     name: 'Faixa (transmissão)',
-    swatch: ['#0a0f1e', '#ffffff'],
-    styles: { layout: 'lower-third', position: 'center', bgColor: 'rgba(10, 15, 30, 0.88)', bgImage: null, textColor: '#ffffff', refColor: '#ffeb07', fontSize: '3rem', textAlign: 'center' }
+    preview: gradientCss({ from: '#0a0f1e', to: '#1e3a5f', angle: 90 }),
+    styles: { ...plain, layout: 'lower-third', position: 'center', bgMode: 'gradient', gradientFrom: '#0a0f1e', gradientTo: '#1e3a5f', gradientAngle: 90, gradientKind: 'linear', gradientOpacity: 0.92, textColor: '#ffffff', refColor: '#ffeb07', fontSize: '3rem' }
   }
 ];
 
@@ -44,8 +56,6 @@ const input = {
   refSize: $('bible-ref-size'),
   textColor: $('bible-text-color'),
   refColor: $('bible-ref-color'),
-  bgColor: $('bible-bg-color'),
-  bgOpacity: $('bible-bg-opacity'),
   animation: $('bible-animation')
 };
 const radios = (name) => [...document.querySelectorAll(`input[name="${name}"]`)];
@@ -58,28 +68,11 @@ const groups = {
 const checkedValue = (list) => (list.find(r => r.checked) || list[0]).value;
 const setChecked = (list, value) => list.forEach(r => { r.checked = r.value === value; });
 
-let current = {};
-let picker = null;
-
-function hexToRgba(hex, alpha) {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-function parseRgba(rgbaStr) {
-  const match = String(rgbaStr).match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-  if (!match) return { hex: '#000000', opacity: 100 };
-  const [r, g, b] = [match[1], match[2], match[3]].map(Number);
-  const opacity = match[4] ? Math.round(parseFloat(match[4]) * 100) : 100;
-  return { hex: '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1), opacity };
-}
+let editor = null;
 
 function updateLabels() {
   $('bible-size-val').textContent = input.size.value;
   $('bible-ref-size-val').textContent = input.refSize.value;
-  $('bible-opacity-val').textContent = `${input.bgOpacity.value}%`;
   // "Texto embaixo" só faz sentido na tela cheia
   $('bible-position-group').classList.toggle('disabled', checkedValue(groups.layout) !== 'fullscreen');
 }
@@ -99,14 +92,12 @@ function gatherStyles() {
     refSize: `${input.refSize.value}rem`,
     textColor: input.textColor.value,
     refColor: input.refColor.value,
-    bgColor: hexToRgba(input.bgColor.value, Number(input.bgOpacity.value) / 100),
     animationType: input.animation.value
   };
 }
 
 function fillInputs(styles) {
   if (!styles) return;
-  current = { ...current, ...styles };
   setChecked(groups.layout, styles.layout || 'fullscreen');
   setChecked(groups.position, styles.position || 'center');
   setChecked(groups.textAlign, styles.textAlign || 'center');
@@ -120,29 +111,9 @@ function fillInputs(styles) {
   input.refSize.value = parseFloat(styles.refSize) || 1.8;
   input.textColor.value = styles.textColor || '#ffffff';
   input.refColor.value = styles.refColor || '#ffeb07';
-  const { hex, opacity } = parseRgba(styles.bgColor);
-  input.bgColor.value = hex;
-  input.bgOpacity.value = opacity;
   input.animation.value = styles.animationType || 'fade';
   updateLabels();
-  if (picker) picker.render();
-}
-
-function send(partial) {
-  current = { ...current, ...partial };
-  ws.send('update-bible-styles', partial);
-}
-
-// Escolher imagem com o fundo opaco esconderia a imagem: deixa a cor quase transparente
-function selectImage(url) {
-  const partial = { bgImage: url };
-  if (url && Number(input.bgOpacity.value) >= 90) {
-    input.bgOpacity.value = 15;
-    partial.bgColor = hexToRgba(input.bgColor.value, 0.15);
-    updateLabels();
-  }
-  send(partial);
-  picker.render();
+  editor.fill(styles);
 }
 
 function renderThemes() {
@@ -155,31 +126,36 @@ function renderThemes() {
     btn.title = `Aplicar o tema "${theme.name}"`;
     const swatch = document.createElement('span');
     swatch.className = 'theme-swatch';
-    swatch.style.background = theme.image ? `url("${theme.image}") center / cover` : theme.swatch[0];
-    swatch.style.color = theme.swatch[1];
+    swatch.style.background = theme.image ? `url("${theme.image}") center / cover` : theme.preview;
+    swatch.style.color = theme.styles.textColor;
     swatch.textContent = 'Aa';
     const name = document.createElement('span');
     name.textContent = theme.name;
     btn.append(swatch, name);
-    btn.onclick = () => send(theme.styles);
+    btn.onclick = () => ws.send('update-bible-styles', theme.styles);
     grid.appendChild(btn);
   });
 }
 
 export function setupBibleAppearance() {
-  picker = createBackgroundPicker($('bible-bg-picker'), { getValue: () => current.bgImage || null, onSelect: selectImage });
+  editor = createBackgroundEditor($('bible-bg-editor'), {
+    name: 'bible-bg',
+    defaultColor: { hex: '#000000', opacity: 100 },
+    onChange: (partial) => ws.send('update-bible-styles', partial)
+  });
   refreshBackgrounds().then(renderThemes);
 
+  const allControls = [...Object.values(input), ...Object.values(groups).flat(), ...editor.controls];
   ws.on('init', (state) => fillInputs(state.bibleStyles));
   ws.on('update-bible-style', (styles) => {
-    if (![...Object.values(input), ...Object.values(groups).flat()].includes(document.activeElement)) fillInputs(styles);
-    else current = { ...current, ...styles };
+    // Não atrapalha quem está arrastando um controle neste painel
+    if (!allControls.includes(document.activeElement)) fillInputs(styles);
   });
 
   [...Object.values(input), ...Object.values(groups).flat()].forEach(control => {
     control.addEventListener('input', () => {
       updateLabels();
-      send(gatherStyles());
+      ws.send('update-bible-styles', gatherStyles());
     });
   });
 
