@@ -104,6 +104,205 @@ body, html {
 }
 
 
+/* --- Camadas de tela (Hinos e Bíblia) --- */
+.screen-layer {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  transition: opacity 0.45s ease;
+}
+.screen-layer.hidden { opacity: 0; }
+
+.screen-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  color: #ffffff;
+  transition:
+    opacity 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+    transform 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+    clip-path 0.5s cubic-bezier(0.25, 1, 0.5, 1),
+    filter 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+  will-change: transform, opacity, clip-path, filter;
+}
+
+.screen-text-wrap { width: 100%; display: flex; justify-content: center; }
+
+.screen-text {
+  line-height: 1.32;
+  word-wrap: break-word;
+  max-width: 100%;
+}
+.screen-text.lines { white-space: pre-line; }   /* hino: cada linha da letra numa linha da tela */
+.screen-text.prose { line-height: 1.28; }        /* versículo: texto corrido */
+
+.screen-title, .screen-label {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+/* Tela cheia: texto no centro, título em cima, rótulo embaixo */
+.layout-full { align-items: center; }
+.layout-full .screen-box {
+  width: 100%;
+  height: 100%;
+  justify-content: space-between;
+  padding: 5vh 7vw;
+}
+.layout-full .screen-text-wrap { flex: 1; align-items: center; }
+
+/* Tela cheia com o texto na parte de baixo (ex: imagem com faixa no rodapé, no telão) */
+.layout-full.text-bottom .screen-box { justify-content: flex-end; padding-bottom: 3vh; }
+.layout-full.text-bottom .screen-text-wrap { flex: 0 0 auto; min-height: 20vh; align-items: center; }
+.layout-full.text-bottom .screen-title { margin-bottom: 1.5vh; }
+
+/* Faixa embaixo: caixa no rodapé, por cima da câmera */
+.layout-lower { align-items: flex-end; padding: 0 1.5% 12px; }
+.layout-lower .screen-box {
+  width: 100%;
+  max-width: 1840px;
+  padding: 14px 40px 16px;
+  border-radius: 14px;
+  border-left: 5px solid #93c5fd;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(12px);
+  gap: 4px;
+}
+
+/* Degradê com movimento suave (bem lento, para não distrair) */
+.bg-animated {
+  animation: bg-drift 28s ease-in-out infinite alternate;
+}
+@keyframes bg-drift {
+  0% { background-position: 0% 30%; }
+  100% { background-position: 100% 70%; }
+}
+
+/* --- Mídia em tela cheia --- */
+.media-layer {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+  transition: opacity 0.6s ease;
+}
+.media-layer.hidden { opacity: 0; }
+.media-slot { position: absolute; inset: 0; opacity: 0; will-change: opacity, transform; }
+.media-slot img, .media-slot video { position: relative; width: 100%; height: 100%; object-fit: contain; display: block; }
+.media-layer.fit-cover .media-slot img, .media-layer.fit-cover .media-slot video { object-fit: cover; object-position: var(--media-focus, center); }
+.media-backdrop { display: none; position: absolute; inset: -6%; background: center / cover no-repeat; filter: blur(45px) brightness(0.55) saturate(1.15); }
+.media-layer.fit-blur .media-backdrop { display: block; }
+
+/* --- Nome do pregador (lower third) --- */
+/* A camada só posiciona; os efeitos de entrada/saída agem na caixa (.lt-box) */
+.lt-layer {
+  --lt-scale: 1;
+  --lt-lift: 0px;
+  --lt-speed: 1;
+  --lt-dur: calc(0.6s * var(--lt-speed));
+  position: fixed;
+  left: 5vw;
+  right: 5vw;
+  z-index: 50;
+  display: flex;
+  pointer-events: none;
+  font-size: calc(16px * var(--lt-scale));
+  transition: bottom 0.4s ease;
+}
+.lt-layer.pos-bottom-left, .lt-layer.pos-bottom-center, .lt-layer.pos-bottom-right { bottom: calc(7vh + var(--lt-lift)); }
+.lt-layer.pos-top-left, .lt-layer.pos-top-right { top: 6vh; }
+.lt-layer.pos-bottom-left, .lt-layer.pos-top-left { justify-content: flex-start; }
+.lt-layer.pos-bottom-center { justify-content: center; text-align: center; }
+.lt-layer.pos-bottom-right, .lt-layer.pos-top-right { justify-content: flex-end; text-align: right; }
+
+.lt-box {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.35em;
+  transform-origin: left center;
+  transition:
+    opacity var(--lt-dur) ease,
+    transform var(--lt-dur) cubic-bezier(0.22, 1, 0.36, 1),
+    filter var(--lt-dur) ease,
+    clip-path calc(var(--lt-dur) * 1.15) cubic-bezier(0.65, 0, 0.35, 1);
+}
+.pos-bottom-center .lt-box { transform-origin: center; }
+.pos-bottom-right .lt-box, .pos-top-right .lt-box { transform-origin: right center; }
+.lt-name, .lt-subtitle {
+  transition: opacity var(--lt-dur) ease, transform var(--lt-dur) cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lt-name { color: var(--lt-name); font-size: 2.6em; font-weight: 700; line-height: 1.1; letter-spacing: 0.01em; }
+.lt-subtitle { color: var(--lt-subtitle); font-size: 1.35em; font-weight: 500; letter-spacing: 0.04em; }
+
+/* Moderno: caixa com barra colorida na lateral */
+.look-modern .lt-box {
+  background: var(--lt-bg);
+  border-left: 0.45em solid var(--lt-accent);
+  padding: 0.8em 1.6em 0.85em 1.3em;
+  border-radius: 0.4em;
+  box-shadow: 0 1.2em 2.4em rgba(0, 0, 0, 0.35);
+}
+.look-modern.pos-bottom-right .lt-box, .look-modern.pos-top-right .lt-box { border-left: none; border-right: 0.45em solid var(--lt-accent); padding: 0.8em 1.3em 0.85em 1.6em; }
+
+/* Minimalista: só o texto, com uma linha de destaque */
+.look-minimal .lt-name { text-shadow: 0 0.12em 0.5em rgba(0, 0, 0, 0.6); }
+.look-minimal .lt-subtitle { text-shadow: 0 0.1em 0.4em rgba(0, 0, 0, 0.6); padding-top: 0.45em; border-top: 0.12em solid var(--lt-accent); }
+
+/* Faixa sólida: nome numa faixa da cor de destaque, subtítulo numa faixa escura */
+.look-solid .lt-box { gap: 0; }
+.look-solid .lt-name { background: var(--lt-accent); padding: 0.35em 0.7em; }
+.look-solid .lt-subtitle { background: var(--lt-bg); padding: 0.4em 0.95em; align-self: flex-start; }
+.look-solid.pos-bottom-right .lt-subtitle, .look-solid.pos-top-right .lt-subtitle { align-self: flex-end; }
+.look-solid.pos-bottom-center .lt-subtitle { align-self: center; }
+
+/* ---- Efeitos de entrada e saída (o estado escondido de cada um; a volta é a mesma animação ao contrário) ---- */
+
+/* Esvanecer */
+.lt-anim-fade.hidden .lt-box { opacity: 0; }
+
+/* Deslizar do lado (da esquerda; nas posições da direita, vem da direita) */
+.lt-anim-slide.hidden .lt-box { opacity: 0; transform: translateX(-3em); }
+.lt-anim-slide.hidden.pos-bottom-right .lt-box, .lt-anim-slide.hidden.pos-top-right .lt-box { transform: translateX(3em); }
+.lt-anim-slide.hidden.pos-bottom-center .lt-box { transform: translateY(1.5em); }
+
+/* Subir (de baixo) e Descer (de cima) */
+.lt-anim-rise.hidden .lt-box { opacity: 0; transform: translateY(1.6em); }
+.lt-anim-drop.hidden .lt-box { opacity: 0; transform: translateY(-1.6em); }
+
+/* Zoom */
+.lt-anim-zoom.hidden .lt-box { opacity: 0; transform: scale(0.82); }
+
+/* Desfoque */
+.lt-anim-blur.hidden .lt-box { opacity: 0; filter: blur(14px); transform: scale(1.04); }
+
+/* Cortina (abre de um lado para o outro) */
+.lt-anim-reveal .lt-box { clip-path: inset(0 0 0 0); }
+.lt-anim-reveal.hidden .lt-box { clip-path: inset(0 100% 0 0); }
+.lt-anim-reveal.hidden.pos-bottom-right .lt-box, .lt-anim-reveal.hidden.pos-top-right .lt-box { clip-path: inset(0 0 0 100%); }
+
+/* Abrir do centro */
+.lt-anim-expand .lt-box { clip-path: inset(0 0 0 0); }
+.lt-anim-expand.hidden .lt-box { clip-path: inset(0 50% 0 50%); }
+
+/* Girar (vira como uma placa) */
+.lt-anim-flip .lt-box { transform: perspective(800px) rotateX(0deg); }
+.lt-anim-flip.hidden .lt-box { opacity: 0; transform: perspective(800px) rotateX(-85deg); }
+.lt-anim-flip .lt-box { transform-origin: center bottom; }
+
+/* Em etapas: a caixa abre e o nome e o subtítulo entram um depois do outro */
+.lt-anim-stagger .lt-box { clip-path: inset(0 0 0 0); }
+.lt-anim-stagger.hidden .lt-box { clip-path: inset(0 100% 0 0); }
+.lt-anim-stagger.hidden.pos-bottom-right .lt-box, .lt-anim-stagger.hidden.pos-top-right .lt-box { clip-path: inset(0 0 0 100%); }
+.lt-anim-stagger.hidden .lt-name, .lt-anim-stagger.hidden .lt-subtitle { opacity: 0; transform: translateY(0.7em); }
+.lt-anim-stagger:not(.hidden) .lt-name { transition-delay: calc(var(--lt-dur) * 0.45); }
+.lt-anim-stagger:not(.hidden) .lt-subtitle { transition-delay: calc(var(--lt-dur) * 0.75); }
+
 /* --- Transitions & Animations --- */
 
 /* 1. Slide Up Animation */

@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>A Mensagem Control - OBS Overlay</title>
   
-  <!-- Fonts pre-loading to avoid delay when operators change them -->
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Montserrat:wght@300;400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <!-- Fontes locais (funcionam sem internet) -->
+  <link rel="stylesheet" href="fonts.css">
   
-  <link rel="stylesheet" href="overlay.css?v=1.0.3">
+  <link rel="stylesheet" href="overlay.css?v=1.4.0">
 </head>
 <body>
   <div id="overlay-container" class="overlay-container">
@@ -18,6 +18,37 @@
     </div>
   </div>
 
-  <script src="overlay.js?v=1.0.3"></script>
+  <!-- Camadas de tela cheia / faixa embaixo (Hinos e Bíblia) -->
+  <div id="hymn-layer" class="screen-layer layout-full hidden">
+    <div id="hymn-box" class="screen-box anim-fade">
+      <div id="hymn-title" class="screen-title"></div>
+      <div class="screen-text-wrap"><div id="hymn-text" class="screen-text lines"></div></div>
+      <div id="hymn-label" class="screen-label"></div>
+    </div>
+  </div>
+
+  <div id="bible-layer" class="screen-layer layout-full hidden">
+    <div id="bible-box" class="screen-box anim-fade">
+      <div id="bible-title" class="screen-title"></div>
+      <div class="screen-text-wrap"><div id="bible-text" class="screen-text prose"></div></div>
+      <div id="bible-label" class="screen-label"></div>
+    </div>
+  </div>
+
+  <!-- Mídia em tela cheia (duas gavetas para a transição) -->
+  <div id="media-layer" class="media-layer hidden">
+    <div id="media-slot-a" class="media-slot"></div>
+    <div id="media-slot-b" class="media-slot"></div>
+  </div>
+
+  <!-- Nome do pregador -->
+  <div id="lt-layer" class="lt-layer pos-bottom-left look-modern lt-anim-slide hidden">
+    <div class="lt-box">
+      <div class="lt-name" id="lt-name"></div>
+      <div class="lt-subtitle" id="lt-subtitle"></div>
+    </div>
+  </div>
+
+  <script type="module" src="overlay.js?v=1.4.0"></script>
 </body>
 </html>

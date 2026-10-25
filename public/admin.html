@@ -5,288 +5,1071 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>A Mensagem Control - Painel do Operador</title>
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="admin.css">
+  <link rel="stylesheet" href="fonts.css">
+  <link rel="stylesheet" href="admin.css?v=1.5.0">
 </head>
 <body>
-  <div class="app-container">
-    <!-- Header -->
-    <header class="app-header">
-      <div class="logo-container">
-        <img src="assets/logo.png" alt="A Mensagem Control Logo" class="app-logo">
-        <div class="logo-text">
-          <h1>A MENSAGEM</h1>
-          <span style="display: flex; align-items: center; gap: 8px;">CONTROL <span id="app-version-badge" class="version-tag">v1.0.3</span></span>
+  <div class="app">
+    <!-- Barra superior: marca, abas e o que está no ar -->
+    <header class="topbar">
+      <div class="brand">
+        <img src="assets/logo.png" alt="" class="brand-logo">
+        <div class="brand-text">
+          <strong>A MENSAGEM</strong>
+          <span>CONTROL <em id="app-version" class="version-tag">v2.0.0</em></span>
         </div>
       </div>
-      <div class="status-indicator">
-        <span id="ws-status" class="status-badge disconnected">Desconectado</span>
+
+      <nav class="tabs" role="tablist" aria-label="Telas">
+        <button class="tab active" role="tab" data-tab="mensagem">
+          <svg viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+          Mensagem
+        </button>
+        <button class="tab" role="tab" data-tab="hinos">
+          <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          Hinos
+        </button>
+        <button class="tab" role="tab" data-tab="biblia">
+          <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          Bíblia
+        </button>
+        <button class="tab" role="tab" data-tab="midia">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>
+          Mídia
+        </button>
+        <button class="tab" role="tab" data-tab="config">
+          <svg viewBox="0 0 24 24"><path d="M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.6a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.6a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+          Configurações
+        </button>
+      </nav>
+
+      <div class="live-area">
+        <div id="live-chip" class="live-chip is-off" title="O que está aparecendo no OBS agora">
+          <span class="live-dot"></span>
+          <span id="live-label">Tela limpa</span>
+        </div>
+        <button id="lt-chip" class="lt-chip" hidden title="O nome do pregador está na tela. Clique para esconder (N).">
+          <span class="lt-chip-dot"></span><span id="lt-chip-label">Nome no ar</span>
+        </button>
+        <button id="btn-panic" class="btn btn-danger btn-panic" title="Tira tudo da tela imediatamente">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m9 9 6 6M15 9l-6 6"/></svg>
+          Limpar tela
+        </button>
+        <span id="cloud-dot" class="cloud-dot" hidden title="Banco online"></span>
+        <span id="ws-status" class="conn is-off" title="Desconectado do servidor"></span>
       </div>
     </header>
 
-    <!-- Update Notification Banner -->
-    <div id="update-banner" class="update-banner-container" style="display: none;">
-      <div class="update-banner-content">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <svg class="update-icon" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5M7 16h.01M7 20h.01M11 16h.01M11 20h.01M15 16h.01M15 20h.01M19 16h.01M19 20h.01M7 12h.01M11 12h.01M15 12h.01M19 12h.01"/></svg>
-          <span>Uma nova atualização está disponível (<strong id="update-version-text">v1.1.0</strong>)!</span>
-        </div>
-        <button id="btn-start-update" class="btn btn-primary btn-sm">Atualizar Agora</button>
-      </div>
+    <!-- Aviso de atualização -->
+    <div id="update-banner" class="update-banner" hidden>
+      <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+      <span>Uma nova versão está disponível: <strong id="update-version-text"></strong></span>
+      <span id="update-notes" class="update-notes"></span>
+      <button id="btn-start-update" class="btn btn-primary btn-sm">Atualizar agora</button>
     </div>
 
-    <!-- Update Progress Overlay -->
-    <div id="update-progress-overlay" class="modal-overlay" style="display: none; z-index: 9999; backdrop-filter: blur(20px);">
-      <div class="modal-content card" style="text-align: center; max-width: 400px; padding: 40px 30px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;">
-        <div class="spinner"></div>
-        <h2>Atualizando Aplicativo</h2>
-        <p style="color: var(--text-secondary); line-height: 1.5; font-size: 0.95rem; margin: 0;">Baixando e instalando a nova versão em segundo plano. O programa fechará e reabrirá automaticamente em instantes. Por favor, aguarde...</p>
-      </div>
-    </div>
+    <main class="panels">
+      <!-- ============ ABA MENSAGEM ============ -->
+      <section class="panel active" data-panel="mensagem">
+        <div class="workspace">
+          <!-- Biblioteca -->
+          <aside class="card library">
+            <div class="card-head">
+              <h2>Mensagens</h2>
+              <button id="btn-open-import" class="btn btn-primary btn-sm">
+                <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                Importar
+              </button>
+            </div>
+            <label class="search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="search" id="sermon-search" placeholder="Buscar por título, data ou código..." autocomplete="off">
+            </label>
+            <div id="sermon-list" class="sermon-list" role="listbox" aria-label="Mensagens salvas">
+              <div class="empty">Carregando mensagens...</div>
+            </div>
+          </aside>
 
-    <!-- Main Grid Layout -->
-    <main class="main-grid">
-      <!-- Left Column: Sermons and Import -->
-      <section class="sidebar-panel">
-        <div class="card">
-          <h2>Biblioteca de Mensagens</h2>
-          <p class="section-desc">Selecione uma mensagem salva na biblioteca para exibir no culto.</p>
-          
-          <div class="select-wrapper">
-            <select id="sermon-select">
-              <option value="">-- Carregando mensagens... --</option>
-            </select>
-          </div>
+          <!-- Centro: monitor + leitura -->
+          <section class="center">
+            <div class="card monitor-card">
+              <div class="card-head">
+                <h3>Prévia do OBS</h3>
+                <span class="badge badge-off" data-monitor-badge>Tela limpa</span>
+              </div>
+              <div class="monitor-body">
+                <div class="stage" data-stage>
+                  <iframe src="overlay.html?preview=1" title="Prévia do overlay" tabindex="-1"></iframe>
+                </div>
+                <div class="next-preview">
+                  <span id="next-label" class="next-label">Próximo</span>
+                  <p id="next-text">—</p>
+                </div>
+              </div>
+            </div>
 
-          <div id="active-sermon-details" class="sermon-details" style="display: none;">
-            <p><strong>Título:</strong> <span id="details-title">-</span></p>
-            <p><strong>Data:</strong> <span id="details-date">-</span></p>
-            <p><strong>Parágrafos:</strong> <span id="details-count">0</span></p>
-            <button id="btn-delete-sermon" class="btn btn-danger btn-sm" style="width: 100%; margin-top: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 12px; font-size: 0.8rem;">
-              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-              Excluir Esta Mensagem
-            </button>
-          </div>
+            <div class="card reader">
+              <div class="reader-head">
+                <div class="reader-title-wrap">
+                  <h2 id="reader-title">Nenhuma mensagem aberta</h2>
+                  <p id="reader-meta" class="muted">Escolha uma mensagem na lista ao lado.</p>
+                </div>
+                <button id="btn-delete-sermon" class="btn btn-ghost-danger btn-sm" hidden title="Excluir esta mensagem da biblioteca">
+                  <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+                  Excluir
+                </button>
+              </div>
 
-          <button id="btn-open-import" class="btn btn-secondary">
-            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-            Importar Nova Mensagem
-          </button>
-        </div>
+              <div id="resume-banner" class="resume-banner" hidden>
+                <svg viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                <div class="resume-text">
+                  <strong id="resume-title"></strong>
+                  <span id="resume-sub"></span>
+                </div>
+                <button id="btn-resume" class="btn btn-primary btn-sm"></button>
+                <button id="btn-resume-dismiss" class="btn-x" title="Começar do início">&times;</button>
+              </div>
 
-        <div class="card card-shortcuts">
-          <h3>Atalhos e Apresentador</h3>
-          <ul class="shortcuts-list">
-            <li><span>Próximo parágrafo:</span> <div><kbd>Espaço</kbd> <kbd>→</kbd> <kbd>PageDown</kbd></div></li>
-            <li><span>Parágrafo anterior:</span> <div><kbd>←</kbd> <kbd>PageUp</kbd></div></li>
-            <li><span>Limpar/Exibir tela:</span> <div><kbd>Esc</kbd> <kbd>.</kbd> <kbd>B</kbd></div></li>
-            <li><span>Focar na busca:</span> <div><kbd>Enter</kbd></div></li>
-            <li style="border: none; padding-top: 10px; display: block; text-align: center;"><small style="color: var(--text-muted); font-size: 0.75rem;">100% Compatível com Logitech R400</small></li>
-          </ul>
+              <label class="search">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                <input type="search" id="paragraph-search" placeholder="Ir para o parágrafo (ex: 54) ou buscar uma palavra..." autocomplete="off" disabled>
+              </label>
+
+              <div id="paragraphs-list" class="paragraphs-list">
+                <div class="empty">Nenhuma mensagem aberta.</div>
+              </div>
+
+              <div class="transport">
+                <button id="btn-prev" class="btn btn-transport" disabled title="Parágrafo anterior (← ou PageUp)">
+                  <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+                  <span>Anterior</span>
+                </button>
+                <button id="btn-toggle" class="btn btn-transport btn-toggle" disabled title="Exibir/ocultar o texto (Esc ou B)">
+                  <span id="btn-toggle-label">Exibir</span>
+                </button>
+                <button id="btn-next" class="btn btn-transport btn-primary" disabled title="Próximo parágrafo (Espaço, → ou PageDown)">
+                  <span>Próximo</span>
+                  <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+              </div>
+              <p class="hint"><kbd>Espaço</kbd> <kbd>→</kbd> próximo · <kbd>←</kbd> anterior · <kbd>Esc</kbd> <kbd>B</kbd> exibir/ocultar · <kbd>Enter</kbd> buscar</p>
+            </div>
+          </section>
+
+          <!-- Aparência -->
+          <aside class="card appearance">
+            <div class="card-head">
+              <h2>Aparência</h2>
+              <button id="btn-reset-styles" class="btn btn-text btn-sm">Restaurar padrão</button>
+            </div>
+            <p class="muted small">As mudanças aparecem na hora no OBS e ficam salvas.</p>
+
+            <fieldset>
+              <legend>Texto</legend>
+              <div class="field">
+                <label for="style-font">Fonte</label>
+                <select id="style-font">
+                  <option value="Outfit, sans-serif">Outfit (moderna)</option>
+                  <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
+                  <option value="'Lora', serif">Lora (elegante, com serifa)</option>
+                  <option value="'Playfair Display', serif">Playfair Display (tradicional)</option>
+                  <option value="'Crimson Pro', serif">Crimson Pro (bíblica, com serifa)</option>
+                  <option value="Arial, sans-serif">Arial (clássica)</option>
+                </select>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="style-size-slider">Tamanho do texto</label><output id="size-slider-val">2.6</output></div>
+                <input type="range" id="style-size-slider" min="1.8" max="4.5" step="0.1" value="2.6">
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="style-title-size-slider">Tamanho do título</label><output id="title-size-slider-val">1.1</output></div>
+                <input type="range" id="style-title-size-slider" min="0.8" max="2.5" step="0.05" value="1.1">
+              </div>
+              <div class="field">
+                <label for="style-animation">Transição</label>
+                <select id="style-animation">
+                  <option value="slide-up">Deslizar para cima</option>
+                  <option value="slide-down">Deslizar para baixo</option>
+                  <option value="slide-side">Deslizar da esquerda</option>
+                  <option value="fade">Esvanecer rápido</option>
+                  <option value="fade-slow">Esvanecer lento</option>
+                  <option value="zoom-in">Zoom suave</option>
+                  <option value="blur">Desfoque</option>
+                  <option value="clip-reveal">Cortina</option>
+                </select>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Cores</legend>
+              <div class="color-grid">
+                <label class="color-field"><input type="color" id="style-text-color" value="#ffffff"><span>Letra</span></label>
+                <label class="color-field"><input type="color" id="style-accent-color" value="#2563eb"><span>Destaque</span></label>
+                <label class="color-field"><input type="color" id="style-bg-color-picker" value="#0a0f1e"><span>Fundo</span></label>
+                <label class="color-field"><input type="color" id="style-outline-color" value="#000000"><span>Contorno</span></label>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="style-bg-opacity">Opacidade do fundo</label><output id="opacity-val">85%</output></div>
+                <input type="range" id="style-bg-opacity" min="0" max="100" value="85">
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Mostrar</legend>
+              <label class="switch"><input type="checkbox" id="style-show-title" checked><span class="switch-ui"></span>Título da mensagem</label>
+              <label class="switch"><input type="checkbox" id="style-show-paragraph-number" checked><span class="switch-ui"></span>Número do parágrafo</label>
+              <label class="switch"><input type="checkbox" id="style-text-outline"><span class="switch-ui"></span>Contorno nas letras</label>
+              <label class="switch"><input type="checkbox" id="style-telao-mode"><span class="switch-ui"></span>Modo telão (fundo preto inteiro)</label>
+            </fieldset>
+          </aside>
         </div>
       </section>
 
-      <!-- Center Column: Controller -->
-      <section class="control-panel">
-        <!-- Live Preview Monitor -->
-        <div class="card monitor-card">
-          <div class="monitor-header">
-            <h3>Monitor em Tempo Real (OBS / Telão)</h3>
-            <span id="monitor-cleared-badge" class="badge badge-clear">Tela Limpa</span>
-          </div>
-          <div class="monitor-screen">
-            <div id="monitor-overlay-box" class="monitor-box">
-              <div id="monitor-title" class="monitor-sermon-title">A Estatura de um Homem Perfeito</div>
-              <div id="monitor-text" class="monitor-paragraph-text">O parágrafo selecionado aparecerá aqui...</div>
+      <!-- ============ ABAS FUTURAS ============ -->
+      <section class="panel" data-panel="hinos">
+        <div class="workspace">
+          <!-- Busca de hinos -->
+          <aside class="card library hymn-library">
+            <div class="card-head">
+              <h2>Hinos</h2>
+              <div class="head-actions">
+                <button id="btn-hymn-import" class="btn btn-secondary btn-sm" title="Importar vários hinos de arquivos .txt">Importar</button>
+                <button id="btn-hymn-new" class="btn btn-primary btn-sm">
+                  <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                  Novo
+                </button>
+              </div>
             </div>
-          </div>
+            <label class="search search-lg">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="search" id="hymn-search" placeholder="Digite o que estão cantando, o número ou o título..." autocomplete="off" spellcheck="false">
+            </label>
+            <label class="category-select" id="hymn-category-wrap" hidden>
+              <span>Categoria</span>
+              <select id="hymn-category"></select>
+            </label>
+            <p id="hymn-search-hint" class="muted small">Ex.: <em>"quando a aurora"</em>. <kbd>↑</kbd> <kbd>↓</kbd> escolhem e <kbd>Enter</kbd> deixa pronto.</p>
+            <div id="hymn-results" class="sermon-list hymn-results" role="listbox" aria-label="Hinos">
+              <div class="empty">Carregando hinos...</div>
+            </div>
+          </aside>
+
+          <!-- Centro: prévia + estrofes -->
+          <section class="center">
+            <div class="card monitor-card">
+              <div class="card-head">
+                <h3>Prévia do OBS</h3>
+                <span class="badge badge-off" data-monitor-badge>Tela limpa</span>
+              </div>
+              <div class="monitor-body">
+                <div class="stage" data-stage>
+                  <iframe src="overlay.html?preview=1" title="Prévia do overlay" tabindex="-1"></iframe>
+                </div>
+                <div class="next-preview">
+                  <span id="hymn-next-label" class="next-label">Próximo</span>
+                  <p id="hymn-next-text">—</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="card reader">
+              <div class="reader-head">
+                <div class="reader-title-wrap">
+                  <h2 id="hymn-title">Nenhum hino aberto</h2>
+                  <p id="hymn-meta" class="muted">Busque um hino pelo trecho da letra.</p>
+                </div>
+                <div class="head-actions">
+                  <button id="btn-hymn-edit" class="btn btn-secondary btn-sm" hidden>
+                    <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+                    Editar
+                  </button>
+                  <button id="btn-hymn-delete" class="btn btn-ghost-danger btn-sm" hidden title="Excluir este hino">
+                    <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <div id="hymn-slides" class="hymn-slides">
+                <div class="empty">As estrofes do hino aparecem aqui.</div>
+              </div>
+
+              <div class="transport">
+                <button id="btn-hymn-prev" class="btn btn-transport" disabled title="Tela anterior (← ou PageUp)">
+                  <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+                  <span>Anterior</span>
+                </button>
+                <button id="btn-hymn-toggle" class="btn btn-transport btn-toggle" disabled title="Exibir/ocultar (Esc ou B)">
+                  <span id="btn-hymn-toggle-label">Exibir</span>
+                </button>
+                <button id="btn-hymn-next" class="btn btn-transport btn-primary" disabled title="Próxima tela (Espaço, → ou PageDown)">
+                  <span>Próximo</span>
+                  <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+              </div>
+              <p class="hint"><kbd>Enter</kbd> buscar · <kbd>Espaço</kbd> <kbd>→</kbd> próxima · <kbd>←</kbd> anterior · <kbd>Esc</kbd> <kbd>B</kbd> exibir/ocultar</p>
+            </div>
+          </section>
+
+          <!-- Aparência dos hinos -->
+          <aside class="card appearance" id="hymn-appearance">
+            <div class="card-head">
+              <h2>Aparência</h2>
+              <button id="btn-hymn-reset-styles" class="btn btn-text btn-sm">Restaurar padrão</button>
+            </div>
+
+            <fieldset>
+              <legend>Temas prontos</legend>
+              <div class="theme-grid" id="hymn-themes"></div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Formato</legend>
+              <div class="segmented" role="radiogroup" aria-label="Formato">
+                <label><input type="radio" name="hymn-layout" value="fullscreen" checked><span>Tela cheia</span></label>
+                <label><input type="radio" name="hymn-layout" value="lower-third"><span>Faixa embaixo</span></label>
+              </div>
+              <div class="segmented" role="radiogroup" aria-label="Posição do texto" id="hymn-position-group">
+                <label><input type="radio" name="hymn-position" value="center" checked><span>Texto no centro</span></label>
+                <label><input type="radio" name="hymn-position" value="bottom"><span>Texto embaixo</span></label>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="hymn-lines">Linhas por tela</label><output id="hymn-lines-val">4</output></div>
+                <input type="range" id="hymn-lines" min="1" max="8" step="1" value="4">
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Texto</legend>
+              <div class="field">
+                <label for="hymn-font">Fonte</label>
+                <select id="hymn-font">
+                  <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
+                  <option value="Outfit, sans-serif">Outfit (moderna)</option>
+                  <option value="'Lora', serif">Lora (elegante, com serifa)</option>
+                  <option value="'Playfair Display', serif">Playfair Display (tradicional)</option>
+                  <option value="'Crimson Pro', serif">Crimson Pro (bíblica, com serifa)</option>
+                  <option value="Arial, sans-serif">Arial (clássica)</option>
+                </select>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="hymn-size">Tamanho da letra</label><output id="hymn-size-val">4.2</output></div>
+                <input type="range" id="hymn-size" min="2" max="7" step="0.1" value="4.2">
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="hymn-title-size">Tamanho do título</label><output id="hymn-title-size-val">1.25</output></div>
+                <input type="range" id="hymn-title-size" min="0.6" max="3" step="0.05" value="1.25">
+              </div>
+              <div class="field">
+                <label for="hymn-animation">Transição entre estrofes</label>
+                <select id="hymn-animation">
+                  <option value="fade">Esvanecer rápido</option>
+                  <option value="fade-slow">Esvanecer lento</option>
+                  <option value="slide-up">Deslizar para cima</option>
+                  <option value="zoom-in">Zoom suave</option>
+                  <option value="blur">Desfoque</option>
+                </select>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Cores</legend>
+              <div class="color-grid color-grid-3">
+                <label class="color-field"><input type="color" id="hymn-text-color" value="#ffffff"><span>Letra</span></label>
+                <label class="color-field"><input type="color" id="hymn-accent-color" value="#93c5fd"><span>Destaque</span></label>
+                <label class="color-field"><input type="color" id="hymn-outline-color" value="#000000"><span>Contorno</span></label>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Fundo</legend>
+              <div id="hymn-bg-editor"></div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Mostrar</legend>
+              <label class="switch"><input type="checkbox" id="hymn-show-title" checked><span class="switch-ui"></span>Título do hino</label>
+              <label class="switch"><input type="checkbox" id="hymn-show-number" checked><span class="switch-ui"></span>Número do hino no título</label>
+              <label class="switch"><input type="checkbox" id="hymn-show-label" checked><span class="switch-ui"></span>Estrofe / Coro (tela cheia)</label>
+              <label class="switch"><input type="checkbox" id="hymn-uppercase"><span class="switch-ui"></span>Letras maiúsculas</label>
+              <label class="switch"><input type="checkbox" id="hymn-outline"><span class="switch-ui"></span>Contorno nas letras</label>
+            </fieldset>
+          </aside>
         </div>
+      </section>
+      <section class="panel" data-panel="biblia">
+        <div class="workspace">
+          <!-- Busca e livros -->
+          <aside class="card library bible-library">
+            <div class="card-head">
+              <h2>Bíblia <span class="muted small">ACF</span></h2>
+            </div>
+            <label class="search search-lg">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="search" id="bible-search" placeholder="jo 3 16, sl 23 ou palavras do versículo..." autocomplete="off" spellcheck="false">
+            </label>
+            <p class="muted small" id="bible-search-hint">Ex.: <em>jo 3 16</em>, <em>1co 13 4-7</em>, <em>amou o mundo</em>. <kbd>Enter</kbd> deixa pronto.</p>
+            <div id="bible-results" class="bible-results">
+              <div class="empty">Carregando a Bíblia...</div>
+            </div>
+          </aside>
 
-        <!-- Paragraphs Search and list -->
-        <div class="card list-card">
-          <div class="list-controls">
-            <div class="search-box">
-              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-              <input type="text" id="paragraph-search" placeholder="Buscar parágrafo (ex: 54 ou palavra-chave)..." disabled>
+          <!-- Centro: prévia + versículos -->
+          <section class="center">
+            <div class="card monitor-card">
+              <div class="card-head">
+                <h3>Prévia do OBS</h3>
+                <span class="badge badge-off" data-monitor-badge>Tela limpa</span>
+              </div>
+              <div class="monitor-body">
+                <div class="stage" data-stage>
+                  <iframe src="overlay.html?preview=1" title="Prévia do overlay" tabindex="-1"></iframe>
+                </div>
+                <div class="next-preview">
+                  <span id="bible-next-label" class="next-label">Próximo</span>
+                  <p id="bible-next-text">—</p>
+                </div>
+              </div>
             </div>
-            <div class="action-buttons">
-              <button id="btn-prev" class="btn btn-icon" title="Anterior" disabled>←</button>
-              <button id="btn-clear" class="btn btn-danger" title="Limpar/Exibir Tela" disabled>Limpar Tela (Esc)</button>
-              <button id="btn-next" class="btn btn-icon btn-primary" title="Próximo" disabled>→</button>
-            </div>
-          </div>
 
-          <div class="paragraphs-list-container">
-            <div id="paragraphs-list" class="paragraphs-list">
-              <div class="list-placeholder">Nenhuma mensagem carregada. Selecione uma na barra lateral.</div>
+            <div class="card reader">
+              <div class="reader-head">
+                <div class="reader-title-wrap">
+                  <h2 id="bible-title">Nenhum capítulo aberto</h2>
+                  <p id="bible-meta" class="muted">Digite uma referência ou escolha um livro.</p>
+                </div>
+                <div class="head-actions">
+                  <button id="btn-bible-prev-chapter" class="btn btn-secondary btn-sm" hidden title="Capítulo anterior">
+                    <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+                    Cap.
+                  </button>
+                  <button id="btn-bible-next-chapter" class="btn btn-secondary btn-sm" hidden title="Próximo capítulo">
+                    Cap.
+                    <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <div id="bible-verses" class="paragraphs-list">
+                <div class="empty">Os versículos do capítulo aparecem aqui.</div>
+              </div>
+
+              <div class="transport">
+                <button id="btn-bible-prev" class="btn btn-transport" disabled title="Versículo anterior (← ou PageUp)">
+                  <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+                  <span>Anterior</span>
+                </button>
+                <button id="btn-bible-toggle" class="btn btn-transport btn-toggle" disabled title="Exibir/ocultar (Esc ou B)">
+                  <span id="btn-bible-toggle-label">Exibir</span>
+                </button>
+                <button id="btn-bible-next" class="btn btn-transport btn-primary" disabled title="Próximo versículo (Espaço, → ou PageDown)">
+                  <span>Próximo</span>
+                  <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+              </div>
+              <p class="hint"><kbd>Enter</kbd> buscar · <kbd>Espaço</kbd> <kbd>→</kbd> próximo versículo · <kbd>←</kbd> anterior · <kbd>Esc</kbd> <kbd>B</kbd> exibir/ocultar</p>
             </div>
-          </div>
+          </section>
+
+          <!-- Aparência da Bíblia -->
+          <aside class="card appearance" id="bible-appearance">
+            <div class="card-head">
+              <h2>Aparência</h2>
+              <button id="btn-bible-reset-styles" class="btn btn-text btn-sm">Restaurar padrão</button>
+            </div>
+
+            <fieldset>
+              <legend>Temas prontos</legend>
+              <div class="theme-grid" id="bible-themes"></div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Formato</legend>
+              <div class="segmented" role="radiogroup" aria-label="Formato">
+                <label><input type="radio" name="bible-layout" value="fullscreen" checked><span>Tela cheia</span></label>
+                <label><input type="radio" name="bible-layout" value="lower-third"><span>Faixa embaixo</span></label>
+              </div>
+              <div class="segmented" role="radiogroup" aria-label="Posição do texto" id="bible-position-group">
+                <label><input type="radio" name="bible-position" value="center" checked><span>Texto no centro</span></label>
+                <label><input type="radio" name="bible-position" value="bottom"><span>Texto embaixo</span></label>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Texto</legend>
+              <div class="field">
+                <label for="bible-font">Fonte</label>
+                <select id="bible-font">
+                  <option value="'Crimson Pro', serif">Crimson Pro (bíblica, com serifa)</option>
+                  <option value="'Lora', serif">Lora (elegante, com serifa)</option>
+                  <option value="'Playfair Display', serif">Playfair Display (tradicional)</option>
+                  <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
+                  <option value="Outfit, sans-serif">Outfit (moderna)</option>
+                  <option value="Arial, sans-serif">Arial (clássica)</option>
+                </select>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="bible-size">Tamanho da letra</label><output id="bible-size-val">4.4</output></div>
+                <input type="range" id="bible-size" min="2" max="7" step="0.1" value="4.4">
+              </div>
+              <div class="field">
+                <label>Alinhamento</label>
+                <div class="segmented segmented-3" role="radiogroup" aria-label="Alinhamento">
+                  <label><input type="radio" name="bible-align" value="center" checked><span>Centro</span></label>
+                  <label><input type="radio" name="bible-align" value="justify"><span>Justificado</span></label>
+                  <label><input type="radio" name="bible-align" value="left"><span>Esquerda</span></label>
+                </div>
+              </div>
+              <label class="switch"><input type="checkbox" id="bible-bold" checked><span class="switch-ui"></span>Negrito</label>
+              <label class="switch"><input type="checkbox" id="bible-shadow" checked><span class="switch-ui"></span>Sombra nas letras</label>
+            </fieldset>
+
+            <fieldset>
+              <legend>Referência</legend>
+              <label class="switch"><input type="checkbox" id="bible-show-ref" checked><span class="switch-ui"></span>Mostrar "João 3:16"</label>
+              <label class="switch"><input type="checkbox" id="bible-show-version"><span class="switch-ui"></span>Mostrar "(ACF)"</label>
+              <div class="segmented" role="radiogroup" aria-label="Posição da referência">
+                <label><input type="radio" name="bible-ref-position" value="top"><span>Em cima</span></label>
+                <label><input type="radio" name="bible-ref-position" value="bottom" checked><span>Embaixo</span></label>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="bible-ref-size">Tamanho da referência</label><output id="bible-ref-size-val">1.8</output></div>
+                <input type="range" id="bible-ref-size" min="0.8" max="3.5" step="0.05" value="1.8">
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Cores</legend>
+              <div class="color-grid color-grid-2">
+                <label class="color-field"><input type="color" id="bible-text-color" value="#ffffff"><span>Letra</span></label>
+                <label class="color-field"><input type="color" id="bible-ref-color" value="#ffeb07"><span>Referência</span></label>
+              </div>
+              <div class="field">
+                <label for="bible-animation">Transição</label>
+                <select id="bible-animation">
+                  <option value="fade">Esvanecer rápido</option>
+                  <option value="fade-slow">Esvanecer lento</option>
+                  <option value="slide-up">Deslizar para cima</option>
+                  <option value="zoom-in">Zoom suave</option>
+                  <option value="blur">Desfoque</option>
+                </select>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Fundo</legend>
+              <div id="bible-bg-editor"></div>
+            </fieldset>
+          </aside>
+        </div>
+      </section>
+      <section class="panel" data-panel="midia">
+        <div class="workspace">
+          <!-- Pastas e arquivos -->
+          <aside class="card library media-library" id="media-library">
+            <div class="card-head">
+              <h2>Mídias</h2>
+              <div class="head-actions">
+                <button id="btn-media-new-folder" class="btn btn-secondary btn-sm" title="Criar uma pasta com nome (ex: Santa Ceia)">Nova pasta</button>
+              </div>
+            </div>
+            <div class="folder-row">
+              <select id="media-folder" aria-label="Pasta do culto"></select>
+              <button id="btn-media-delete-folder" class="btn btn-ghost-danger btn-sm" title="Apagar esta pasta e tudo dentro dela">
+                <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+              </button>
+            </div>
+            <form id="media-new-folder-form" class="folder-row" hidden>
+              <input type="text" id="media-new-folder-name" placeholder="Nome da pasta (ex: Santa Ceia)" maxlength="60">
+              <button type="submit" class="btn btn-primary btn-sm">Criar</button>
+            </form>
+            <label class="dropzone media-drop" id="media-drop">
+              <input type="file" id="media-files" accept="image/*,video/*,.mov,.m4v" multiple>
+              <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>
+              <strong>Enviar fotos e vídeos</strong>
+              <span class="muted small">ou arraste para cá (também funciona pelo celular)</span>
+            </label>
+            <div id="media-uploads" class="media-uploads"></div>
+            <div id="media-grid" class="media-grid">
+              <div class="empty">Nenhuma mídia nesta pasta ainda.</div>
+            </div>
+          </aside>
+
+          <!-- Centro: prévia + controles -->
+          <section class="center">
+            <div class="card monitor-card">
+              <div class="card-head">
+                <h3>Prévia do OBS</h3>
+                <span class="badge badge-off" data-monitor-badge>Tela limpa</span>
+              </div>
+              <div class="monitor-body">
+                <div class="stage" data-stage>
+                  <iframe src="overlay.html?preview=1" title="Prévia do overlay" tabindex="-1"></iframe>
+                </div>
+                <div class="next-preview">
+                  <span id="media-next-label" class="next-label">Próximo</span>
+                  <p id="media-next-text">—</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="card reader media-controls-card">
+              <div class="reader-head">
+                <div class="reader-title-wrap">
+                  <h2 id="media-current-title">Nada selecionado</h2>
+                  <p id="media-current-meta" class="muted">Clique numa mídia para ver aqui antes de exibir.</p>
+                </div>
+                <button id="btn-media-show" class="btn btn-primary" disabled title="Colocar a mídia selecionada no ar (Enter ou dois cliques)">
+                  <svg viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                  Exibir
+                </button>
+              </div>
+
+              <div class="media-preview-wrap">
+                <div class="media-preview-area">
+                  <div id="media-preview" class="media-preview" title="Rodinha do mouse: zoom no ponto · arrastar: mover · dois cliques: exibir">
+                    <div class="empty">Selecione uma mídia na lista.</div>
+                  </div>
+                </div>
+                <div class="zoom-bar">
+                  <button id="btn-zoom-out" class="btn btn-secondary btn-sm btn-icon" title="Afastar">−</button>
+                  <input type="range" id="media-zoom" min="1" max="6" step="0.05" value="1" aria-label="Zoom">
+                  <button id="btn-zoom-in" class="btn btn-secondary btn-sm btn-icon" title="Aproximar">+</button>
+                  <output id="media-zoom-val">1.0x</output>
+                  <button id="btn-zoom-reset" class="btn btn-text btn-sm" title="Mostrar a mídia inteira">Sem zoom</button>
+                </div>
+                <p class="muted small">Zoom: <strong>rodinha do mouse</strong> no ponto, <strong>arraste</strong> para mover. No ar, muda na hora no telão.</p>
+              </div>
+
+              <div id="media-video-controls" class="video-controls" hidden>
+                <div class="video-buttons">
+                  <button id="btn-media-play" class="btn btn-secondary" title="Tocar / pausar">
+                    <svg viewBox="0 0 24 24" id="media-play-icon"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                    <span id="media-play-label">Pausar</span>
+                  </button>
+                  <button id="btn-media-restart" class="btn btn-secondary" title="Voltar ao começo">
+                    <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+                    Recomeçar
+                  </button>
+                  <button id="btn-media-mute" class="btn btn-secondary" title="Ligar/desligar o som">
+                    <svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>
+                    <span id="media-mute-label">Som ligado</span>
+                  </button>
+                  <label class="switch"><input type="checkbox" id="media-loop"><span class="switch-ui"></span>Repetir</label>
+                </div>
+                <div class="field">
+                  <div class="field-row"><label for="media-volume">Volume</label><output id="media-volume-val">100%</output></div>
+                  <input type="range" id="media-volume" min="0" max="100" value="100">
+                </div>
+                <div class="video-progress">
+                  <span id="media-time">0:00</span>
+                  <div class="progress-track"><div id="media-progress-bar" class="progress-bar"></div></div>
+                  <span id="media-duration">0:00</span>
+                </div>
+                <p class="muted small">O som do vídeo sai pelo OBS: marque <strong>"Controlar áudio via OBS"</strong> na fonte Navegador.</p>
+              </div>
+
+
+              <div class="transport">
+                <button id="btn-media-prev" class="btn btn-transport" disabled title="Mídia anterior (← ou PageUp)">
+                  <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+                  <span>Anterior</span>
+                </button>
+                <button id="btn-media-toggle" class="btn btn-transport btn-toggle" disabled title="Exibir/ocultar (Esc ou B)">
+                  <span id="btn-media-toggle-label">Exibir</span>
+                </button>
+                <button id="btn-media-next" class="btn btn-transport btn-primary" disabled title="Próxima mídia (Espaço, → ou PageDown)">
+                  <span>Próximo</span>
+                  <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+              </div>
+              <p class="hint"><kbd>Espaço</kbd> <kbd>→</kbd> próxima · <kbd>←</kbd> anterior · <kbd>Esc</kbd> <kbd>B</kbd> exibir/ocultar · <kbd>N</kbd> nome do pregador</p>
+            </div>
+          </section>
+
+          <!-- Direita: pregador + aparência -->
+          <aside class="card appearance" id="media-side">
+            <div class="card-head">
+              <h2>Pregador do dia</h2>
+              <button id="btn-lt-add" class="btn btn-secondary btn-sm">+ Pregador</button>
+            </div>
+            <form id="lt-form" class="lt-form" hidden>
+              <input type="text" id="lt-form-name" placeholder="Nome (ex: Pr. João Silva)" maxlength="80" required>
+              <input type="text" id="lt-form-subtitle" placeholder="Abaixo do nome (ex: Tabernáculo da Fé · Luziânia)" maxlength="100">
+              <div class="modal-actions">
+                <button type="button" class="btn btn-text btn-sm" id="btn-lt-cancel">Cancelar</button>
+                <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
+              </div>
+            </form>
+            <div id="lt-list" class="lt-list"></div>
+            <button id="btn-lt-toggle" class="btn btn-primary btn-lt-toggle" disabled>Mostrar nome <kbd>N</kbd></button>
+            <div class="field">
+              <label for="lt-autohide">Esconder sozinho depois de</label>
+              <select id="lt-autohide">
+                <option value="0">Não esconder sozinho</option>
+                <option value="5">5 segundos</option>
+                <option value="8">8 segundos</option>
+                <option value="12">12 segundos</option>
+                <option value="20">20 segundos</option>
+              </select>
+            </div>
+
+            <fieldset>
+              <legend>Aparência do nome</legend>
+              <div class="segmented segmented-3" role="radiogroup" aria-label="Estilo">
+                <label><input type="radio" name="lt-look" value="modern" checked><span>Moderno</span></label>
+                <label><input type="radio" name="lt-look" value="minimal"><span>Minimalista</span></label>
+                <label><input type="radio" name="lt-look" value="solid"><span>Faixa</span></label>
+              </div>
+              <div class="field">
+                <label for="lt-position">Posição</label>
+                <select id="lt-position">
+                  <option value="bottom-left">Embaixo, à esquerda</option>
+                  <option value="bottom-center">Embaixo, no centro</option>
+                  <option value="bottom-right">Embaixo, à direita</option>
+                  <option value="top-left">Em cima, à esquerda</option>
+                  <option value="top-right">Em cima, à direita</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="lt-animation">Efeito de entrada e saída</label>
+                <select id="lt-animation">
+                  <option value="slide">Deslizar do lado</option>
+                  <option value="rise">Subir</option>
+                  <option value="drop">Descer</option>
+                  <option value="fade">Esvanecer</option>
+                  <option value="zoom">Zoom</option>
+                  <option value="blur">Desfoque</option>
+                  <option value="reveal">Cortina</option>
+                  <option value="expand">Abrir do centro</option>
+                  <option value="flip">Girar (placa)</option>
+                  <option value="stagger">Em etapas (caixa, nome, subtítulo)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Velocidade</label>
+                <div class="segmented segmented-3" role="radiogroup" aria-label="Velocidade">
+                  <label><input type="radio" name="lt-speed" value="0.6"><span>Rápida</span></label>
+                  <label><input type="radio" name="lt-speed" value="1" checked><span>Normal</span></label>
+                  <label><input type="radio" name="lt-speed" value="1.7"><span>Lenta</span></label>
+                </div>
+              </div>
+              <button type="button" id="btn-lt-preview" class="btn btn-secondary btn-sm" title="Mostra e esconde o nome para ver o efeito">Ver o efeito</button>
+              <div class="field">
+                <label for="lt-font">Fonte</label>
+                <select id="lt-font">
+                  <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
+                  <option value="Outfit, sans-serif">Outfit (moderna)</option>
+                  <option value="'Lora', serif">Lora (elegante, com serifa)</option>
+                  <option value="'Playfair Display', serif">Playfair Display (tradicional)</option>
+                  <option value="'Crimson Pro', serif">Crimson Pro (com serifa)</option>
+                </select>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="lt-scale">Tamanho</label><output id="lt-scale-val">100%</output></div>
+                <input type="range" id="lt-scale" min="0.6" max="1.8" step="0.05" value="1">
+              </div>
+              <div class="color-grid">
+                <label class="color-field"><input type="color" id="lt-name-color" value="#ffffff"><span>Nome</span></label>
+                <label class="color-field"><input type="color" id="lt-subtitle-color" value="#cbd5e1"><span>Abaixo</span></label>
+                <label class="color-field"><input type="color" id="lt-accent-color" value="#3b82f6"><span>Destaque</span></label>
+                <label class="color-field"><input type="color" id="lt-bg-color" value="#0a0f1e"><span>Fundo</span></label>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="lt-bg-opacity">Opacidade do fundo</label><output id="lt-opacity-val">85%</output></div>
+                <input type="range" id="lt-bg-opacity" min="0" max="100" value="85">
+              </div>
+              <button id="btn-lt-reset" class="btn btn-text btn-sm">Restaurar padrão do nome</button>
+            </fieldset>
+
+            <fieldset>
+              <legend>Aparência da mídia</legend>
+              <div class="field">
+                <label for="media-transition">Transição</label>
+                <select id="media-transition">
+                  <option value="crossfade">Dissolver (uma na outra)</option>
+                  <option value="fade-black">Passar pelo preto</option>
+                  <option value="cut">Corte seco</option>
+                  <option value="slide">Deslizar</option>
+                  <option value="zoom">Zoom suave</option>
+                </select>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="media-duration-range">Duração da transição</label><output id="media-duration-val">0.6 s</output></div>
+                <input type="range" id="media-duration-range" min="0.2" max="2" step="0.1" value="0.6">
+              </div>
+              <div class="field">
+                <label>Fotos e vídeos que não são da largura da tela</label>
+                <div class="segmented segmented-3" role="radiogroup" aria-label="Ajuste">
+                  <label title="A foto inteira, com as laterais preenchidas pela própria foto desfocada"><input type="radio" name="media-fit" value="blur" checked><span>Inteira + desfoque</span></label>
+                  <label title="A foto inteira, com bordas de uma cor"><input type="radio" name="media-fit" value="contain"><span>Inteira + bordas</span></label>
+                  <label title="Preenche a tela toda, cortando o que sobrar"><input type="radio" name="media-fit" value="cover"><span>Preencher</span></label>
+                </div>
+              </div>
+              <div class="field" id="media-focus-field">
+                <label>Ao preencher, mostrar a parte</label>
+                <div class="segmented segmented-3" role="radiogroup" aria-label="Parte da foto">
+                  <label><input type="radio" name="media-focus" value="top"><span>De cima</span></label>
+                  <label><input type="radio" name="media-focus" value="center" checked><span>Do meio</span></label>
+                  <label><input type="radio" name="media-focus" value="bottom"><span>De baixo</span></label>
+                </div>
+              </div>
+              <div class="color-row">
+                <label class="color-field" id="media-bg-field"><input type="color" id="media-bg" value="#000000"><span>Bordas</span></label>
+                <div class="field grow">
+                  <label for="media-end">Quando o vídeo terminar</label>
+                  <select id="media-end">
+                    <option value="clear">Tirar da tela</option>
+                    <option value="hold">Ficar no último quadro</option>
+                  </select>
+                </div>
+              </div>
+              <button id="btn-media-reset" class="btn btn-text btn-sm">Restaurar padrão da mídia</button>
+            </fieldset>
+          </aside>
         </div>
       </section>
 
-      <!-- Right Column: Settings & Customs -->
-      <section class="settings-panel">
-        <div class="card">
-          <h2>Estilo do Overlay</h2>
-          <p class="section-desc">Personalize a exibição do texto no OBS e telão em tempo real.</p>
-          
-          <div class="form-group">
-            <label for="style-font">Fonte do Texto</label>
-            <select id="style-font">
-              <option value="Outfit, sans-serif">Outfit (Moderna/Sleek)</option>
-              <option value="Montserrat, sans-serif">Montserrat (Larga/Forte)</option>
-              <option value="'Lora', serif">Lora (Elegante/Com Serifa)</option>
-              <option value="'Playfair Display', serif">Playfair Display (Tradicional)</option>
-              <option value="Arial, sans-serif">Arial (Clássica/Limpa)</option>
-            </select>
+      <!-- ============ ABA CONFIGURAÇÕES ============ -->
+      <section class="panel" data-panel="config">
+        <div class="config-grid">
+          <div class="card">
+            <h2>Link para o OBS</h2>
+            <p class="muted">No OBS: <strong>Fontes → + → Navegador</strong>, cole o link abaixo e use largura <strong>1920</strong> e altura <strong>1080</strong>.</p>
+            <div class="copy-field">
+              <input type="text" id="obs-url" readonly value="http://localhost:3000/overlay.html">
+              <button class="btn btn-secondary btn-sm" data-copy="obs-url">Copiar</button>
+            </div>
+            <p class="muted small">Depois de atualizar o app, clique em <strong>"Atualizar cache da página atual"</strong> nas propriedades da fonte Navegador do OBS.</p>
           </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                <label for="style-size-slider" style="margin: 0;">Tamanho do Texto</label>
-                <span id="size-slider-val" style="font-size: 0.85rem; font-weight: 600; color: var(--accent-color);">2.6rem</span>
+          <div class="card">
+            <h2>Controlar de outro aparelho</h2>
+            <p class="muted">Com o celular ou notebook <strong>no mesmo Wi-Fi</strong> do computador da mídia, abra um destes endereços no navegador:</p>
+            <div id="lan-urls" class="lan-urls"><div class="empty">Procurando endereços...</div></div>
+          </div>
+
+          <div class="card cloud-card">
+            <div class="card-head">
+              <h2>Banco online</h2>
+              <span id="cloud-badge" class="badge badge-off">Desligado</span>
+            </div>
+            <p class="muted" id="cloud-status-text">Verificando...</p>
+            <p class="muted small" id="cloud-pending"></p>
+
+            <form id="cloud-login-form" class="cloud-login" hidden>
+              <input type="email" id="cloud-email" placeholder="E-mail da igreja" autocomplete="username" required>
+              <input type="password" id="cloud-password" placeholder="Senha" autocomplete="current-password" required>
+              <button type="submit" class="btn btn-primary btn-sm">Entrar</button>
+              <button type="button" class="btn btn-text btn-sm" id="btn-cloud-show-signup">Não tem login? Pedir acesso</button>
+            </form>
+
+            <form id="cloud-signup-form" class="cloud-login" hidden>
+              <p class="muted small">Crie o login da sua igreja. O responsável pela biblioteca vai aprovar o pedido e, depois disso, as mensagens e os hinos chegam sozinhos.</p>
+              <input type="text" id="cloud-signup-church" placeholder="Nome da igreja (ex: Tabernáculo da Fé - Goiânia)" maxlength="80" required>
+              <input type="email" id="cloud-signup-email" placeholder="E-mail" autocomplete="username" required>
+              <input type="password" id="cloud-signup-password" placeholder="Senha (pelo menos 6 caracteres)" autocomplete="new-password" minlength="6" required>
+              <button type="submit" class="btn btn-primary btn-sm">Pedir acesso</button>
+              <button type="button" class="btn btn-text btn-sm" id="btn-cloud-show-login">Já tenho login</button>
+            </form>
+
+            <div id="cloud-members" class="cloud-members" hidden>
+              <div class="card-head">
+                <h3>Igrejas e pedidos de acesso</h3>
+                <button id="btn-cloud-members-refresh" class="btn btn-text btn-sm">Atualizar</button>
               </div>
-              <input type="range" id="style-size-slider" min="1.8" max="4.5" step="0.1" value="2.6" style="width: 100%;">
+              <div id="cloud-members-list"></div>
             </div>
 
-            <div class="form-group">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                <label for="style-title-size-slider" style="margin: 0;">Tamanho do Título</label>
-                <span id="title-size-slider-val" style="font-size: 0.85rem; font-weight: 600; color: var(--accent-color);">1.1rem</span>
-              </div>
-              <input type="range" id="style-title-size-slider" min="0.8" max="2.5" step="0.05" value="1.1" style="width: 100%;">
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="style-animation">Transição</label>
-            <select id="style-animation">
-              <option value="slide-up">Deslizar (Cima)</option>
-              <option value="slide-down">Deslizar (Baixo)</option>
-              <option value="slide-side">Deslizar (Esquerda)</option>
-              <option value="fade" selected>Esvanecer (Fade Rápido)</option>
-              <option value="fade-slow">Esvanecer Lento (Suave)</option>
-              <option value="zoom-in">Zoom Elegante</option>
-              <option value="blur">Desfoque Suave (Moderno)</option>
-              <option value="clip-reveal">Revelar Cortina</option>
-            </select>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="style-text-color">Cor da Letra</label>
-              <div class="color-picker-wrapper">
-                <input type="color" id="style-text-color" value="#ffffff">
-                <span class="color-hex">#ffffff</span>
-              </div>
+            <div class="cloud-actions" id="cloud-actions" hidden>
+              <button id="btn-cloud-sync" class="btn btn-secondary btn-sm">Sincronizar agora</button>
+              <button id="btn-cloud-logout" class="btn btn-text btn-sm">Sair</button>
             </div>
 
-            <div class="form-group">
-              <label for="style-accent-color">Cor do Destaque</label>
-              <div class="color-picker-wrapper">
-                <input type="color" id="style-accent-color" value="#2563eb">
-                <span class="color-hex">#2563eb</span>
-              </div>
-            </div>
+            <p class="muted small">Mensagens, hinos e imagens de fundo ficam guardados online e chegam a todas as igrejas conectadas. Sem internet, o app continua funcionando normalmente.</p>
+
+            <details class="cloud-advanced">
+              <summary>Avançado</summary>
+              <form id="cloud-config-form" class="cloud-login">
+                <input type="url" id="cloud-url" placeholder="Endereço do projeto (https://...supabase.co)">
+                <input type="text" id="cloud-key" placeholder="Chave pública (anon)">
+                <button type="submit" class="btn btn-secondary btn-sm">Salvar</button>
+              </form>
+            </details>
           </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label for="style-bg-color-picker">Fundo da Caixa</label>
-              <div class="color-picker-wrapper">
-                <input type="color" id="style-bg-color-picker" value="#0a0f1e">
-                <span class="color-hex">#0a0f1e</span>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label for="style-outline-color">Cor do Contorno</label>
-              <div class="color-picker-wrapper">
-                <input type="color" id="style-outline-color" value="#000000">
-                <span class="color-hex">#000000</span>
-              </div>
-            </div>
+          <div class="card">
+            <h2>PIN para outros aparelhos</h2>
+            <p class="muted" id="pin-status">Verificando...</p>
+            <form id="pin-set-form" class="copy-field">
+              <input type="password" id="pin-new" inputmode="numeric" maxlength="8" placeholder="Novo PIN (4 a 8 números)" autocomplete="new-password">
+              <button type="submit" class="btn btn-primary btn-sm">Salvar PIN</button>
+            </form>
+            <button id="btn-pin-remove" class="btn btn-text btn-sm" hidden>Remover o PIN</button>
+            <p class="muted small">Este computador nunca pede PIN. O OBS (mesmo em outro computador) também não.</p>
           </div>
 
-          <div class="form-group">
-            <div class="opacity-slider-group">
-              <span>Opacidade Fundo:</span>
-              <input type="range" id="style-bg-opacity" min="0" max="100" value="85">
-              <span id="opacity-val">85%</span>
-            </div>
+          <div class="card">
+            <h2>Bíblia ACF</h2>
+            <p class="muted" id="bible-status">Verificando...</p>
+            <label class="btn btn-secondary btn-sm file-button">
+              <input type="file" id="bible-folder" webkitdirectory directory multiple>
+              Importar a pasta "2 Biblia_ACF"
+            </label>
+            <p class="muted small">Use se a Bíblia não aparecer ou se quiser trocar o texto. A pasta tem as subpastas "1 Velho Testamento" e "2 Novo Testamento".</p>
           </div>
 
-          <div class="form-group checkbox-group">
-            <input type="checkbox" id="style-show-title" checked>
-            <label for="style-show-title">Mostrar Título da Mensagem</label>
+          <div class="card">
+            <h2>Atalhos de teclado</h2>
+            <ul class="shortcuts">
+              <li><span>Próximo parágrafo</span><span><kbd>Espaço</kbd> <kbd>→</kbd> <kbd>PageDown</kbd></span></li>
+              <li><span>Parágrafo anterior</span><span><kbd>←</kbd> <kbd>PageUp</kbd></span></li>
+              <li><span>Exibir/ocultar texto</span><span><kbd>Esc</kbd> <kbd>.</kbd> <kbd>B</kbd></span></li>
+              <li><span>Buscar (na aba aberta)</span><span><kbd>Enter</kbd></span></li>
+              <li><span>Mostrar/esconder o nome do pregador</span><span><kbd>N</kbd></span></li>
+            </ul>
+            <p class="muted small">O passador <strong>Logitech R400</strong> funciona mesmo com o app minimizado (PageUp/PageDown).</p>
           </div>
 
-          <div class="form-group checkbox-group">
-            <input type="checkbox" id="style-show-paragraph-number" checked>
-            <label for="style-show-paragraph-number">Mostrar Número do Parágrafo</label>
+          <div class="card">
+            <h2>Sobre</h2>
+            <p class="muted">A Mensagem Control <strong id="about-version">v2.0.0</strong></p>
+            <p class="muted small">Feito para a equipe de mídia do Tabernáculo da Fé · Luziânia.</p>
+            <button id="btn-check-update" class="btn btn-secondary btn-sm">Verificar atualizações</button>
+            <p id="update-status" class="muted small"></p>
           </div>
-
-          <div class="form-group checkbox-group">
-            <input type="checkbox" id="style-telao-mode">
-            <label for="style-telao-mode"><strong>Modo Telão (Fundo Preto Inteiro)</strong></label>
-          </div>
-
-          <div class="form-group checkbox-group">
-            <input type="checkbox" id="style-text-outline">
-            <label for="style-text-outline">Adicionar Borda de Contraste nas Letras</label>
-          </div>
-
-          <div class="settings-actions">
-            <button id="btn-reset-styles" class="btn btn-text">Restaurar Padrão</button>
-          </div>
-        </div>
-
-        <div class="card card-links">
-          <h3>Link para o OBS</h3>
-          <p class="section-desc">Copie o link abaixo para colar na sua fonte de navegador no OBS Studio:</p>
-          <button id="btn-copy-link" class="btn btn-secondary btn-sm" style="width: 100%; display: inline-flex; justify-content: center; gap: 8px;">
-            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
-            <span id="copy-btn-text">Copiar Link do OBS</span>
-          </button>
         </div>
       </section>
     </main>
+  </div>
 
-    <!-- Import Modal Overlay -->
-    <div id="import-modal" class="modal-overlay" style="display: none;">
-      <div class="modal-content card">
-        <div class="modal-header">
-          <h2>Importar Nova Mensagem</h2>
-          <button id="btn-close-import" class="btn-close">&times;</button>
+  <!-- Modal de importação -->
+  <div id="import-modal" class="modal" hidden>
+    <form id="import-form" class="modal-card card">
+      <div class="card-head">
+        <h2>Importar nova mensagem</h2>
+        <button type="button" class="btn-x" data-close>&times;</button>
+      </div>
+      <div class="field-grid">
+        <div class="field">
+          <label for="import-title">Título</label>
+          <input type="text" id="import-title" placeholder="Ex: A Estatura de um Homem Perfeito" required>
         </div>
-        <form id="import-form">
-          <div class="form-row">
-            <div class="form-group">
-              <label for="import-date">Data da Mensagem</label>
-              <input type="text" id="import-date" placeholder="Ex: 14 de Outubro de 1962" required>
-            </div>
-            <div class="form-group">
-              <label for="import-title">Título da Mensagem</label>
-              <input type="text" id="import-title" placeholder="Ex: A Estatura de um Homem Perfeito" required>
-            </div>
-          </div>
+        <div class="field">
+          <label for="import-date">Data da mensagem</label>
+          <input type="text" id="import-date" placeholder="Ex: 14 de Outubro de 1962">
+        </div>
+      </div>
+      <div class="field grow">
+        <div class="field-row">
+          <label for="import-text">Texto completo (copie e cole)</label>
+          <span id="import-count" class="muted small"></span>
+        </div>
+        <textarea id="import-text" placeholder="54 Agora observem..." required></textarea>
+        <p class="muted small">Cada parágrafo deve começar com o número (ex: "54 Agora..." ou "[54] Agora..."). Parágrafos longos são divididos automaticamente para caber em 2 a 3 linhas.</p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar mensagem</button>
+      </div>
+    </form>
+  </div>
 
-          <div class="form-group">
-            <label for="import-text">Texto Completo da Mensagem (Copie e cole)</label>
-            <p class="input-tip">Os parágrafos devem começar com o número (ex: "54 Agora observem..." ou "[54] Agora...") para serem indexados corretamente.</p>
-            <textarea id="import-text" placeholder="Cole o texto aqui..." required></textarea>
-          </div>
+  <!-- Editor de hino -->
+  <div id="hymn-modal" class="modal" hidden>
+    <form id="hymn-form" class="modal-card card modal-wide">
+      <div class="card-head">
+        <h2 id="hymn-form-title">Novo hino</h2>
+        <button type="button" class="btn-x" data-close>&times;</button>
+      </div>
+      <div class="field-grid field-grid-3">
+        <div class="field">
+          <label for="hymn-form-number">Número</label>
+          <input type="text" id="hymn-form-number" placeholder="Ex: 12" inputmode="numeric">
+        </div>
+        <div class="field span-2">
+          <label for="hymn-form-name">Título</label>
+          <input type="text" id="hymn-form-name" placeholder="Ex: Lá no Alto da Colina" required>
+        </div>
+      </div>
+      <div class="field-grid">
+        <div class="field">
+          <label for="hymn-form-collection">Categoria</label>
+          <input type="text" id="hymn-form-collection" placeholder="Ex: Harpa Cristã" list="hymn-category-options">
+          <datalist id="hymn-category-options"></datalist>
+        </div>
+        <label class="switch switch-field"><input type="checkbox" id="hymn-form-autochorus" checked><span class="switch-ui"></span>Repetir o coro depois de cada estrofe</label>
+      </div>
+      <div class="editor-split">
+        <div class="field grow">
+          <label for="hymn-form-lyrics">Letra</label>
+          <textarea id="hymn-form-lyrics" spellcheck="false" placeholder="Primeira tela da estrofe 1&#10;segunda linha&#10;&#10;Segunda tela da estrofe 1&#10;&#10;*&#10;Linhas do coro&#10;*&#10;&#10;Estrofe 2..." required></textarea>
+          <p class="muted small"><strong>Linha em branco</strong> = nova tela. Coloque o coro entre linhas com <strong>*</strong>. Tudo entre um coro e outro é uma estrofe; para separar estrofes sem coro no meio, comece com o número (<strong>2.</strong>).</p>
+        </div>
+        <div class="field grow">
+          <label>Como vai ficar</label>
+          <div id="hymn-form-preview" class="editor-preview"><div class="empty">A sequência aparece aqui enquanto você digita.</div></div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar hino</button>
+      </div>
+    </form>
+  </div>
 
-          <div class="modal-footer">
-            <button type="button" id="btn-cancel-import" class="btn btn-secondary">Cancelar</button>
-            <button type="submit" class="btn btn-primary">Processar e Salvar</button>
-          </div>
-        </form>
+  <!-- Importação de hinos -->
+  <div id="hymn-import-modal" class="modal" hidden>
+    <div class="modal-card card">
+      <div class="card-head">
+        <h2>Importar hinos</h2>
+        <button type="button" class="btn-x" data-close>&times;</button>
+      </div>
+      <p class="muted">Escolha a pasta com os hinos (ex: <strong>C:\tf_slides\1 Hinos</strong>). Cada subpasta vira uma <strong>categoria</strong> e cada arquivo <strong>.txt</strong> vira um hino: o nome do arquivo dá o número e o título (ex: <em>"012 - Vinde, Povo do Senhor"</em>).</p>
+      <div class="import-options">
+        <label class="dropzone" id="hymn-dropzone">
+          <input type="file" id="hymn-folder" webkitdirectory directory multiple>
+          <svg viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+          <strong>Escolher pasta</strong>
+          <span class="muted small">com as categorias dentro</span>
+        </label>
+        <label class="dropzone dropzone-small">
+          <input type="file" id="hymn-files" accept=".txt,.json" multiple>
+          <svg viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+          <strong>Escolher arquivos</strong>
+          <span class="muted small">.txt soltos</span>
+        </label>
+      </div>
+      <div id="hymn-import-summary" class="import-summary" hidden></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" data-close>Cancelar</button>
+        <button type="button" id="btn-hymn-import-confirm" class="btn btn-primary" disabled>Importar</button>
       </div>
     </div>
   </div>
 
-  <script src="admin.js"></script>
+  <!-- Confirmação genérica -->
+  <div id="confirm-modal" class="modal" hidden>
+    <div class="modal-card card modal-small" role="alertdialog" aria-labelledby="confirm-title">
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-text" class="muted"></p>
+      <div class="modal-actions">
+        <button type="button" id="confirm-cancel" class="btn btn-secondary">Cancelar</button>
+        <button type="button" id="confirm-ok" class="btn btn-primary">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tela de atualização em andamento -->
+  <div id="update-progress" class="modal" hidden>
+    <div class="modal-card card modal-small center-text">
+      <div class="spinner"></div>
+      <h2>Atualizando o aplicativo</h2>
+      <p class="muted">Baixando e instalando a nova versão. O programa vai fechar e abrir sozinho em instantes.</p>
+    </div>
+  </div>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <script type="module" src="js/admin/main.js?v=1.5.0"></script>
 </body>
 </html>

@@ -13,13 +13,27 @@
 ---
 
 ## 2. Visão Geral do Sistema
-- **Objetivo:** Software desktop para transmissão de culto e projeção de sermões do pregador William Marrion Branham.
+- **Objetivo:** Software desktop para transmissão de culto e projeção de sermões do pregador William Marrion Branham (e, nas próximas fases, hinos, Bíblia ACF, mídias e lower third do pregador).
 - **Arquitetura:**
-  - **Desktop:** Electron `v31.x` (`main.js`).
-  - **Servidor Integrado:** Node.js + Express + WebSocket nativo `ws` na porta `3000` (`server.js`).
-  - **Painel do Operador:** `http://localhost:3000/admin.html` (`public/admin.js`, `public/admin.css`).
+  - **Desktop:** Electron `v44.x` (`main.js`), Node 24 embutido.
+  - **Servidor Integrado:** Node.js + Express + WebSocket nativo `ws` na porta `3000` (`server.js` + módulos em `src/`).
+  - **Banco local:** SQLite nativo do Node (`node:sqlite`, sem módulo para compilar) em `Documentos/A Mensagem Control/data/amc.db` (`src/db.js`). Os JSON antigos de `data/sermons/` são importados uma única vez e ficam como backup.
+  - **Painel do Operador:** `http://localhost:3000/admin.html` (`public/admin.css` + módulos ES em `public/js/admin/`).
   - **Overlay OBS / Telão:** `http://localhost:3000/overlay.html` (`public/overlay.js`, `public/overlay.css`).
-  - **Banco de Sermões:** Arquivos JSON locais salvos em `data/sermons/`.
+  - **Fontes:** servidas localmente via `@fontsource` (`public/fonts.css`, inclui Crimson Pro), funcionam sem internet.
+  - **Bíblia ACF:** o texto **não vai no repositório** (o repo é público e a ACF tem direitos da SBTB). Na primeira execução o app importa sozinho `C:	f_slides Biblia_ACF` (1.189 arquivos, um por capítulo); em outro PC, importar a pasta em Configurações.
+  - **Mídias do culto:** `Documentos/A Mensagem Control/data/media/<pasta>/` (uma pasta por culto, ex: `2026-10-25`), servidas em `/media/`. Envio em streaming (até 4 GB por arquivo), também pelo celular.
+  - **PIN:** `src/auth.js`. O próprio PC (localhost) nunca pede PIN; de outro aparelho, com PIN definido em Configurações, o painel redireciona para `pin.html` e a API responde 401. Overlay, `/media`, `/backgrounds`, fontes e js/css ficam livres (o OBS pode estar em outro PC). WebSocket sem PIN só recebe (e pode mandar `media-progress`).
+  - **Banco online (Supabase):** projeto `https://gnhpiqxffugpvgxtsmhk.supabase.co` (chave pública em `src/cloud-config.js`; NUNCA a secreta). Biblioteca compartilhada entre as igrejas do Tabernáculo da Fé: **Mensagens, Hinos e imagens de fundo**. Ficam só no PC: pregadores, mídias do culto, Bíblia, estilos e "parou no §". Estrutura e regras em `supabase/schema.sql` (pode rodar de novo sem perder dados).
+    - Papéis em `profiles.role`: `pending` (pediu acesso pelo app, não lê nada), `reader` (recebe), `editor` (publica e aprova pedidos), `blocked`. Sem login nada é lido (direitos autorais). Igrejas novas usam "Pedir acesso" em Configurações; editores aprovam na lista "Igrejas e pedidos de acesso".
+    - O PC sempre usa o SQLite local; `src/sync.js` baixa a cada minuto (cursor por `updated_at` do servidor) e o editor envia logo depois de salvar. Itens alterados ficam `dirty = 1`; exclusões em `sync_deletions` viram `deleted = true` online. Hinos têm `uid` global = sha1(categoria|número|título) para a mesma pasta importada em igrejas diferentes não duplicar.
+  - **Imagens de fundo:** `Documentos/A Mensagem Control/data/backgrounds`, servidas em `/backgrounds/`; na primeira vez copia `C:	f_slides\_backgrounds`.
+- **Testes sem tocar nos dados reais:** `AMC_DATA_DIR=<pasta>` e `PORT=<porta>` (com `AMC_DATA_DIR` o app também não mexe no atalho da Área de Trabalho).
+
+## 2.1 Branches
+- `main`: só o que foi lançado. O atualizador das igrejas lê o `update.json` da `main`, então nada fora dela chega ao pessoal.
+- `dev`: integração e testes. Cada fase sai da `dev` (`fase-0`, `fase-1`, ...) e volta para ela quando aprovada.
+- Release: juntar `dev` na `main`, atualizar versão/`update.json` e seguir o fluxo da seção 4.
 
 ---
 
@@ -43,9 +57,9 @@ Quando o usuário pedir para lançar ou atualizar uma versão (ex: `vX.Y.Z`):
 3. Em `update.json`: atualizar `"version": "X.Y.Z"`, a URL do ZIP para a nova tag `vX.Y.Z`, e as notas da versão.
 
 ### Passo 2: Compilar e Gerar o Executável
-Execute exatamente este comando no terminal (o `--ignore=dist` é obrigatório para não duplicar builds antigos e manter o ZIP em ~125MB):
+Execute exatamente este comando no terminal (os `--ignore` são obrigatórios: `dist` evita duplicar builds antigos e `AMensagemControl.exe` é um executável antigo de ~40MB que não deve ir no ZIP; com Electron 44 o ZIP fica em ~160MB):
 ```powershell
-cmd /c npx electron-packager . "A Mensagem Control" --platform=win32 --arch=x64 --icon=build/icon.ico --overwrite --out=dist --ignore=dist
+cmd /c npx electron-packager . "A Mensagem Control" --platform=win32 --arch=x64 --icon=build/icon.ico --overwrite --out=dist --ignore=dist --ignore=scratch --ignore=AMensagemControl\.exe
 ```
 
 ### Passo 3: Compactar o Pacote ZIP
@@ -75,14 +89,33 @@ Forneça sempre o link direto pronto para o usuário:
 
 ## 5. Estrutura de Arquivos e Funções Principais
 
-- `main.js`: Inicialização do Electron, registro de atalhos globais (`PageDown`, `PageUp`) para passadores Logitech R400.
-- `server.js`:
-  - `splitParagraphText(text, maxChars = 150)`: Divide parágrafos longos em frases nas pontuações.
-  - `processSermonParagraphs(paragraphs)`: Pagina em `Parágrafo X (1/Y)`.
-  - `GET /api/check-update` e `POST /api/trigger-update`: Motor do atualizador automático de 1 clique.
-  - `DELETE /api/sermons/:id`: Exclui sermões da biblioteca.
-- `public/admin.js`:
-  - Sliders de fonte: `styleSizeSlider` (`1.8rem` a `4.5rem`) e `styleTitleSizeSlider` (`0.8rem` a `2.5rem`).
-  - Cor do contorno: `styleOutlineColor` com envio em tempo real.
-  - Checkboxes independentes: `styleShowTitle` e `styleShowParagraphNumber`.
-  - Preview escalonado proporcionalmente com fator `0.38`.
+- `main.js`: Inicialização do Electron (instância única), atalhos globais (`PageDown`, `PageUp`) para passadores Logitech R400.
+- `server.js`: estado ao vivo (`globalState`), protocolo WebSocket e rotas REST.
+  - Mensagens WS do painel: `select-sermon`, `show-paragraph`, `arm-paragraph`, `next`, `prev`, `toggle-clear`, `clear-screen`, `update-styles`, `reset-styles`, `hymn-select`, `hymn-show`, `update-hymn-styles`, `reset-hymn-styles`, `bible-select`, `bible-show`, `update-bible-styles`, `reset-bible-styles`, `media-folder`, `media-show`, `media-arm`, `media-control` (play/pause/restart/mute/volume/loop), `media-zoom` (`{ name, zoom: { scale 1-6, x, y } }`), `update-media-styles`, `reset-media-styles`, `lt-show`, `lt-hide`, `lt-toggle`, `update-lt-styles`, `reset-lt-styles`. O servidor responde com `update-content` / `update-style` / `update-hymn-style` / `update-bible-style` / `update-media-style` / `update-lt-style` / `media-progress` para todos (painel, celular e OBS).
+  - Só um conteúdo no ar por vez (Mensagem, Hino, Bíblia ou Mídia). O **nome do pregador** (`lowerThird`) é independente: aparece junto com qualquer um, some sozinho depois de `autoHide` segundos (timer no servidor), 10 efeitos de entrada/saída (`animation`) com velocidade (`speed`); os efeitos agem em `.lt-box`, a camada `.lt-layer` só posiciona, e sobe no overlay para não cobrir a caixa da Mensagem/faixas. "Limpar tela" tira tudo, inclusive o nome.
+  - Mídia: no painel, um clique só mostra a mídia na prévia; dois cliques, Enter ou "Exibir" põem no ar. Zoom por arquivo (rodinha no ponto, arrastar, controle 1x-6x) fica salvo em `settings.mediaZooms` (`pasta/arquivo`); a mídia entra no ar com o zoom preparado, e se ela já estiver no ar o OBS aproxima suave na hora (`transform` no `img/video`, mesmas contas no painel e no overlay).
+  - Mídia: ajuste `fit` = `blur` (padrão: inteira, laterais com a própria foto desfocada), `contain` (bordas) ou `cover` (preenche; `focus` top/center/bottom escolhe a parte que aparece). O overlay do OBS (sem `?preview`) manda `media-progress`; no fim do vídeo, com `endAction: 'clear'` e sem repetir, o servidor tira da tela. As prévias do painel usam `overlay.html?preview=1` (sempre mudas, não mandam progresso).
+  - `next`/`prev`/`toggle-clear` recebem `{ mode: 'message' | 'hymn' | 'bible' | 'media' }` da aba aberta; sem `mode` (passador R400 pelo `main.js`) valem para `activeLayer`, a última camada que foi ao ar.
+  - Bíblia: `globalState.bible` guarda o capítulo aberto em telas: **um versículo por tela**; só divide os enormes (acima de ~450 caracteres na tela cheia, ~230 na faixa ou com texto embaixo), usando as quebras que a pasta da igreja marca. `next` no último versículo abre o próximo capítulo.
+  - "Armado" (`armed`): parágrafo posicionado e oculto; o próximo `next` exibe ele. Usado no "continuar de onde parou".
+  - Rotas: `/api/info`, `/api/sermons` (GET/DELETE), `/api/import`, `/api/hymns` (GET/POST), `/api/hymns/search?q=`, `/api/hymns/:id` (GET/PUT/DELETE), `/api/hymns/import`, `/api/bible/books`, `/api/bible/search?q=`, `/api/bible/chapter/:book/:chapter`, `/api/bible/import`, `/api/backgrounds` (GET/POST/DELETE), `/api/media/folders` (GET/POST/DELETE), `/api/media/items/:folder` (GET), `/api/media/upload?folder=&name=` (POST, corpo = arquivo), `/api/media/items/:folder/:name` (DELETE), `/api/preachers` (GET/POST/PUT/DELETE), `/api/pin/login`, `/api/security`, `/api/security/pin`, `/api/check-update`, `/api/trigger-update`.
+- `src/db.js`: SQLite (sermões, parágrafos, `settings` com os estilos, `reading_progress` com onde a leitura parou).
+- `src/hymns.js`: hinos no SQLite e busca por trecho da letra em memória (sem acento, palavra pela metade, erro de digitação, frase que atravessa duas linhas).
+- `public/js/shared/hymn-text.js`: módulo ES usado pelo servidor (via `require`) e pelo painel/overlay. Segue o formato dos arquivos da igreja (`C:	f_slides Hinos`, ~3.270 hinos .txt, uma subpasta por categoria):
+  - **Linha em branco = nova TELA** (não nova estrofe). Linhas com só `*` abrem/fecham o **coro**, que nesses arquivos vem escrito toda vez que se repete (por isso hinos importados têm `autoChorus = false`).
+  - **Estrofe = tudo entre um coro e outro.** Hino sem coro e sem número vira uma parte só ("Tela 1, 2...") e não mostra "Estrofe N" na transmissão.
+  - Também aceita `Coro:` (vale só para aquele bloco) e estrofes numeradas (`2.`, `Estrofe 2`).
+  - `parseLyrics`, `sectionsToLyrics` (inverso, para o editor), `buildSequence` (coro automático), `buildSlides` (cada tela escrita vira uma tela; só divide se passar de N linhas), `slideName` (painel), `screenLabel` (transmissão).
+- Categoria do hino = coluna `collection` (vem do caminho da pasta na importação, ex: `Diversos / SALMOS E HINOS`; o filtro por "Diversos" inclui as subpastas). Números são guardados sem zeros à esquerda ("001" -> "1").
+- `src/bible-books.js`: os 66 livros e `parseReference` ("jo 3 16", "1co 13:4-7", "sl 23"). "jo" = João; Jó só com acento ("jó") ou "job".
+- `src/bible.js`: Bíblia no SQLite + índice FTS5 (busca por palavras em camadas: frase, palavras inteiras, palavra pela metade, qualquer palavra), importação da pasta e capítulos.
+- `src/backgrounds.js`: biblioteca de imagens de fundo.
+- `src/media.js`: pastas de mídia por culto, envio em streaming, listagem e exclusão.
+- `src/auth.js`: PIN para outros aparelhos.
+- `src/sync.js`: sincronização com o Supabase (login/pedido de acesso, baixar, enviar, aprovar igrejas). Rotas `/api/cloud/status`, `/login`, `/signup`, `/logout`, `/sync`, `/config`, `/members` (GET) e `/members/:id` (POST `{ role }`).
+- `src/sermon-text.js`: `splitParagraphText(text, maxChars = 150)`, `processSermonParagraphs` (`Parágrafo X (1/Y)`), `parseRawSermonText`.
+- `src/updater.js`: atualizador de 1 clique. A URL do ZIP é sempre lida do `update.json` oficial e precisa começar com `https://github.com/danielpvn/a-mensagem-control/releases/download/` (nunca aceitar URL vinda do navegador).
+- `src/shortcut.js`: atalho na Área de Trabalho.
+- `public/js/admin/`: `main.js` (entrada e teclado), `ws.js`, `ui.js` (toasts, confirmação, abas), `live.js` (chip "No ar" e Limpar tela), `message.js` (aba Mensagem), `appearance.js` (estilos da Mensagem), `hymns.js` (aba Hinos: busca, estrofes, editor, importação de .txt/.json), `hymn-appearance.js` (estilos e temas dos hinos), `bible.js` (aba Bíblia: busca, livros/capítulos, versículos, importação), `bible-appearance.js` (estilos e temas da Bíblia, baseados nos presets antigos da igreja), `backgrounds.js` (seletor de imagem de fundo), `background-editor.js` (cor/degradê/imagem), `media.js` (aba Mídia: pastas, envio com barra de progresso, miniaturas, controles de vídeo, aparência da mídia), `lowerthird.js` (pregador do dia, tecla N em qualquer aba, chip "Nome no ar" no topo), `config.js` (aba Configurações, inclui o PIN), `cloud.js` (Banco online: status, entrar, pedir acesso, aprovar igrejas, bolinha de nuvem no topo).
+- `public/overlay.js` é módulo ES: caixa da Mensagem + `createScreenLayer` genérico usado por Hinos e Bíblia (tela cheia com texto no centro ou embaixo, ou faixa embaixo; fundo `bgMode` = cor, degradê linear/circular com movimento suave opcional, ou imagem com cor por cima; vinheta opcional; texto diminui sozinho para caber; transição só no texto). No painel, `background-editor.js` monta esses controles para Bíblia e Hinos.
+  - A prévia do painel é o próprio `overlay.html` dentro de um iframe escalado (1920x1080), então é fiel ao OBS.

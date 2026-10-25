@@ -1,6 +1,6 @@
 {
   "name": "a-mensagem-control",
-  "version": "1.0.3",
+  "version": "2.0.0",
   "description": "Controle de overlay para transmissão de sermões de William Branham",
   "main": "main.js",
   "scripts": {
@@ -9,11 +9,16 @@
     "build-installer": "electron-builder build --win --publish never"
   },
   "dependencies": {
+    "@fontsource/crimson-pro": "^5.3.0",
+    "@fontsource/lora": "^5.3.0",
+    "@fontsource/montserrat": "^5.3.0",
+    "@fontsource/outfit": "^5.3.0",
+    "@fontsource/playfair-display": "^5.3.0",
     "express": "^4.19.2",
     "ws": "^8.16.0"
   },
   "devDependencies": {
-    "electron": "^31.0.1",
+    "electron": "^44.7.0",
     "electron-builder": "^24.13.3",
     "electron-packager": "^17.1.2"
   },

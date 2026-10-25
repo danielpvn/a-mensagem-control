@@ -1,0 +1,20 @@
+/* Fontes locais (servidas pelo app, funcionam sem internet) */
+@import url('/fonts/outfit/300.css');
+@import url('/fonts/outfit/400.css');
+@import url('/fonts/outfit/500.css');
+@import url('/fonts/outfit/600.css');
+@import url('/fonts/outfit/700.css');
+@import url('/fonts/montserrat/400.css');
+@import url('/fonts/montserrat/500.css');
+@import url('/fonts/montserrat/600.css');
+@import url('/fonts/montserrat/700.css');
+@import url('/fonts/lora/400.css');
+@import url('/fonts/lora/500.css');
+@import url('/fonts/lora/600.css');
+@import url('/fonts/lora/400-italic.css');
+@import url('/fonts/playfair-display/400.css');
+@import url('/fonts/playfair-display/600.css');
+@import url('/fonts/playfair-display/400-italic.css');
+@import url('/fonts/crimson-pro/400.css');
+@import url('/fonts/crimson-pro/600.css');
+@import url('/fonts/crimson-pro/700.css');

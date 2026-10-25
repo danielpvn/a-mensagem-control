@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>A Mensagem Control - PIN</title>
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="stylesheet" href="fonts.css">
+  <link rel="stylesheet" href="admin.css?v=1.4.0">
+  <style>
+    .pin-page { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+    .pin-card { width: 100%; max-width: 360px; align-items: center; text-align: center; padding: 32px 24px; gap: 16px; }
+    .pin-card img { height: 56px; }
+    .pin-input {
+      width: 100%;
+      font-size: 2rem !important;
+      letter-spacing: 0.6em;
+      text-align: center;
+      padding: 12px !important;
+    }
+    .pin-error { color: #fca5a5; font-size: 0.88rem; min-height: 1.2em; }
+  </style>
+</head>
+<body>
+  <main class="pin-page">
+    <form class="card pin-card" id="pin-form">
+      <img src="assets/logo.png" alt="">
+      <h2>Controlar o A Mensagem</h2>
+      <p class="muted">Digite o PIN que está em <strong>Configurações</strong> no computador da mídia.</p>
+      <input class="pin-input" id="pin" type="password" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required autofocus>
+      <p class="pin-error" id="pin-error"></p>
+      <button class="btn btn-primary" type="submit" style="width: 100%">Entrar</button>
+    </form>
+  </main>
+  <script>
+    document.getElementById('pin-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const error = document.getElementById('pin-error');
+      error.textContent = '';
+      try {
+        const res = await fetch('/api/pin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin: document.getElementById('pin').value })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        location.href = '/admin.html';
+      } catch (err) {
+        error.textContent = err.message || 'Não foi possível entrar.';
+        document.getElementById('pin').select();
+      }
+    };
+  </script>
+</body>
+</html>
