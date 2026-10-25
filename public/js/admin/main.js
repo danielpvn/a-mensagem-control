@@ -4,6 +4,8 @@ import * as ws from './ws.js';
 import { setupLive } from './live.js';
 import { setupMessage, messageControls } from './message.js';
 import { setupHymns, hymnControls } from './hymns.js';
+import { setupBible, bibleControls } from './bible.js';
+import { setupBibleAppearance } from './bible-appearance.js';
 import { setupAppearance } from './appearance.js';
 import { setupHymnAppearance } from './hymn-appearance.js';
 import { setupConfig } from './config.js';
@@ -26,6 +28,7 @@ function setupKeyboard() {
   const controlsForTab = () => {
     const tab = getActiveTab();
     if (tab === 'hinos') return hymnControls;
+    if (tab === 'biblia') return bibleControls;
     if (tab === 'mensagem') return messageControls;
     return null;
   };
@@ -83,6 +86,8 @@ setupMessage();
 setupHymns();
 setupAppearance();
 setupHymnAppearance();
+setupBible();
+setupBibleAppearance();
 setupConfig();
 setupKeyboard();
 setupTabs();

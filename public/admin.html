@@ -6,7 +6,7 @@
   <title>A Mensagem Control - Painel do Operador</title>
   <link rel="icon" type="image/png" href="assets/favicon.png">
   <link rel="stylesheet" href="fonts.css">
-  <link rel="stylesheet" href="admin.css?v=1.2.0">
+  <link rel="stylesheet" href="admin.css?v=1.4.0">
 </head>
 <body>
   <div class="app">
@@ -31,7 +31,7 @@
         </button>
         <button class="tab" role="tab" data-tab="biblia">
           <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-          Bíblia <span class="soon">em breve</span>
+          Bíblia
         </button>
         <button class="tab" role="tab" data-tab="midia">
           <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>
@@ -169,6 +169,7 @@
                   <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
                   <option value="'Lora', serif">Lora (elegante, com serifa)</option>
                   <option value="'Playfair Display', serif">Playfair Display (tradicional)</option>
+                  <option value="'Crimson Pro', serif">Crimson Pro (bíblica, com serifa)</option>
                   <option value="Arial, sans-serif">Arial (clássica)</option>
                 </select>
               </div>
@@ -323,6 +324,10 @@
                 <label><input type="radio" name="hymn-layout" value="fullscreen" checked><span>Tela cheia</span></label>
                 <label><input type="radio" name="hymn-layout" value="lower-third"><span>Faixa embaixo</span></label>
               </div>
+              <div class="segmented" role="radiogroup" aria-label="Posição do texto" id="hymn-position-group">
+                <label><input type="radio" name="hymn-position" value="center" checked><span>Texto no centro</span></label>
+                <label><input type="radio" name="hymn-position" value="bottom"><span>Texto embaixo</span></label>
+              </div>
               <div class="field">
                 <div class="field-row"><label for="hymn-lines">Linhas por tela</label><output id="hymn-lines-val">4</output></div>
                 <input type="range" id="hymn-lines" min="1" max="8" step="1" value="4">
@@ -338,6 +343,7 @@
                   <option value="Outfit, sans-serif">Outfit (moderna)</option>
                   <option value="'Lora', serif">Lora (elegante, com serifa)</option>
                   <option value="'Playfair Display', serif">Playfair Display (tradicional)</option>
+                  <option value="'Crimson Pro', serif">Crimson Pro (bíblica, com serifa)</option>
                   <option value="Arial, sans-serif">Arial (clássica)</option>
                 </select>
               </div>
@@ -363,16 +369,16 @@
 
             <fieldset>
               <legend>Cores</legend>
-              <div class="color-grid">
+              <div class="color-grid color-grid-3">
                 <label class="color-field"><input type="color" id="hymn-text-color" value="#ffffff"><span>Letra</span></label>
                 <label class="color-field"><input type="color" id="hymn-accent-color" value="#93c5fd"><span>Destaque</span></label>
-                <label class="color-field"><input type="color" id="hymn-bg-color" value="#050814"><span>Fundo</span></label>
                 <label class="color-field"><input type="color" id="hymn-outline-color" value="#000000"><span>Contorno</span></label>
               </div>
-              <div class="field">
-                <div class="field-row"><label for="hymn-bg-opacity">Opacidade do fundo</label><output id="hymn-opacity-val">90%</output></div>
-                <input type="range" id="hymn-bg-opacity" min="0" max="100" value="90">
-              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Fundo</legend>
+              <div id="hymn-bg-editor"></div>
             </fieldset>
 
             <fieldset>
@@ -387,11 +393,169 @@
         </div>
       </section>
       <section class="panel" data-panel="biblia">
-        <div class="coming-soon card">
-          <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-          <h2>Bíblia (ACF)</h2>
-          <p>Digite <strong>jo 3 16</strong> ou <strong>sl 23</strong> e o versículo vai para a tela cheia, com cor da letra, fundo e transparência do seu jeito.</p>
-          <span class="badge badge-soft">Em breve</span>
+        <div class="workspace">
+          <!-- Busca e livros -->
+          <aside class="card library bible-library">
+            <div class="card-head">
+              <h2>Bíblia <span class="muted small">ACF</span></h2>
+            </div>
+            <label class="search search-lg">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="search" id="bible-search" placeholder="jo 3 16, sl 23 ou palavras do versículo..." autocomplete="off" spellcheck="false">
+            </label>
+            <p class="muted small" id="bible-search-hint">Ex.: <em>jo 3 16</em>, <em>1co 13 4-7</em>, <em>amou o mundo</em>. <kbd>Enter</kbd> deixa pronto.</p>
+            <div id="bible-results" class="bible-results">
+              <div class="empty">Carregando a Bíblia...</div>
+            </div>
+          </aside>
+
+          <!-- Centro: prévia + versículos -->
+          <section class="center">
+            <div class="card monitor-card">
+              <div class="card-head">
+                <h3>Prévia do OBS</h3>
+                <span class="badge badge-off" data-monitor-badge>Tela limpa</span>
+              </div>
+              <div class="monitor-body">
+                <div class="stage" data-stage>
+                  <iframe src="overlay.html" title="Prévia do overlay" tabindex="-1"></iframe>
+                </div>
+                <div class="next-preview">
+                  <span id="bible-next-label" class="next-label">Próximo</span>
+                  <p id="bible-next-text">—</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="card reader">
+              <div class="reader-head">
+                <div class="reader-title-wrap">
+                  <h2 id="bible-title">Nenhum capítulo aberto</h2>
+                  <p id="bible-meta" class="muted">Digite uma referência ou escolha um livro.</p>
+                </div>
+                <div class="head-actions">
+                  <button id="btn-bible-prev-chapter" class="btn btn-secondary btn-sm" hidden title="Capítulo anterior">
+                    <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+                    Cap.
+                  </button>
+                  <button id="btn-bible-next-chapter" class="btn btn-secondary btn-sm" hidden title="Próximo capítulo">
+                    Cap.
+                    <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <div id="bible-verses" class="paragraphs-list">
+                <div class="empty">Os versículos do capítulo aparecem aqui.</div>
+              </div>
+
+              <div class="transport">
+                <button id="btn-bible-prev" class="btn btn-transport" disabled title="Versículo anterior (← ou PageUp)">
+                  <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+                  <span>Anterior</span>
+                </button>
+                <button id="btn-bible-toggle" class="btn btn-transport btn-toggle" disabled title="Exibir/ocultar (Esc ou B)">
+                  <span id="btn-bible-toggle-label">Exibir</span>
+                </button>
+                <button id="btn-bible-next" class="btn btn-transport btn-primary" disabled title="Próximo versículo (Espaço, → ou PageDown)">
+                  <span>Próximo</span>
+                  <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+              </div>
+              <p class="hint"><kbd>Enter</kbd> buscar · <kbd>Espaço</kbd> <kbd>→</kbd> próximo versículo · <kbd>←</kbd> anterior · <kbd>Esc</kbd> <kbd>B</kbd> exibir/ocultar</p>
+            </div>
+          </section>
+
+          <!-- Aparência da Bíblia -->
+          <aside class="card appearance" id="bible-appearance">
+            <div class="card-head">
+              <h2>Aparência</h2>
+              <button id="btn-bible-reset-styles" class="btn btn-text btn-sm">Restaurar padrão</button>
+            </div>
+
+            <fieldset>
+              <legend>Temas prontos</legend>
+              <div class="theme-grid" id="bible-themes"></div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Formato</legend>
+              <div class="segmented" role="radiogroup" aria-label="Formato">
+                <label><input type="radio" name="bible-layout" value="fullscreen" checked><span>Tela cheia</span></label>
+                <label><input type="radio" name="bible-layout" value="lower-third"><span>Faixa embaixo</span></label>
+              </div>
+              <div class="segmented" role="radiogroup" aria-label="Posição do texto" id="bible-position-group">
+                <label><input type="radio" name="bible-position" value="center" checked><span>Texto no centro</span></label>
+                <label><input type="radio" name="bible-position" value="bottom"><span>Texto embaixo</span></label>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Texto</legend>
+              <div class="field">
+                <label for="bible-font">Fonte</label>
+                <select id="bible-font">
+                  <option value="'Crimson Pro', serif">Crimson Pro (bíblica, com serifa)</option>
+                  <option value="'Lora', serif">Lora (elegante, com serifa)</option>
+                  <option value="'Playfair Display', serif">Playfair Display (tradicional)</option>
+                  <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
+                  <option value="Outfit, sans-serif">Outfit (moderna)</option>
+                  <option value="Arial, sans-serif">Arial (clássica)</option>
+                </select>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="bible-size">Tamanho da letra</label><output id="bible-size-val">4.4</output></div>
+                <input type="range" id="bible-size" min="2" max="7" step="0.1" value="4.4">
+              </div>
+              <div class="field">
+                <label>Alinhamento</label>
+                <div class="segmented segmented-3" role="radiogroup" aria-label="Alinhamento">
+                  <label><input type="radio" name="bible-align" value="center" checked><span>Centro</span></label>
+                  <label><input type="radio" name="bible-align" value="justify"><span>Justificado</span></label>
+                  <label><input type="radio" name="bible-align" value="left"><span>Esquerda</span></label>
+                </div>
+              </div>
+              <label class="switch"><input type="checkbox" id="bible-bold" checked><span class="switch-ui"></span>Negrito</label>
+              <label class="switch"><input type="checkbox" id="bible-shadow" checked><span class="switch-ui"></span>Sombra nas letras</label>
+            </fieldset>
+
+            <fieldset>
+              <legend>Referência</legend>
+              <label class="switch"><input type="checkbox" id="bible-show-ref" checked><span class="switch-ui"></span>Mostrar "João 3:16"</label>
+              <label class="switch"><input type="checkbox" id="bible-show-version"><span class="switch-ui"></span>Mostrar "(ACF)"</label>
+              <div class="segmented" role="radiogroup" aria-label="Posição da referência">
+                <label><input type="radio" name="bible-ref-position" value="top"><span>Em cima</span></label>
+                <label><input type="radio" name="bible-ref-position" value="bottom" checked><span>Embaixo</span></label>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="bible-ref-size">Tamanho da referência</label><output id="bible-ref-size-val">1.8</output></div>
+                <input type="range" id="bible-ref-size" min="0.8" max="3.5" step="0.05" value="1.8">
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Cores</legend>
+              <div class="color-grid color-grid-2">
+                <label class="color-field"><input type="color" id="bible-text-color" value="#ffffff"><span>Letra</span></label>
+                <label class="color-field"><input type="color" id="bible-ref-color" value="#ffeb07"><span>Referência</span></label>
+              </div>
+              <div class="field">
+                <label for="bible-animation">Transição</label>
+                <select id="bible-animation">
+                  <option value="fade">Esvanecer rápido</option>
+                  <option value="fade-slow">Esvanecer lento</option>
+                  <option value="slide-up">Deslizar para cima</option>
+                  <option value="zoom-in">Zoom suave</option>
+                  <option value="blur">Desfoque</option>
+                </select>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Fundo</legend>
+              <div id="bible-bg-editor"></div>
+            </fieldset>
+          </aside>
         </div>
       </section>
       <section class="panel" data-panel="midia">
@@ -420,6 +584,16 @@
             <h2>Controlar de outro aparelho</h2>
             <p class="muted">Com o celular ou notebook <strong>no mesmo Wi-Fi</strong> do computador da mídia, abra um destes endereços no navegador:</p>
             <div id="lan-urls" class="lan-urls"><div class="empty">Procurando endereços...</div></div>
+          </div>
+
+          <div class="card">
+            <h2>Bíblia ACF</h2>
+            <p class="muted" id="bible-status">Verificando...</p>
+            <label class="btn btn-secondary btn-sm file-button">
+              <input type="file" id="bible-folder" webkitdirectory directory multiple>
+              Importar a pasta "2 Biblia_ACF"
+            </label>
+            <p class="muted small">Use se a Bíblia não aparecer ou se quiser trocar o texto. A pasta tem as subpastas "1 Velho Testamento" e "2 Novo Testamento".</p>
           </div>
 
           <div class="card">
@@ -573,6 +747,6 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script type="module" src="js/admin/main.js?v=1.2.0"></script>
+  <script type="module" src="js/admin/main.js?v=1.4.0"></script>
 </body>
 </html>

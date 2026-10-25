@@ -9,10 +9,15 @@ export function describeLive(state) {
   const slide = hymn.slides ? hymn.slides[hymn.slideIndex] : null;
   const hymnName = hymn.number ? `Hino ${hymn.number}` : hymn.title;
   const messageReady = state.currentParagraphIndex !== -1;
+  const bible = state.bible || {};
+  const verse = bible.slides ? bible.slides[bible.slideIndex] : null;
+  const verseName = verse ? `${bible.bookName} ${bible.chapter}:${verse.verse}` : '';
 
+  if (verse && !bible.isCleared) return { kind: 'live', label: `No ar · ${verseName}`, badge: 'Bíblia no ar', tab: 'biblia' };
   if (slide && !hymn.isCleared) return { kind: 'live', label: `No ar · ${hymnName} · ${slideName(slide)}`, badge: 'Hino no ar', tab: 'hinos' };
   if (messageReady && !state.isCleared) return { kind: 'live', label: `No ar · § ${state.currentParagraphNumber}`, badge: 'Mensagem no ar', tab: 'mensagem' };
   if (slide && hymn.armed) return { kind: 'armed', label: `Pronto · ${hymnName} · ${slideName(slide)}`, badge: 'Hino pronto', tab: 'hinos' };
+  if (verse && bible.armed) return { kind: 'armed', label: `Pronto · ${verseName}`, badge: 'Bíblia pronta', tab: 'biblia' };
   if (messageReady && state.armed) return { kind: 'armed', label: `Pronto · § ${state.currentParagraphNumber}`, badge: 'Mensagem pronta', tab: 'mensagem' };
   return { kind: 'off', label: 'Tela limpa', badge: 'Tela limpa', tab: null };
 }
