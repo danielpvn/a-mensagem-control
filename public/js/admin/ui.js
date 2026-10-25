@@ -66,18 +66,26 @@ export async function copyText(text) {
   }
 }
 
+let activeTab = 'mensagem';
+const tabListeners = [];
+
+export const getActiveTab = () => activeTab;
+export const onTabChange = (handler) => tabListeners.push(handler);
+
+export function selectTab(name) {
+  activeTab = name;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.dataset.panel === name));
+  try { localStorage.setItem('amc.tab', name); } catch (e) { /* sem armazenamento */ }
+  tabListeners.forEach(handler => handler(name));
+}
+
 export function setupTabs() {
-  const tabs = document.querySelectorAll('.tab');
-  const select = (name) => {
-    tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
-    document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.dataset.panel === name));
-    try { localStorage.setItem('amc.tab', name); } catch (e) { /* sem armazenamento */ }
-  };
-  tabs.forEach(t => t.onclick = () => select(t.dataset.tab));
+  document.querySelectorAll('.tab').forEach(t => t.onclick = () => selectTab(t.dataset.tab));
 
   let saved = null;
   try { saved = localStorage.getItem('amc.tab'); } catch (e) { /* sem armazenamento */ }
-  if (saved && document.querySelector(`.tab[data-tab="${saved}"]`)) select(saved);
+  if (saved && document.querySelector(`.tab[data-tab="${saved}"]`)) selectTab(saved);
 }
 
 export function setupModalClose(modal, onClose) {

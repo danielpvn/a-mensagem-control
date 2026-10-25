@@ -104,6 +104,73 @@ body, html {
 }
 
 
+/* --- Camada dos Hinos --- */
+.hymn-layer {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  transition: opacity 0.45s ease, background 0.3s ease;
+}
+.hymn-layer.hidden { opacity: 0; }
+
+.hymn-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  color: #ffffff;
+  transition:
+    opacity 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+    transform 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+    clip-path 0.5s cubic-bezier(0.25, 1, 0.5, 1),
+    filter 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+    background 0.3s ease;
+  will-change: transform, opacity, clip-path, filter;
+}
+
+.hymn-text-wrap { width: 100%; display: flex; justify-content: center; }
+
+.hymn-text {
+  font-weight: 600;
+  line-height: 1.32;
+  white-space: pre-line;   /* cada linha da letra numa linha da tela */
+  word-wrap: break-word;
+  max-width: 100%;
+}
+
+.hymn-title, .hymn-label {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+/* Tela cheia: letra no centro, título em cima, estrofe embaixo */
+.layout-full { align-items: center; }
+.layout-full .hymn-box {
+  width: 100%;
+  height: 100%;
+  justify-content: space-between;
+  padding: 5vh 7vw;
+}
+.layout-full .hymn-text-wrap { flex: 1; align-items: center; }
+
+/* Faixa embaixo: caixa no rodapé, por cima da câmera */
+.layout-lower { align-items: flex-end; padding: 0 1.5% 12px; }
+.layout-lower .hymn-box {
+  width: 100%;
+  max-width: 1840px;
+  padding: 14px 40px 16px;
+  border-radius: 14px;
+  border-left: 5px solid #93c5fd;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(12px);
+  gap: 4px;
+}
+.layout-lower .hymn-label { display: none !important; }
+
 /* --- Transitions & Animations --- */
 
 /* 1. Slide Up Animation */

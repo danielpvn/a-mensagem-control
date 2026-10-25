@@ -1,5 +1,5 @@
 // Aba Mensagem: biblioteca, leitura dos parágrafos, prévia e "continuar de onde parou".
-import { $, toast, confirmDialog, normalize, formatDay, isModalOpen, setupModalClose } from './ui.js';
+import { $, toast, confirmDialog, normalize, formatDay, setupModalClose } from './ui.js';
 import * as ws from './ws.js';
 
 let sermons = [];          // lista da biblioteca
@@ -26,11 +26,8 @@ const el = {
   btnNext: $('btn-next'),
   btnToggle: $('btn-toggle'),
   btnToggleLabel: $('btn-toggle-label'),
-  monitorBadge: $('monitor-badge'),
   nextLabel: $('next-label'),
-  nextText: $('next-text'),
-  liveChip: $('live-chip'),
-  liveLabel: $('live-label')
+  nextText: $('next-text')
 };
 
 // ---------- Biblioteca ----------
@@ -249,21 +246,6 @@ function renderLiveState() {
   el.btnToggleLabel.textContent = isLive ? 'Ocultar' : 'Exibir';
   el.btnToggle.classList.toggle('is-live', isLive);
 
-  // Chip do topo e selo da prévia
-  const number = state && state.currentParagraphNumber;
-  el.liveChip.className = `live-chip ${isLive ? 'is-live' : isArmed ? 'is-armed' : 'is-off'}`;
-  el.monitorBadge.className = `badge ${isLive ? 'badge-live' : isArmed ? 'badge-armed' : 'badge-off'}`;
-  if (isLive) {
-    el.liveLabel.textContent = `No ar · § ${number}`;
-    el.monitorBadge.textContent = 'No ar';
-  } else if (isArmed) {
-    el.liveLabel.textContent = `Pronto · § ${number}`;
-    el.monitorBadge.textContent = 'Pronto, aperte Próximo';
-  } else {
-    el.liveLabel.textContent = 'Tela limpa';
-    el.monitorBadge.textContent = 'Tela limpa';
-  }
-
   // O que vem a seguir, para o operador se antecipar
   let next = null;
   if (hasSermon) next = isArmed ? sermon.paragraphs[index] : sermon.paragraphs[index + 1];
@@ -306,9 +288,17 @@ function onServerState(newState) {
 
 // ---------- Ações ----------
 
-const next = () => ws.send('next');
-const prev = () => ws.send('prev');
-const toggle = () => ws.send('toggle-clear');
+const next = () => ws.send('next', { mode: 'message' });
+const prev = () => ws.send('prev', { mode: 'message' });
+const toggle = () => ws.send('toggle-clear', { mode: 'message' });
+
+// Usado pelo teclado (main.js) quando a aba Mensagem está aberta
+export const messageControls = {
+  next,
+  prev,
+  toggle,
+  focusSearch: () => el.paragraphSearch.focus()
+};
 
 function goToFirstMatch() {
   const rows = sermon ? filteredParagraphs() : [];
@@ -413,45 +403,6 @@ function setupImport() {
   };
 }
 
-// ---------- Teclado ----------
-
-function setupKeyboard() {
-  window.addEventListener('keydown', (e) => {
-    if (isModalOpen()) return;
-    const tag = e.target.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
-      if (e.key === 'Escape') e.target.blur();
-      return;
-    }
-
-    switch (e.key) {
-      case 'ArrowRight':
-      case 'PageDown':
-      case ' ':
-        e.preventDefault();
-        next();
-        break;
-      case 'ArrowLeft':
-      case 'PageUp':
-        e.preventDefault();
-        prev();
-        break;
-      case 'Escape':
-      case '.':
-      case 'b':
-      case 'B':
-        e.preventDefault();
-        toggle();
-        break;
-      case 'Enter':
-        if (e.target.tagName === 'BUTTON') return;
-        e.preventDefault();
-        el.paragraphSearch.focus();
-        break;
-    }
-  });
-}
-
 export function setupMessage() {
   ws.on('init', onServerState);
   ws.on('update-content', onServerState);
@@ -461,7 +412,6 @@ export function setupMessage() {
   el.btnNext.onclick = next;
   el.btnToggle.onclick = toggle;
   el.btnDelete.onclick = deleteCurrentSermon;
-  $('btn-panic').onclick = () => ws.send('clear-screen');
   $('btn-resume-dismiss').onclick = () => {
     resumeDismissedFor = sermon && sermon.id;
     el.resume.hidden = true;
@@ -480,6 +430,5 @@ export function setupMessage() {
   };
 
   setupImport();
-  setupKeyboard();
   fetchSermons();
 }

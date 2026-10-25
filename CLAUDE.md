@@ -84,12 +84,21 @@ Forneça sempre o link direto pronto para o usuário:
 
 - `main.js`: Inicialização do Electron (instância única), atalhos globais (`PageDown`, `PageUp`) para passadores Logitech R400.
 - `server.js`: estado ao vivo (`globalState`), protocolo WebSocket e rotas REST.
-  - Mensagens WS do painel: `select-sermon`, `show-paragraph`, `arm-paragraph`, `next`, `prev`, `toggle-clear`, `clear-screen`, `update-styles`, `reset-styles`. O servidor responde com `update-content` / `update-style` para todos (painel, celular e OBS).
+  - Mensagens WS do painel: `select-sermon`, `show-paragraph`, `arm-paragraph`, `next`, `prev`, `toggle-clear`, `clear-screen`, `update-styles`, `reset-styles`, `hymn-select`, `hymn-show`, `update-hymn-styles`, `reset-hymn-styles`. O servidor responde com `update-content` / `update-style` / `update-hymn-style` para todos (painel, celular e OBS).
+  - Só um conteúdo no ar por vez (Mensagem ou Hino). `next`/`prev`/`toggle-clear` recebem `{ mode: 'message' | 'hymn' }` da aba aberta; sem `mode` (passador R400 pelo `main.js`) valem para `activeLayer`, a última camada que foi ao ar.
   - "Armado" (`armed`): parágrafo posicionado e oculto; o próximo `next` exibe ele. Usado no "continuar de onde parou".
-  - Rotas: `/api/info`, `/api/sermons` (GET/DELETE), `/api/import`, `/api/check-update`, `/api/trigger-update`.
+  - Rotas: `/api/info`, `/api/sermons` (GET/DELETE), `/api/import`, `/api/hymns` (GET/POST), `/api/hymns/search?q=`, `/api/hymns/:id` (GET/PUT/DELETE), `/api/hymns/import`, `/api/check-update`, `/api/trigger-update`.
 - `src/db.js`: SQLite (sermões, parágrafos, `settings` com os estilos, `reading_progress` com onde a leitura parou).
+- `src/hymns.js`: hinos no SQLite e busca por trecho da letra em memória (sem acento, palavra pela metade, erro de digitação, frase que atravessa duas linhas).
+- `public/js/shared/hymn-text.js`: módulo ES usado pelo servidor (via `require`) e pelo painel/overlay. Segue o formato dos arquivos da igreja (`C:	f_slides Hinos`, ~3.270 hinos .txt, uma subpasta por categoria):
+  - **Linha em branco = nova TELA** (não nova estrofe). Linhas com só `*` abrem/fecham o **coro**, que nesses arquivos vem escrito toda vez que se repete (por isso hinos importados têm `autoChorus = false`).
+  - **Estrofe = tudo entre um coro e outro.** Hino sem coro e sem número vira uma parte só ("Tela 1, 2...") e não mostra "Estrofe N" na transmissão.
+  - Também aceita `Coro:` (vale só para aquele bloco) e estrofes numeradas (`2.`, `Estrofe 2`).
+  - `parseLyrics`, `sectionsToLyrics` (inverso, para o editor), `buildSequence` (coro automático), `buildSlides` (cada tela escrita vira uma tela; só divide se passar de N linhas), `slideName` (painel), `screenLabel` (transmissão).
+- Categoria do hino = coluna `collection` (vem do caminho da pasta na importação, ex: `Diversos / SALMOS E HINOS`; o filtro por "Diversos" inclui as subpastas). Números são guardados sem zeros à esquerda ("001" -> "1").
 - `src/sermon-text.js`: `splitParagraphText(text, maxChars = 150)`, `processSermonParagraphs` (`Parágrafo X (1/Y)`), `parseRawSermonText`.
 - `src/updater.js`: atualizador de 1 clique. A URL do ZIP é sempre lida do `update.json` oficial e precisa começar com `https://github.com/danielpvn/a-mensagem-control/releases/download/` (nunca aceitar URL vinda do navegador).
 - `src/shortcut.js`: atalho na Área de Trabalho.
-- `public/js/admin/`: `main.js` (entrada), `ws.js`, `ui.js` (toasts, confirmação, abas), `message.js` (aba Mensagem), `appearance.js` (estilos), `config.js` (aba Configurações).
+- `public/js/admin/`: `main.js` (entrada e teclado), `ws.js`, `ui.js` (toasts, confirmação, abas), `live.js` (chip "No ar" e Limpar tela), `message.js` (aba Mensagem), `appearance.js` (estilos da Mensagem), `hymns.js` (aba Hinos: busca, estrofes, editor, importação de .txt/.json), `hymn-appearance.js` (estilos e temas dos hinos), `config.js` (aba Configurações).
+- `public/overlay.js` é módulo ES com duas camadas: caixa da Mensagem e camada dos Hinos (tela cheia ou faixa embaixo, texto diminui sozinho para caber).
   - A prévia do painel é o próprio `overlay.html` dentro de um iframe escalado (1920x1080), então é fiel ao OBS.

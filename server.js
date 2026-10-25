@@ -6,6 +6,7 @@ const os = require('os');
 
 const db = require('./src/db');
 const { parseRawSermonText, slugify } = require('./src/sermon-text');
+const hymns = require('./src/hymns');
 const updater = require('./src/updater');
 const { createDesktopShortcut } = require('./src/shortcut');
 
@@ -43,6 +44,24 @@ const DEFAULT_MESSAGE_STYLES = {
   outlineColor: '#000000'
 };
 
+const DEFAULT_HYMN_STYLES = {
+  layout: 'fullscreen',          // 'fullscreen' (tela cheia) ou 'lower-third' (faixa embaixo)
+  fontFamily: 'Montserrat, sans-serif',
+  fontSize: '4.2rem',
+  textColor: '#ffffff',
+  accentColor: '#93c5fd',
+  bgColor: 'rgba(5, 8, 20, 0.9)',
+  uppercase: false,
+  showTitle: true,
+  showNumber: true,
+  titleSize: '1.25rem',
+  showLabel: true,
+  textOutline: false,
+  outlineColor: '#000000',
+  animationType: 'fade',
+  linesPerSlide: 4
+};
+
 // Estado global do que está no ar (compartilhado entre painel, celular e OBS)
 let globalState = {
   activeSermonId: null,
@@ -55,7 +74,20 @@ let globalState = {
   isCleared: true,
   // "Armado": parágrafo posicionado mas oculto; o próximo "avançar" exibe ele em vez de pular
   armed: false,
-  styles: { ...DEFAULT_MESSAGE_STYLES, ...db.getSetting('styles.message', {}) }
+  styles: { ...DEFAULT_MESSAGE_STYLES, ...db.getSetting('styles.message', {}) },
+
+  // Qual camada o passador controla: a última que foi para o ar ('message' ou 'hymn')
+  activeLayer: 'message',
+  hymn: {
+    id: null,
+    number: null,
+    title: '',
+    slides: [],
+    slideIndex: -1,
+    isCleared: true,
+    armed: false
+  },
+  hymnStyles: { ...DEFAULT_HYMN_STYLES, ...db.getSetting('styles.hymn', {}) }
 };
 
 let activeSermonParagraphs = [];
@@ -100,9 +132,22 @@ function positionParagraph(index) {
   globalState.currentParagraphNumber = p.number ?? null;
 }
 
+// Só um conteúdo no ar por vez: mostrar a Mensagem tira o hino da tela (e vice-versa)
+function hideHymn() {
+  globalState.hymn.isCleared = true;
+  globalState.hymn.armed = false;
+}
+
+function hideMessage() {
+  globalState.isCleared = true;
+  globalState.armed = false;
+}
+
 function setParagraphOnServer(index) {
   if (index < 0 || index >= activeSermonParagraphs.length) return;
   positionParagraph(index);
+  hideHymn();
+  globalState.activeLayer = 'message';
   globalState.isCleared = false;
   globalState.armed = false;
   db.saveProgress(globalState.activeSermonId, index, globalState.currentParagraphNumber);
@@ -148,10 +193,133 @@ function toggleClearOnServer() {
   }
 }
 
+// Botão "Limpar tela": tira tudo do ar
 function clearScreenOnServer() {
-  globalState.isCleared = true;
-  globalState.armed = false;
+  hideMessage();
+  hideHymn();
   broadcastContent();
+}
+
+// ---------- Hinos ao vivo ----------
+
+function hymnSlidesFor(id) {
+  return hymns.getHymnSlides(id, Number(globalState.hymnStyles.linesPerSlide) || 4);
+}
+
+function setHymnState(hymn, slideIndex = -1) {
+  globalState.hymn = {
+    id: hymn ? hymn.id : null,
+    number: hymn ? hymn.number : null,
+    title: hymn ? hymn.title : '',
+    collection: hymn ? hymn.collection : null,
+    slides: hymn ? hymn.slides : [],
+    slideIndex,
+    isCleared: true,
+    armed: false
+  };
+}
+
+// Abre o hino. Vindo da busca, já deixa pronta (oculta) a tela com o trecho encontrado.
+function selectHymnOnServer(id, match) {
+  const hymn = id ? hymnSlidesFor(id) : null;
+  setHymnState(hymn);
+  if (hymn && match && Number.isInteger(match.sectionIndex)) {
+    const line = Number(match.lineIndex) || 0;
+    const index = hymn.slides.findIndex(s => s.sectionIndex === match.sectionIndex && line >= s.firstLine && line < s.firstLine + s.lineCount);
+    if (index !== -1) {
+      globalState.hymn.slideIndex = index;
+      globalState.hymn.armed = true;
+    }
+  }
+  broadcastContent();
+}
+
+function showHymnSlide(index) {
+  const hymn = globalState.hymn;
+  if (index < 0 || index >= hymn.slides.length) return;
+  hymn.slideIndex = index;
+  hymn.isCleared = false;
+  hymn.armed = false;
+  hideMessage();
+  globalState.activeLayer = 'hymn';
+  broadcastContent();
+}
+
+function nextHymnSlide() {
+  const hymn = globalState.hymn;
+  if (hymn.slides.length === 0) return;
+  if (hymn.armed || hymn.slideIndex === -1) {
+    showHymnSlide(Math.max(0, hymn.slideIndex));
+    return;
+  }
+  if (hymn.slideIndex + 1 < hymn.slides.length) showHymnSlide(hymn.slideIndex + 1);
+}
+
+function prevHymnSlide() {
+  const hymn = globalState.hymn;
+  if (hymn.slideIndex > 0) showHymnSlide(hymn.slideIndex - 1);
+}
+
+function toggleHymn() {
+  const hymn = globalState.hymn;
+  if (hymn.slideIndex === -1) return;
+  if (hymn.isCleared) {
+    showHymnSlide(hymn.slideIndex);
+  } else {
+    hideHymn();
+    broadcastContent();
+  }
+}
+
+// Recarrega as telas do hino aberto (letra editada ou mudança de linhas por tela),
+// mantendo a posição na mesma parte da sequência
+function refreshActiveHymn() {
+  const current = globalState.hymn;
+  if (!current.id) return;
+  const hymn = hymnSlidesFor(current.id);
+  if (!hymn) {
+    setHymnState(null);
+    broadcastContent();
+    return;
+  }
+  const old = current.slides[current.slideIndex];
+  let index = current.slideIndex;
+  if (old) {
+    const same = hymn.slides.findIndex(s => s.seq === old.seq && old.firstLine >= s.firstLine && old.firstLine < s.firstLine + s.lineCount);
+    index = same !== -1 ? same : Math.min(index, hymn.slides.length - 1);
+  }
+  Object.assign(current, { number: hymn.number, title: hymn.title, collection: hymn.collection, slides: hymn.slides, slideIndex: index });
+  broadcastContent();
+}
+
+let saveHymnStylesTimer = null;
+function updateHymnStyles(partial) {
+  const linesChanged = partial.linesPerSlide !== undefined && Number(partial.linesPerSlide) !== Number(globalState.hymnStyles.linesPerSlide);
+  globalState.hymnStyles = { ...globalState.hymnStyles, ...partial };
+  broadcast('update-hymn-style', globalState.hymnStyles);
+  if (linesChanged) refreshActiveHymn();
+  clearTimeout(saveHymnStylesTimer);
+  saveHymnStylesTimer = setTimeout(() => db.setSetting('styles.hymn', globalState.hymnStyles), 400);
+}
+
+// Passador/teclado: o painel diz a aba (mode); o R400 com o app minimizado usa a última camada no ar
+function layerFor(mode) {
+  return mode === 'hymn' || mode === 'message' ? mode : globalState.activeLayer;
+}
+
+function next(mode) {
+  if (layerFor(mode) === 'hymn') nextHymnSlide();
+  else nextParagraph();
+}
+
+function prev(mode) {
+  if (layerFor(mode) === 'hymn') prevHymnSlide();
+  else prevParagraph();
+}
+
+function toggleClear(mode) {
+  if (layerFor(mode) === 'hymn') toggleHymn();
+  else toggleClearOnServer();
 }
 
 // Estilos são salvos no banco com um pequeno atraso para não gravar a cada movimento do slider
@@ -213,13 +381,25 @@ wss.on('connection', (ws) => {
           armParagraphOnServer(payload.index);
           break;
         case 'next':
-          nextParagraph();
+          next(payload.mode);
           break;
         case 'prev':
-          prevParagraph();
+          prev(payload.mode);
           break;
         case 'toggle-clear':
-          toggleClearOnServer();
+          toggleClear(payload.mode);
+          break;
+        case 'hymn-select':
+          selectHymnOnServer(payload.id, payload.match);
+          break;
+        case 'hymn-show':
+          showHymnSlide(payload.index);
+          break;
+        case 'update-hymn-styles':
+          updateHymnStyles(payload);
+          break;
+        case 'reset-hymn-styles':
+          updateHymnStyles(DEFAULT_HYMN_STYLES);
           break;
         case 'clear-screen':
           clearScreenOnServer();
@@ -325,6 +505,61 @@ app.post('/api/import', (req, res) => {
   }
 });
 
+// ---------- API de hinos ----------
+
+app.get('/api/hymns', (req, res) => {
+  res.json(hymns.listHymns(req.query.category || null));
+});
+
+app.get('/api/hymns/categories', (req, res) => {
+  res.json(hymns.listCategories());
+});
+
+app.get('/api/hymns/search', (req, res) => {
+  res.json(hymns.search(req.query.q, Number(req.query.limit) || 12, req.query.category || null));
+});
+
+app.get('/api/hymns/:id', (req, res) => {
+  const hymn = hymns.getHymn(Number(req.params.id));
+  if (!hymn) return res.status(404).json({ error: 'Hino não encontrado' });
+  res.json(hymn);
+});
+
+app.post('/api/hymns', (req, res) => {
+  try {
+    res.json({ success: true, id: hymns.createHymn(req.body) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/hymns/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!hymns.updateHymn(id, req.body)) return res.status(404).json({ error: 'Hino não encontrado' });
+    if (globalState.hymn.id === id) refreshActiveHymn();
+    res.json({ success: true, id });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/hymns/:id', (req, res) => {
+  const id = Number(req.params.id);
+  if (!hymns.deleteHymn(id)) return res.status(404).json({ error: 'Hino não encontrado' });
+  if (globalState.hymn.id === id) {
+    setHymnState(null);
+    broadcastContent();
+  }
+  res.json({ success: true });
+});
+
+app.post('/api/hymns/import', (req, res) => {
+  const list = Array.isArray(req.body.hymns) ? req.body.hymns : [];
+  if (list.length === 0) return res.status(400).json({ error: 'Nenhum hino para importar' });
+  res.json({ success: true, ...hymns.importHymns(list) });
+});
+
 app.get('/api/check-update', async (req, res) => {
   try {
     res.json(await updater.checkForUpdate(CURRENT_VERSION));
@@ -369,7 +604,7 @@ server.listen(PORT, () => {
 
 module.exports = {
   PORT,
-  nextParagraph,
-  prevParagraph,
-  toggleClearOnServer
+  next,
+  prev,
+  toggleClear
 };
