@@ -1,7 +1,8 @@
 // Hinos: banco de dados e busca por qualquer trecho da letra.
 // A busca roda em memória (alguns milhares de linhas são lidas em milissegundos) e tolera
 // acentos, palavras fora de ordem, palavra pela metade e pequenos erros de digitação.
-const { connection: db, transaction } = require('./db');
+const crypto = require('crypto');
+const { connection: db, transaction, ensureColumn, notifyChange, recordDeletion, clearDeletion } = require('./db');
 const { parseLyrics, sectionsToLyrics, buildSlides, sectionLines } = require('../public/js/shared/hymn-text.js');
 
 db.exec(`
@@ -25,6 +26,12 @@ db.exec(`
   );
 `);
 
+// Banco online: cada hino tem um identificador global (uid) e fica pendente (dirty) até ser enviado
+ensureColumn('hymns', 'uid', 'TEXT');
+ensureColumn('hymns', 'dirty', 'INTEGER NOT NULL DEFAULT 1');
+ensureColumn('hymns', 'remote_updated_at', 'TEXT');
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS hymns_uid ON hymns (uid)');
+
 const stmt = {
   list: db.prepare('SELECT id, number, title, collection FROM hymns'),
   get: db.prepare('SELECT id, number, title, collection, auto_chorus AS autoChorus FROM hymns WHERE id = ?'),
@@ -36,7 +43,17 @@ const stmt = {
   clearSections: db.prepare('DELETE FROM hymn_sections WHERE hymn_id = ?'),
   insertSection: db.prepare('INSERT INTO hymn_sections (hymn_id, position, kind, label, text) VALUES (?, ?, ?, ?, ?)'),
   findDuplicate: db.prepare(`SELECT id FROM hymns WHERE lower(title) = lower(?) AND IFNULL(number, '') = IFNULL(?, '') AND IFNULL(collection, '') = IFNULL(?, '')`),
-  categories: db.prepare('SELECT collection AS name, COUNT(*) AS count FROM hymns GROUP BY collection ORDER BY collection')
+  categories: db.prepare('SELECT collection AS name, COUNT(*) AS count FROM hymns GROUP BY collection ORDER BY collection'),
+  withoutUid: db.prepare('SELECT id, number, title, collection FROM hymns WHERE uid IS NULL'),
+  setUid: db.prepare('UPDATE hymns SET uid = ? WHERE id = ?'),
+  insertWithUid: db.prepare('INSERT INTO hymns (number, title, collection, auto_chorus, uid, dirty, remote_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'),
+  byUid: db.prepare('SELECT id, dirty FROM hymns WHERE uid = ?'),
+  uidOf: db.prepare('SELECT uid FROM hymns WHERE id = ?'),
+  markDirty: db.prepare('UPDATE hymns SET dirty = 1 WHERE id = ?'),
+  updateFromSync: db.prepare(`UPDATE hymns SET number = ?, title = ?, collection = ?, auto_chorus = ?, dirty = 0, remote_updated_at = ?, updated_at = datetime('now') WHERE id = ?`),
+  dirtyHymns: db.prepare('SELECT id, uid, number, title, collection, auto_chorus AS autoChorus FROM hymns WHERE dirty = 1'),
+  markSynced: db.prepare('UPDATE hymns SET dirty = 0, remote_updated_at = ? WHERE uid = ?'),
+  countDirty: db.prepare('SELECT COUNT(*) AS n FROM hymns WHERE dirty = 1')
 };
 
 // ---------- Texto normalizado ----------
@@ -245,6 +262,36 @@ function search(query, limit = 12, category = null) {
     .slice(0, limit);
 }
 
+// ---------- Identificador global ----------
+
+// O mesmo hino importado da mesma pasta em igrejas diferentes ganha o mesmo uid
+// (categoria + número + título), para não duplicar quando os dois sincronizam.
+function makeUid({ collection, number, title }) {
+  const key = [normalize(collection), cleanNumber(number), normalize(title)].join('|');
+  return crypto.createHash('sha1').update(key).digest('hex').slice(0, 20);
+}
+
+// Hinos de antes do banco online ganham o uid uma vez
+function backfillUids() {
+  const rows = stmt.withoutUid.all();
+  if (rows.length === 0) return;
+  transaction(() => {
+    rows.forEach(h => {
+      let uid = makeUid(h);
+      // Dois hinos idênticos (mesma categoria, número e título): o segundo ganha sufixo
+      for (let i = 2; stmt.byUid.get(uid); i++) uid = `${makeUid(h)}-${i}`;
+      stmt.setUid.run(uid, h.id);
+    });
+  });
+}
+backfillUids();
+
+function freeUid(data) {
+  let uid = makeUid(data);
+  for (let i = 2; stmt.byUid.get(uid); i++) uid = `${makeUid(data)}-${i}`;
+  return uid;
+}
+
 // ---------- CRUD ----------
 
 function listHymns(category = null) {
@@ -288,12 +335,15 @@ function writeSections(id, sections) {
 
 function createHymn(input) {
   const data = cleanInput(input);
+  const uid = freeUid(data);
   const id = transaction(() => {
-    const newId = Number(stmt.insert.run(data.number, data.title, data.collection, data.autoChorus).lastInsertRowid);
+    const newId = Number(stmt.insertWithUid.run(data.number, data.title, data.collection, data.autoChorus, uid, 1, null).lastInsertRowid);
     writeSections(newId, data.sections);
     return newId;
   });
+  clearDeletion('hymn', uid);
   invalidateIndex();
+  notifyChange('hymn');
   return id;
 }
 
@@ -301,16 +351,22 @@ function updateHymn(id, input) {
   const data = cleanInput(input);
   const changed = transaction(() => {
     const result = stmt.update.run(data.number, data.title, data.collection, data.autoChorus, id);
-    if (result.changes > 0) writeSections(id, data.sections);
+    if (result.changes > 0) {
+      writeSections(id, data.sections);
+      stmt.markDirty.run(id);
+    }
     return result.changes > 0;
   });
   invalidateIndex();
+  if (changed) notifyChange('hymn');
   return changed;
 }
 
 function deleteHymn(id) {
+  const row = stmt.uidOf.get(id);
   const removed = stmt.remove.run(id).changes > 0;
   invalidateIndex();
+  if (removed && row && row.uid) recordDeletion('hymn', row.uid);
   return removed;
 }
 
@@ -327,8 +383,10 @@ function importHymns(list) {
           skipped++;
           return;
         }
-        const id = Number(stmt.insert.run(data.number, data.title, data.collection, data.autoChorus).lastInsertRowid);
+        const uid = freeUid(data);
+        const id = Number(stmt.insertWithUid.run(data.number, data.title, data.collection, data.autoChorus, uid, 1, null).lastInsertRowid);
         writeSections(id, data.sections);
+        clearDeletion('hymn', uid);
         created++;
       } catch (err) {
         errors.push(`${item.title || `Item ${i + 1}`}: ${err.message}`);
@@ -336,10 +394,60 @@ function importHymns(list) {
     });
   });
   invalidateIndex();
+  if (created) notifyChange('hymn');
   return { created, skipped, errors };
 }
 
+// ---------- Banco online ----------
+
+// Pendentes de envio, já no formato da tabela library_hymns
+function dirtyHymns() {
+  return stmt.dirtyHymns.all().map(h => ({
+    uid: h.uid,
+    number: h.number,
+    title: h.title,
+    collection: h.collection,
+    auto_chorus: h.autoChorus === 1,
+    lyrics: sectionsToLyrics(stmt.sections.all(h.id))
+  }));
+}
+
+const markHymnSynced = (uid, remoteUpdatedAt) => stmt.markSynced.run(remoteUpdatedAt, uid);
+const countDirtyHymns = () => stmt.countDirty.get().n;
+
+// Aplica um hino que veio do banco online. keepLocalChanges: editor com alteração local
+// ainda não enviada (a dele vence e será enviada); leitor sempre recebe a versão online.
+function applyRemoteHymn(row, { keepLocalChanges }) {
+  const local = stmt.byUid.get(row.uid);
+  if (row.deleted) {
+    if (local && !(keepLocalChanges && local.dirty)) {
+      stmt.remove.run(local.id);
+      return true;
+    }
+    return false;
+  }
+  if (local && keepLocalChanges && local.dirty) return false;
+  const sections = parseLyrics(row.lyrics);
+  if (sections.length === 0) return false;
+  const number = cleanNumber(row.number) || null;
+  transaction(() => {
+    if (local) {
+      stmt.updateFromSync.run(number, row.title, row.collection || null, row.auto_chorus ? 1 : 0, row.updated_at, local.id);
+      writeSections(local.id, sections);
+    } else {
+      const id = Number(stmt.insertWithUid.run(number, row.title, row.collection || null, row.auto_chorus ? 1 : 0, row.uid, 0, row.updated_at).lastInsertRowid);
+      writeSections(id, sections);
+    }
+  });
+  return true;
+}
+
 module.exports = {
+  invalidateIndex,
+  dirtyHymns,
+  markHymnSynced,
+  countDirtyHymns,
+  applyRemoteHymn,
   search,
   listHymns,
   listCategories,

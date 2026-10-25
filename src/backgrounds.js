@@ -2,7 +2,7 @@
 // e servidas em /backgrounds/<arquivo>. Na primeira vez, traz os fundos da pasta da igreja.
 const fs = require('fs');
 const path = require('path');
-const { connection: db, DATA_DIR } = require('./db');
+const { connection: db, DATA_DIR, notifyChange, recordDeletion, clearDeletion } = require('./db');
 
 const DIR = path.join(DATA_DIR, 'backgrounds');
 const CHURCH_FOLDER = 'C:\\tf_slides\\_backgrounds';
@@ -28,13 +28,21 @@ function save(name, buffer) {
   const file = safeName(name);
   if (!buffer || buffer.length === 0) throw new Error('Imagem vazia.');
   fs.writeFileSync(path.join(DIR, file), buffer);
+  // Pendente de envio para o banco online (o editor envia na próxima sincronização)
+  db.prepare(`INSERT INTO background_sync (name, size, dirty) VALUES (?, ?, 1)
+    ON CONFLICT(name) DO UPDATE SET size = excluded.size, dirty = 1`).run(file, buffer.length);
+  clearDeletion('background', file);
+  notifyChange('background');
   return { name: file, url: `/backgrounds/${encodeURIComponent(file)}` };
 }
 
 function remove(name) {
-  const file = path.join(DIR, safeName(name));
+  const safe = safeName(name);
+  const file = path.join(DIR, safe);
   if (!fs.existsSync(file)) return false;
   fs.unlinkSync(file);
+  db.prepare('DELETE FROM background_sync WHERE name = ?').run(safe);
+  recordDeletion('background', safe);
   return true;
 }
 

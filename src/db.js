@@ -3,6 +3,7 @@
 // importados uma única vez e mantidos na pasta como backup.
 const path = require('path');
 const fs = require('fs');
+const { EventEmitter } = require('events');
 const { DatabaseSync } = require('node:sqlite');
 const { processSermonParagraphs } = require('./sermon-text');
 
@@ -66,6 +67,60 @@ db.exec(`
   );
 `);
 
+// ---------- Controle de sincronização com o banco online ----------
+// Itens novos/alterados aqui ficam com dirty = 1 (sermons, hymns, background_sync).
+// Exclusões ficam em sync_deletions, para os outros computadores apagarem também.
+// O motor de sincronização (sync.js) escuta syncEvents 'changed' para enviar logo.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS sync_deletions (
+    kind TEXT NOT NULL,            -- 'sermon', 'hymn' ou 'background'
+    key TEXT NOT NULL,             -- id da mensagem, uid do hino ou nome do arquivo
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (kind, key)
+  );
+
+  CREATE TABLE IF NOT EXISTS background_sync (
+    name TEXT PRIMARY KEY,
+    size INTEGER,
+    dirty INTEGER NOT NULL DEFAULT 1,
+    remote_updated_at TEXT
+  );
+`);
+
+// Acrescenta uma coluna em tabelas antigas (o SQLite não tem "ADD COLUMN IF NOT EXISTS")
+function ensureColumn(table, column, definition) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
+  if (!columns.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
+// O que já existia antes do banco online entra como pendente (o editor envia na 1ª vez)
+ensureColumn('sermons', 'dirty', 'INTEGER NOT NULL DEFAULT 1');
+ensureColumn('sermons', 'remote_updated_at', 'TEXT');
+
+const syncEvents = new EventEmitter();
+const syncStmt = {
+  addDeletion: db.prepare(`INSERT INTO sync_deletions (kind, key) VALUES (?, ?)
+    ON CONFLICT(kind, key) DO UPDATE SET created_at = datetime('now')`),
+  removeDeletion: db.prepare('DELETE FROM sync_deletions WHERE kind = ? AND key = ?'),
+  listDeletions: db.prepare('SELECT key FROM sync_deletions WHERE kind = ?')
+};
+
+function notifyChange(kind) {
+  syncEvents.emit('changed', kind);
+}
+
+// Apagou aqui: avisa os outros computadores (se recriar com a mesma chave, o aviso some)
+function recordDeletion(kind, key) {
+  syncStmt.addDeletion.run(kind, key);
+  notifyChange(kind);
+}
+
+function clearDeletion(kind, key) {
+  syncStmt.removeDeletion.run(kind, key);
+}
+
+const pendingDeletions = (kind) => syncStmt.listDeletions.all(kind).map(r => r.key);
+
 function transaction(fn) {
   db.exec('BEGIN');
   try {
@@ -98,9 +153,14 @@ const stmt = {
   getSermon: db.prepare('SELECT id, title, date FROM sermons WHERE id = ?'),
   getParagraphs: db.prepare('SELECT number, text FROM sermon_paragraphs WHERE sermon_id = ? ORDER BY position'),
   upsertSermon: db.prepare(`
-    INSERT INTO sermons (id, title, date) VALUES (?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET title = excluded.title, date = excluded.date, updated_at = datetime('now')
+    INSERT INTO sermons (id, title, date, dirty, remote_updated_at) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET title = excluded.title, date = excluded.date, updated_at = datetime('now'),
+      dirty = excluded.dirty, remote_updated_at = COALESCE(excluded.remote_updated_at, sermons.remote_updated_at)
   `),
+  dirtySermons: db.prepare('SELECT id, title, date FROM sermons WHERE dirty = 1'),
+  sermonState: db.prepare('SELECT dirty FROM sermons WHERE id = ?'),
+  markSermonSynced: db.prepare('UPDATE sermons SET dirty = 0, remote_updated_at = ? WHERE id = ?'),
+  countDirtySermons: db.prepare('SELECT COUNT(*) AS n FROM sermons WHERE dirty = 1'),
   deleteParagraphs: db.prepare('DELETE FROM sermon_paragraphs WHERE sermon_id = ?'),
   insertParagraph: db.prepare('INSERT INTO sermon_paragraphs (sermon_id, position, number, text) VALUES (?, ?, ?, ?)'),
   deleteSermon: db.prepare('DELETE FROM sermons WHERE id = ?'),
@@ -114,16 +174,21 @@ const stmt = {
   `)
 };
 
-// Salva já dividido em partes de ~150 caracteres, para a contagem da biblioteca bater com a tela
-function saveSermon({ id, title, date, paragraphs }) {
+// Salva já dividido em partes de ~150 caracteres, para a contagem da biblioteca bater com a tela.
+// fromSync: veio do banco online (não marca como pendente nem avisa para enviar de novo).
+function saveSermon({ id, title, date, paragraphs }, { fromSync = false, remoteUpdatedAt = null } = {}) {
   transaction(() => {
-    stmt.upsertSermon.run(id, title, date || 'Data desconhecida');
+    stmt.upsertSermon.run(id, title, date || 'Data desconhecida', fromSync ? 0 : 1, remoteUpdatedAt);
     stmt.deleteParagraphs.run(id);
     processSermonParagraphs(paragraphs).forEach((p, idx) => {
       const number = p.number === null || p.number === undefined ? null : String(p.number);
       stmt.insertParagraph.run(id, idx, number, p.text || '');
     });
   });
+  if (!fromSync) {
+    clearDeletion('sermon', id);
+    notifyChange('sermon');
+  }
 }
 
 function listSermons() {
@@ -150,9 +215,28 @@ function getSermon(id) {
   return { id: sermon.id, title: sermon.title, date: sermon.date, paragraphs: processSermonParagraphs(raw), progress };
 }
 
-function deleteSermon(id) {
-  return stmt.deleteSermon.run(id).changes > 0;
+function deleteSermon(id, { fromSync = false } = {}) {
+  const removed = stmt.deleteSermon.run(id).changes > 0;
+  if (removed && !fromSync) recordDeletion('sermon', id);
+  return removed;
 }
+
+// Para o envio ao banco online: parágrafos como estão guardados (já divididos)
+function dirtySermons() {
+  return stmt.dirtySermons.all().map(s => ({
+    id: s.id,
+    title: s.title,
+    date: s.date,
+    paragraphs: stmt.getParagraphs.all(s.id).map(p => ({ number: toParagraphNumber(p.number), text: p.text }))
+  }));
+}
+
+const isSermonDirty = (id) => {
+  const row = stmt.sermonState.get(id);
+  return !!(row && row.dirty);
+};
+const markSermonSynced = (id, remoteUpdatedAt) => stmt.markSermonSynced.run(remoteUpdatedAt, id);
+const countDirtySermons = () => stmt.countDirtySermons.get().n;
 
 function getSetting(key, fallback) {
   const row = stmt.getSetting.get(key);
@@ -211,6 +295,16 @@ migrateLegacyJson();
 module.exports = {
   connection: db,
   transaction,
+  ensureColumn,
+  syncEvents,
+  notifyChange,
+  recordDeletion,
+  clearDeletion,
+  pendingDeletions,
+  dirtySermons,
+  isSermonDirty,
+  markSermonSynced,
+  countDirtySermons,
   DATA_DIR,
   listSermons,
   getSermon,

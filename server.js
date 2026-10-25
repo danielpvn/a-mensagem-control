@@ -11,6 +11,7 @@ const bible = require('./src/bible');
 const backgrounds = require('./src/backgrounds');
 const media = require('./src/media');
 const auth = require('./src/auth');
+const sync = require('./src/sync');
 
 // Primeira vez neste PC: traz a Bíblia e os fundos da pasta da igreja, se existirem
 bible.autoImport();
@@ -1141,6 +1142,34 @@ app.delete('/api/preachers/:id', (req, res) => {
   res.json({ success: true });
 });
 
+// ---------- Banco online (biblioteca compartilhada) ----------
+
+app.get('/api/cloud/status', (req, res) => {
+  res.json(sync.status());
+});
+
+// A senha só passa por aqui para pedir o acesso ao Supabase; não é guardada (fica só o token)
+app.post('/api/cloud/login', async (req, res) => {
+  try {
+    res.json(await sync.login(req.body.email, req.body.password));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/cloud/logout', (req, res) => {
+  res.json(sync.logout());
+});
+
+app.post('/api/cloud/sync', async (req, res) => {
+  await sync.syncNow();
+  res.json(sync.status());
+});
+
+app.post('/api/cloud/config', (req, res) => {
+  res.json(sync.setConfig(req.body));
+});
+
 // ---------- PIN para outros aparelhos ----------
 
 app.post('/api/pin/login', auth.login);
@@ -1220,6 +1249,12 @@ server.listen(PORT, () => {
   } catch (err) {
     console.error('Erro na criação automática do atalho:', err);
   }
+
+  // Biblioteca compartilhada: sincroniza em segundo plano e avisa os painéis
+  sync.start({
+    onStatus: (status) => broadcast('sync-status', status),
+    onChanged: (changed) => broadcast('library-changed', changed)
+  });
 });
 
 module.exports = {
