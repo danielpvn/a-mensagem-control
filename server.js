@@ -108,6 +108,14 @@ const DEFAULT_BIBLE_STYLES = {
   animationType: 'fade'
 };
 
+// Estilos salvos antes de existir o degradê não têm `bgMode`: mantém o fundo que a pessoa
+// já usava (imagem ou cor) em vez de trocar pelo degradê padrão
+function loadScreenStyles(key, defaults) {
+  const saved = db.getSetting(key, {});
+  if (Object.keys(saved).length && !saved.bgMode) saved.bgMode = saved.bgImage ? 'image' : 'color';
+  return { ...defaults, ...saved };
+}
+
 // Estado global do que está no ar (compartilhado entre painel, celular e OBS)
 let globalState = {
   activeSermonId: null,
@@ -133,7 +141,7 @@ let globalState = {
     isCleared: true,
     armed: false
   },
-  hymnStyles: { ...DEFAULT_HYMN_STYLES, ...db.getSetting('styles.hymn', {}) },
+  hymnStyles: loadScreenStyles('styles.hymn', DEFAULT_HYMN_STYLES),
 
   // Bíblia: capítulo aberto, dividido em telas (versículos longos vêm em mais de uma tela)
   bible: {
@@ -146,7 +154,7 @@ let globalState = {
     isCleared: true,
     armed: false
   },
-  bibleStyles: { ...DEFAULT_BIBLE_STYLES, ...db.getSetting('styles.bible', {}) }
+  bibleStyles: loadScreenStyles('styles.bible', DEFAULT_BIBLE_STYLES)
 };
 
 let activeSermonParagraphs = [];
