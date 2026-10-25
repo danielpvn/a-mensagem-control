@@ -150,6 +150,8 @@ async function signup(email, password, church) {
   if (!data.access_token) return { ...publicStatus(), needsConfirmation: true };
   saveSession(sessionFrom(data));
   await loadProfile();
+  // Conta nova: quando for aprovada, busca a biblioteca inteira
+  db.setSetting('cloudCursors', {});
   setStatus({ state: 'pending', message: 'Pedido enviado. Aguardando a aprovação.' });
   return publicStatus();
 }
