@@ -465,7 +465,36 @@ function categoryFromPath(relativePath) {
   return parts.slice(1, -1).join(' / ');
 }
 
-async function readHymnFile(file) {
+// Arquivos arrastados não trazem o caminho da pasta; percorre as pastas soltas na área
+// para montar o mesmo caminho que o botão "Escolher pasta" daria ("1 Hinos/Harpa Cristã/x.txt")
+async function filesFromDrop(dataTransfer) {
+  const entries = [...dataTransfer.items].map(item => item.webkitGetAsEntry && item.webkitGetAsEntry()).filter(Boolean);
+  if (entries.length === 0) return [...dataTransfer.files].map(file => ({ file, path: file.name }));
+
+  const result = [];
+  const readAll = (reader) => new Promise((resolve, reject) => {
+    const all = [];
+    const next = () => reader.readEntries(batch => {
+      if (batch.length === 0) resolve(all);
+      else { all.push(...batch); next(); }
+    }, reject);
+    next();
+  });
+  const walk = async (entry, prefix) => {
+    if (entry.isFile) {
+      const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+      result.push({ file, path: prefix + entry.name });
+    } else if (entry.isDirectory) {
+      for (const child of await readAll(entry.createReader())) await walk(child, `${prefix}${entry.name}/`);
+    }
+  };
+  // Uma pasta solta vira a raiz ("1 Hinos/..."); várias pastas soltas viram categorias direto
+  const prefix = entries.length > 1 && entries.every(e => e.isDirectory) ? '_/' : '';
+  for (const entry of entries) await walk(entry, prefix);
+  return result;
+}
+
+async function readHymnFile(file, relativePath = file.webkitRelativePath) {
   const text = (await readText(file)).replace(/^﻿/, '');
 
   if (file.name.toLowerCase().endsWith('.json')) {
@@ -487,7 +516,7 @@ async function readHymnFile(file) {
   return [{
     number,
     title: title || firstLine.replace(/[,;:.!?]+$/, ''),
-    collection: categoryFromPath(file.webkitRelativePath),
+    collection: categoryFromPath(relativePath),
     autoChorus: false, // nesses arquivos o coro já vem escrito toda vez que se repete
     lyrics: text
   }];
@@ -514,17 +543,23 @@ function setupImport() {
   setupModalClose(modal, close);
   $('btn-hymn-import').onclick = () => { modal.hidden = false; };
 
-  const handleFiles = async (files) => {
-    const hymnFiles = files.filter(f => /\.(txt|json)$/i.test(f.name));
+  // Recebe [{ file, path }]; o path define a categoria
+  const handleFiles = async (items) => {
+    let hymnFiles = items.filter(({ file }) => /\.(txt|json)$/i.test(file.name));
+    // Escolheu só uma pasta de categoria (ex: "Harpa Cristã", com os .txt direto nela):
+    // a própria pasta é a categoria
+    if (hymnFiles.some(({ path }) => path.split('/').length === 2)) {
+      hymnFiles = hymnFiles.map(({ file, path }) => ({ file, path: `_/${path}` }));
+    }
     summary.hidden = false;
     summary.textContent = `Lendo ${hymnFiles.length} arquivos...`;
     pending = [];
     const problems = [];
-    for (const file of hymnFiles) {
+    for (const { file, path } of hymnFiles) {
       try {
-        pending.push(...await readHymnFile(file));
+        pending.push(...await readHymnFile(file, path));
       } catch (err) {
-        problems.push(file.name);
+        problems.push(path || file.name);
       }
     }
     pending = pending.filter(h => h.title && h.lyrics.trim());
@@ -558,14 +593,16 @@ function setupImport() {
     confirm.textContent = pending.length ? `Importar ${pending.length} hinos` : 'Importar';
   };
 
-  folderInput.onchange = () => handleFiles([...folderInput.files]);
-  filesInput.onchange = () => handleFiles([...filesInput.files]);
+  folderInput.onchange = () => handleFiles([...folderInput.files].map(file => ({ file, path: file.webkitRelativePath })));
+  filesInput.onchange = () => handleFiles([...filesInput.files].map(file => ({ file, path: file.name })));
   dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragging'); });
   dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragging'));
-  dropzone.addEventListener('drop', (e) => {
+  // Aceita soltar pastas em qualquer lugar da janela de importação
+  modal.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragging'); });
+  modal.addEventListener('drop', async (e) => {
     e.preventDefault();
     dropzone.classList.remove('dragging');
-    handleFiles([...e.dataTransfer.files]);
+    handleFiles(await filesFromDrop(e.dataTransfer));
   });
 
   confirm.onclick = async () => {
