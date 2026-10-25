@@ -19,7 +19,7 @@ backgrounds.autoImport();
 const updater = require('./src/updater');
 const { createDesktopShortcut } = require('./src/shortcut');
 
-const CURRENT_VERSION = '1.0.3';
+const CURRENT_VERSION = '2.0.0';
 const PORT = process.env.PORT || 3000;
 
 const app = express();
