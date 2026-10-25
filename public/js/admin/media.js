@@ -332,13 +332,24 @@ function setupVideoControls() {
 // ---------- Aparência da mídia ----------
 
 const fitRadios = [...document.querySelectorAll('input[name="media-fit"]')];
+const focusRadios = [...document.querySelectorAll('input[name="media-focus"]')];
+const checkedValue = (list) => (list.find(r => r.checked) || list[0]).value;
+
+// Mostra só o que vale para o ajuste escolhido
+function updateFitOptions() {
+  const fit = checkedValue(fitRadios);
+  $('media-focus-field').hidden = fit !== 'cover';
+  $('media-bg-field').classList.toggle('disabled', fit !== 'contain');
+}
 
 function fillMediaStyles(s) {
   if (!s) return;
   $('media-transition').value = s.transition || 'crossfade';
   $('media-duration-range').value = s.duration ?? 0.6;
   $('media-duration-val').textContent = `${Number(s.duration ?? 0.6).toFixed(1)} s`;
-  fitRadios.forEach(r => { r.checked = r.value === (s.fit || 'contain'); });
+  fitRadios.forEach(r => { r.checked = r.value === (s.fit || 'blur'); });
+  focusRadios.forEach(r => { r.checked = r.value === (s.focus || 'center'); });
+  updateFitOptions();
   $('media-bg').value = s.bgColor || '#000000';
   $('media-end').value = s.endAction || 'clear';
 }
@@ -349,13 +360,17 @@ function setupMediaStyles() {
     ws.send('update-media-styles', {
       transition: $('media-transition').value,
       duration: Number($('media-duration-range').value),
-      fit: (fitRadios.find(r => r.checked) || fitRadios[0]).value,
+      fit: checkedValue(fitRadios),
+      focus: checkedValue(focusRadios),
       bgColor: $('media-bg').value,
       endAction: $('media-end').value
     });
   };
   ['media-transition', 'media-duration-range', 'media-bg', 'media-end'].forEach(id => $(id).addEventListener('input', send));
-  fitRadios.forEach(r => r.addEventListener('input', send));
+  [...fitRadios, ...focusRadios].forEach(r => r.addEventListener('input', () => {
+    updateFitOptions();
+    send();
+  }));
   $('btn-media-reset').onclick = () => ws.send('reset-media-styles');
   ws.on('init', (s) => fillMediaStyles(s.mediaStyles));
   ws.on('update-media-style', fillMediaStyles);

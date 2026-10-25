@@ -711,13 +711,29 @@
                 </select>
               </div>
               <div class="field">
-                <label for="lt-animation">Entrada</label>
+                <label for="lt-animation">Efeito de entrada e saída</label>
                 <select id="lt-animation">
-                  <option value="slide">Deslizar</option>
+                  <option value="slide">Deslizar do lado</option>
+                  <option value="rise">Subir</option>
+                  <option value="drop">Descer</option>
                   <option value="fade">Esvanecer</option>
-                  <option value="reveal">Revelar</option>
+                  <option value="zoom">Zoom</option>
+                  <option value="blur">Desfoque</option>
+                  <option value="reveal">Cortina</option>
+                  <option value="expand">Abrir do centro</option>
+                  <option value="flip">Girar (placa)</option>
+                  <option value="stagger">Em etapas (caixa, nome, subtítulo)</option>
                 </select>
               </div>
+              <div class="field">
+                <label>Velocidade</label>
+                <div class="segmented segmented-3" role="radiogroup" aria-label="Velocidade">
+                  <label><input type="radio" name="lt-speed" value="0.6"><span>Rápida</span></label>
+                  <label><input type="radio" name="lt-speed" value="1" checked><span>Normal</span></label>
+                  <label><input type="radio" name="lt-speed" value="1.7"><span>Lenta</span></label>
+                </div>
+              </div>
+              <button type="button" id="btn-lt-preview" class="btn btn-secondary btn-sm" title="Mostra e esconde o nome para ver o efeito">Ver o efeito</button>
               <div class="field">
                 <label for="lt-font">Fonte</label>
                 <select id="lt-font">
@@ -761,12 +777,24 @@
                 <div class="field-row"><label for="media-duration-range">Duração da transição</label><output id="media-duration-val">0.6 s</output></div>
                 <input type="range" id="media-duration-range" min="0.2" max="2" step="0.1" value="0.6">
               </div>
-              <div class="segmented" role="radiogroup" aria-label="Ajuste">
-                <label><input type="radio" name="media-fit" value="contain" checked><span>Inteira</span></label>
-                <label><input type="radio" name="media-fit" value="cover"><span>Preencher a tela</span></label>
+              <div class="field">
+                <label>Fotos e vídeos que não são da largura da tela</label>
+                <div class="segmented segmented-3" role="radiogroup" aria-label="Ajuste">
+                  <label title="A foto inteira, com as laterais preenchidas pela própria foto desfocada"><input type="radio" name="media-fit" value="blur" checked><span>Inteira + desfoque</span></label>
+                  <label title="A foto inteira, com bordas de uma cor"><input type="radio" name="media-fit" value="contain"><span>Inteira + bordas</span></label>
+                  <label title="Preenche a tela toda, cortando o que sobrar"><input type="radio" name="media-fit" value="cover"><span>Preencher</span></label>
+                </div>
+              </div>
+              <div class="field" id="media-focus-field">
+                <label>Ao preencher, mostrar a parte</label>
+                <div class="segmented segmented-3" role="radiogroup" aria-label="Parte da foto">
+                  <label><input type="radio" name="media-focus" value="top"><span>De cima</span></label>
+                  <label><input type="radio" name="media-focus" value="center" checked><span>Do meio</span></label>
+                  <label><input type="radio" name="media-focus" value="bottom"><span>De baixo</span></label>
+                </div>
               </div>
               <div class="color-row">
-                <label class="color-field"><input type="color" id="media-bg" value="#000000"><span>Bordas</span></label>
+                <label class="color-field" id="media-bg-field"><input type="color" id="media-bg" value="#000000"><span>Bordas</span></label>
                 <div class="field grow">
                   <label for="media-end">Quando o vídeo terminar</label>
                   <select id="media-end">

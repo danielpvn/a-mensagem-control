@@ -374,6 +374,29 @@ function createMediaElement(item, playback, token) {
   return { el: img, ready: img.decode().catch(() => {}) };
 }
 
+// Fundo desfocado atrás da mídia (modo "Inteira com fundo desfocado"): a própria foto ampliada
+// e desfocada preenche as laterais. No vídeo, usa um quadro do começo (fica parado).
+function createBackdrop(item, el) {
+  const backdrop = document.createElement('div');
+  backdrop.className = 'media-backdrop';
+  if (item.type === 'image') {
+    backdrop.style.backgroundImage = `url("${item.url}")`;
+  } else {
+    el.addEventListener('loadeddata', () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 96;
+        canvas.height = 54;
+        canvas.getContext('2d').drawImage(el, 0, 0, canvas.width, canvas.height);
+        backdrop.style.backgroundImage = `url("${canvas.toDataURL('image/jpeg', 0.7)}")`;
+      } catch (err) {
+        // sem fundo desfocado: fica a cor das bordas
+      }
+    }, { once: true });
+  }
+  return backdrop;
+}
+
 function setSlotStyle(slot, { opacity, transform, transition }) {
   slot.style.transition = transition || 'none';
   slot.style.opacity = opacity;
@@ -412,7 +435,7 @@ async function updateMedia(m) {
   stopSlot(incoming);
   const { el, ready } = createMediaElement(item, playback, playback.token);
   setSlotStyle(incoming, { opacity: 0 });
-  incoming.appendChild(el);
+  incoming.append(createBackdrop(item, el), el);
   await ready;
   if (request !== mediaRequest) {
     stopSlot(incoming);
@@ -462,8 +485,13 @@ async function updateMedia(m) {
 }
 
 function applyMediaStyles() {
+  const fit = mediaStyles.fit || 'blur';
   mediaLayer.style.background = mediaStyles.bgColor || '#000000';
-  mediaLayer.classList.toggle('fit-cover', mediaStyles.fit === 'cover');
+  mediaLayer.classList.toggle('fit-cover', fit === 'cover');
+  mediaLayer.classList.toggle('fit-blur', fit === 'blur');
+  // Ao preencher a tela, qual parte da foto aparece (em cima = não corta a cabeça)
+  const focus = { top: 'center top', center: 'center center', bottom: 'center bottom' }[mediaStyles.focus] || 'center center';
+  mediaLayer.style.setProperty('--media-focus', focus);
 }
 
 // ================= Nome do pregador (lower third) =================
@@ -482,6 +510,7 @@ function applyLowerThirdStyles() {
     .join(' ');
   ltLayer.classList.add(`pos-${s.position || 'bottom-left'}`, `look-${s.look || 'modern'}`, `lt-anim-${s.animation || 'slide'}`);
   ltLayer.style.setProperty('--lt-scale', s.scale || 1);
+  ltLayer.style.setProperty('--lt-speed', s.speed || 1);
   ltLayer.style.setProperty('--lt-name', s.nameColor || '#ffffff');
   ltLayer.style.setProperty('--lt-subtitle', s.subtitleColor || '#cbd5e1');
   ltLayer.style.setProperty('--lt-accent', s.accentColor || '#3b82f6');

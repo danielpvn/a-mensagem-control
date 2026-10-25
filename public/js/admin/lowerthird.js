@@ -140,6 +140,7 @@ export function toggleLowerThird() {
 // ---------- Aparência ----------
 
 const lookRadios = [...document.querySelectorAll('input[name="lt-look"]')];
+const speedRadios = [...document.querySelectorAll('input[name="lt-speed"]')];
 
 function hexToRgba(hex, alpha) {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -173,6 +174,7 @@ function fillStyles(s) {
   $('lt-bg-opacity').value = opacity;
   $('lt-opacity-val').textContent = `${opacity}%`;
   lookRadios.forEach(r => { r.checked = r.value === (s.look || 'modern'); });
+  speedRadios.forEach(r => { r.checked = Number(r.value) === Number(s.speed || 1); });
 }
 
 function sendStyles() {
@@ -188,7 +190,8 @@ function sendStyles() {
     subtitleColor: $('lt-subtitle-color').value,
     accentColor: $('lt-accent-color').value,
     bgColor: hexToRgba($('lt-bg-color').value, Number($('lt-bg-opacity').value) / 100),
-    look: (lookRadios.find(r => r.checked) || lookRadios[0]).value
+    look: (lookRadios.find(r => r.checked) || lookRadios[0]).value,
+    speed: Number((speedRadios.find(r => r.checked) || speedRadios[1]).value)
   });
 }
 
@@ -201,7 +204,18 @@ export function setupLowerThird() {
   ws.on('update-content', onState);
   ws.on('update-lt-style', fillStyles);
 
-  [...styleInputs, ...lookRadios].forEach(input => input.addEventListener('input', sendStyles));
+  [...styleInputs, ...lookRadios, ...speedRadios].forEach(input => input.addEventListener('input', sendStyles));
+
+  // Mostra o nome e esconde depois de 2,5 s para ver o efeito escolhido
+  $('btn-lt-preview').onclick = () => {
+    const p = selected();
+    if (!p && !lt.visible) {
+      toast('Cadastre e escolha um pregador primeiro.', 'error');
+      return;
+    }
+    if (!lt.visible) ws.send('lt-show', { name: p.name, subtitle: p.subtitle });
+    setTimeout(() => ws.send('lt-hide'), 2500);
+  };
   $('btn-lt-reset').onclick = () => ws.send('reset-lt-styles');
   $('btn-lt-toggle').onclick = toggleLowerThird;
   $('lt-chip').onclick = () => ws.send('lt-hide');

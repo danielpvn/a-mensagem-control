@@ -116,7 +116,8 @@ const DEFAULT_BIBLE_STYLES = {
 const DEFAULT_MEDIA_STYLES = {
   transition: 'crossfade',       // 'crossfade', 'fade-black', 'cut', 'slide', 'zoom'
   duration: 0.6,                 // segundos
-  fit: 'contain',                // 'contain' (inteira, com bordas) ou 'cover' (preenche a tela)
+  fit: 'blur',                   // 'blur' (inteira, laterais com a própria foto desfocada), 'contain' (inteira, com bordas) ou 'cover' (preenche a tela)
+  focus: 'center',               // ao preencher: parte que aparece ('top', 'center', 'bottom')
   bgColor: '#000000',            // cor das bordas
   endAction: 'clear'             // fim do vídeo: 'clear' (tira da tela) ou 'hold' (fica no último quadro)
 };
@@ -131,7 +132,8 @@ const DEFAULT_LT_STYLES = {
   subtitleColor: '#cbd5e1',
   accentColor: '#3b82f6',
   bgColor: 'rgba(10, 15, 30, 0.85)',
-  animation: 'slide',            // 'slide', 'fade', 'reveal'
+  animation: 'slide',            // 'slide', 'rise', 'drop', 'fade', 'zoom', 'blur', 'reveal', 'expand', 'flip', 'stagger'
+  speed: 1,                      // multiplicador da duração (0.6 rápida, 1 normal, 1.7 lenta)
   autoHide: 8                    // segundos; 0 = só esconde quando o operador mandar
 };
 
