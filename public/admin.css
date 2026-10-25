@@ -811,6 +811,118 @@ fieldset > legend + * { clear: both; }
 .import-summary { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: var(--radius-sm); background: var(--field); font-size: 0.88rem; }
 .import-summary ul { padding-left: 18px; color: var(--text-2); line-height: 1.6; }
 
+/* ---------- Bíblia ---------- */
+
+.bible-results { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin: 0 -6px; padding: 0 6px; }
+
+.browser-section { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-3); padding: 8px 2px 2px; }
+.browser-head { display: flex; align-items: center; gap: 8px; padding-bottom: 4px; }
+.browser-head strong { font-size: 0.95rem; }
+
+.book-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.book-btn, .chapter-btn {
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.book-btn:hover, .chapter-btn:hover { background: var(--field-hover); color: var(--text); border-color: var(--border-strong); }
+.book-btn.active, .chapter-btn.active { background: var(--accent-soft); color: var(--text); border-color: rgba(59, 130, 246, 0.45); }
+
+.chapter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 4px; }
+.chapter-btn { text-align: center; padding: 8px 0; font-weight: 600; }
+
+.ref-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ref-card strong { font-size: 1.05rem; }
+.ref-hint { font-size: 0.72rem; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.ref-preview { font-size: 0.85rem; color: var(--text-2); line-height: 1.45; }
+.ref-card.focused { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25); }
+
+.verse-result {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+}
+.verse-result strong { color: var(--text); font-size: 0.82rem; }
+.verse-result:hover { background: var(--field-hover); }
+.verse-result.focused { background: var(--field-hover); border-color: var(--border-strong); }
+.verse-result mark { background: rgba(250, 204, 21, 0.22); color: #fde68a; border-radius: 3px; padding: 0 1px; }
+
+/* Seletor de imagem de fundo */
+.bg-picker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.bg-tile {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--field) center / cover no-repeat;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  transition: border-color 0.12s;
+}
+.bg-tile:hover { border-color: var(--border-strong); }
+.bg-tile.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3); }
+.bg-add { border-style: dashed; color: var(--accent); font-weight: 600; }
+.bg-add input { display: none; }
+.bg-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 0.8rem;
+  line-height: 18px;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.bg-tile:hover .bg-remove { opacity: 1; }
+
+.segmented-3 { grid-template-columns: repeat(3, 1fr); }
+.segmented.disabled { opacity: 0.4; pointer-events: none; }
+.color-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.file-button { position: relative; align-self: flex-start; }
+.file-button input { display: none; }
+
 /* ---------- Scrollbars ---------- */
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -858,7 +970,7 @@ fieldset > legend + * { clear: both; }
   .config-grid { grid-template-columns: minmax(0, 1fr); }
   .field-grid, .field-grid-3, .editor-split { grid-template-columns: 1fr; }
   .editor-preview { height: 220px; }
-  .hymn-library { max-height: 55vh; }
+  .hymn-library, .bible-library { max-height: 55vh; }
   #hymn-search-hint { display: none; }
   .hint { display: none; }
   .update-notes { display: none; }

@@ -104,17 +104,17 @@ body, html {
 }
 
 
-/* --- Camada dos Hinos --- */
-.hymn-layer {
+/* --- Camadas de tela (Hinos e Bíblia) --- */
+.screen-layer {
   position: fixed;
   inset: 0;
   display: flex;
   justify-content: center;
-  transition: opacity 0.45s ease, background 0.3s ease;
+  transition: opacity 0.45s ease;
 }
-.hymn-layer.hidden { opacity: 0; }
+.screen-layer.hidden { opacity: 0; }
 
-.hymn-box {
+.screen-box {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -124,42 +124,46 @@ body, html {
     opacity 0.4s cubic-bezier(0.25, 1, 0.5, 1),
     transform 0.4s cubic-bezier(0.25, 1, 0.5, 1),
     clip-path 0.5s cubic-bezier(0.25, 1, 0.5, 1),
-    filter 0.4s cubic-bezier(0.25, 1, 0.5, 1),
-    background 0.3s ease;
+    filter 0.4s cubic-bezier(0.25, 1, 0.5, 1);
   will-change: transform, opacity, clip-path, filter;
 }
 
-.hymn-text-wrap { width: 100%; display: flex; justify-content: center; }
+.screen-text-wrap { width: 100%; display: flex; justify-content: center; }
 
-.hymn-text {
-  font-weight: 600;
+.screen-text {
   line-height: 1.32;
-  white-space: pre-line;   /* cada linha da letra numa linha da tela */
   word-wrap: break-word;
   max-width: 100%;
 }
+.screen-text.lines { white-space: pre-line; }   /* hino: cada linha da letra numa linha da tela */
+.screen-text.prose { line-height: 1.28; }        /* versículo: texto corrido */
 
-.hymn-title, .hymn-label {
+.screen-title, .screen-label {
   font-size: 1.25rem;
   font-weight: 600;
   letter-spacing: 2px;
   text-transform: uppercase;
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
-/* Tela cheia: letra no centro, título em cima, estrofe embaixo */
+/* Tela cheia: texto no centro, título em cima, rótulo embaixo */
 .layout-full { align-items: center; }
-.layout-full .hymn-box {
+.layout-full .screen-box {
   width: 100%;
   height: 100%;
   justify-content: space-between;
   padding: 5vh 7vw;
 }
-.layout-full .hymn-text-wrap { flex: 1; align-items: center; }
+.layout-full .screen-text-wrap { flex: 1; align-items: center; }
+
+/* Tela cheia com o texto na parte de baixo (ex: imagem com faixa no rodapé, no telão) */
+.layout-full.text-bottom .screen-box { justify-content: flex-end; padding-bottom: 4vh; }
+.layout-full.text-bottom .screen-text-wrap { flex: 0 0 auto; min-height: 26vh; align-items: center; }
+.layout-full.text-bottom .screen-title { margin-bottom: 1.5vh; }
 
 /* Faixa embaixo: caixa no rodapé, por cima da câmera */
 .layout-lower { align-items: flex-end; padding: 0 1.5% 12px; }
-.layout-lower .hymn-box {
+.layout-lower .screen-box {
   width: 100%;
   max-width: 1840px;
   padding: 14px 40px 16px;
@@ -169,7 +173,6 @@ body, html {
   backdrop-filter: blur(12px);
   gap: 4px;
 }
-.layout-lower .hymn-label { display: none !important; }
 
 /* --- Transitions & Animations --- */
 

@@ -8,7 +8,7 @@
   <!-- Fontes locais (funcionam sem internet) -->
   <link rel="stylesheet" href="fonts.css">
   
-  <link rel="stylesheet" href="overlay.css?v=1.2.0">
+  <link rel="stylesheet" href="overlay.css?v=1.3.0">
 </head>
 <body>
   <div id="overlay-container" class="overlay-container">
@@ -18,15 +18,23 @@
     </div>
   </div>
 
-  <!-- Camada dos hinos (tela cheia ou faixa embaixo) -->
-  <div id="hymn-layer" class="hymn-layer layout-full hidden">
-    <div id="hymn-box" class="hymn-box anim-fade">
-      <div id="hymn-title" class="hymn-title"></div>
-      <div class="hymn-text-wrap"><div id="hymn-text" class="hymn-text"></div></div>
-      <div id="hymn-label" class="hymn-label"></div>
+  <!-- Camadas de tela cheia / faixa embaixo (Hinos e Bíblia) -->
+  <div id="hymn-layer" class="screen-layer layout-full hidden">
+    <div id="hymn-box" class="screen-box anim-fade">
+      <div id="hymn-title" class="screen-title"></div>
+      <div class="screen-text-wrap"><div id="hymn-text" class="screen-text lines"></div></div>
+      <div id="hymn-label" class="screen-label"></div>
     </div>
   </div>
 
-  <script type="module" src="overlay.js?v=1.2.0"></script>
+  <div id="bible-layer" class="screen-layer layout-full hidden">
+    <div id="bible-box" class="screen-box anim-fade">
+      <div id="bible-title" class="screen-title"></div>
+      <div class="screen-text-wrap"><div id="bible-text" class="screen-text prose"></div></div>
+      <div id="bible-label" class="screen-label"></div>
+    </div>
+  </div>
+
+  <script type="module" src="overlay.js?v=1.3.0"></script>
 </body>
 </html>

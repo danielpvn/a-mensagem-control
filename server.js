@@ -7,6 +7,12 @@ const os = require('os');
 const db = require('./src/db');
 const { parseRawSermonText, slugify } = require('./src/sermon-text');
 const hymns = require('./src/hymns');
+const bible = require('./src/bible');
+const backgrounds = require('./src/backgrounds');
+
+// Primeira vez neste PC: traz a Bíblia e os fundos da pasta da igreja, se existirem
+bible.autoImport();
+backgrounds.autoImport();
 const updater = require('./src/updater');
 const { createDesktopShortcut } = require('./src/shortcut');
 
@@ -22,10 +28,12 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Fontes servidas localmente: o overlay continua bonito mesmo se a internet da igreja cair
-['outfit', 'montserrat', 'lora', 'playfair-display'].forEach(name => {
+['outfit', 'montserrat', 'lora', 'playfair-display', 'crimson-pro'].forEach(name => {
   const dir = path.dirname(require.resolve(`@fontsource/${name}/package.json`));
   app.use(`/fonts/${name}`, express.static(dir));
 });
+
+app.use('/backgrounds', express.static(backgrounds.DIR));
 
 const DEFAULT_MESSAGE_STYLES = {
   fontFamily: 'Outfit, sans-serif',
@@ -59,7 +67,29 @@ const DEFAULT_HYMN_STYLES = {
   textOutline: false,
   outlineColor: '#000000',
   animationType: 'fade',
-  linesPerSlide: 4
+  linesPerSlide: 4,
+  bgImage: null,                 // '/backgrounds/arquivo.jpg' ou null
+  position: 'center'             // tela cheia: texto no 'center' ou 'bottom'
+};
+
+// Padrão baseado nos presets que a igreja já usava (Crimson Pro, versículo branco, referência amarela)
+const DEFAULT_BIBLE_STYLES = {
+  layout: 'fullscreen',
+  fontFamily: "'Crimson Pro', serif",
+  fontSize: '4.4rem',
+  bold: true,
+  textColor: '#ffffff',
+  refColor: '#ffeb07',
+  refSize: '1.8rem',
+  showRef: true,
+  refPosition: 'bottom',         // 'top' ou 'bottom'
+  showVersion: false,            // " (ACF)" depois da referência
+  textAlign: 'center',           // 'center', 'justify' ou 'left'
+  bgColor: 'rgba(0, 0, 0, 1)',
+  bgImage: null,
+  position: 'center',
+  textShadow: true,
+  animationType: 'fade'
 };
 
 // Estado global do que está no ar (compartilhado entre painel, celular e OBS)
@@ -87,7 +117,20 @@ let globalState = {
     isCleared: true,
     armed: false
   },
-  hymnStyles: { ...DEFAULT_HYMN_STYLES, ...db.getSetting('styles.hymn', {}) }
+  hymnStyles: { ...DEFAULT_HYMN_STYLES, ...db.getSetting('styles.hymn', {}) },
+
+  // Bíblia: capítulo aberto, dividido em telas (versículos longos vêm em mais de uma tela)
+  bible: {
+    book: null,
+    bookName: '',
+    chapter: null,
+    chapters: 0,
+    slides: [],
+    slideIndex: -1,
+    isCleared: true,
+    armed: false
+  },
+  bibleStyles: { ...DEFAULT_BIBLE_STYLES, ...db.getSetting('styles.bible', {}) }
 };
 
 let activeSermonParagraphs = [];
@@ -143,10 +186,16 @@ function hideMessage() {
   globalState.armed = false;
 }
 
+function hideBible() {
+  globalState.bible.isCleared = true;
+  globalState.bible.armed = false;
+}
+
 function setParagraphOnServer(index) {
   if (index < 0 || index >= activeSermonParagraphs.length) return;
   positionParagraph(index);
   hideHymn();
+  hideBible();
   globalState.activeLayer = 'message';
   globalState.isCleared = false;
   globalState.armed = false;
@@ -197,6 +246,7 @@ function toggleClearOnServer() {
 function clearScreenOnServer() {
   hideMessage();
   hideHymn();
+  hideBible();
   broadcastContent();
 }
 
@@ -241,6 +291,7 @@ function showHymnSlide(index) {
   hymn.isCleared = false;
   hymn.armed = false;
   hideMessage();
+  hideBible();
   globalState.activeLayer = 'hymn';
   broadcastContent();
 }
@@ -302,23 +353,123 @@ function updateHymnStyles(partial) {
   saveHymnStylesTimer = setTimeout(() => db.setSetting('styles.hymn', globalState.hymnStyles), 400);
 }
 
+// ---------- Bíblia ao vivo ----------
+
+// Cada versículo vira uma ou mais telas (as quebras já vêm da pasta da Bíblia)
+function bibleSlides(chapter) {
+  const slides = [];
+  chapter.verses.forEach(v => {
+    const parts = v.text.split('\n').filter(Boolean);
+    parts.forEach((text, i) => slides.push({ verse: v.verse, part: i + 1, parts: parts.length, text }));
+  });
+  return slides;
+}
+
+// Abre o capítulo. Com versículo, deixa ele pronto (oculto) para o próximo "avançar".
+function loadBibleChapter(book, chapterNumber) {
+  const chapter = bible.getChapter(book, chapterNumber);
+  if (!chapter) return false;
+  globalState.bible = {
+    book,
+    bookName: chapter.bookName,
+    chapter: chapterNumber,
+    chapters: chapter.chapters,
+    slides: bibleSlides(chapter),
+    slideIndex: -1,
+    isCleared: true,
+    armed: false
+  };
+  return true;
+}
+
+function selectBibleOnServer(book, chapter, verse) {
+  if (!loadBibleChapter(Number(book), Number(chapter))) return;
+  if (verse) {
+    const index = globalState.bible.slides.findIndex(s => s.verse === Number(verse));
+    if (index !== -1) {
+      globalState.bible.slideIndex = index;
+      globalState.bible.armed = true;
+    }
+  }
+  broadcastContent();
+}
+
+function showBibleSlide(index) {
+  const b = globalState.bible;
+  if (index < 0 || index >= b.slides.length) return;
+  b.slideIndex = index;
+  b.isCleared = false;
+  b.armed = false;
+  hideMessage();
+  hideHymn();
+  globalState.activeLayer = 'bible';
+  broadcastContent();
+}
+
+// No fim do capítulo, segue para o próximo (o pastor pode ler um trecho que atravessa capítulos)
+function nextBibleSlide() {
+  const b = globalState.bible;
+  if (b.slides.length === 0) return;
+  if (b.armed || b.slideIndex === -1) {
+    showBibleSlide(Math.max(0, b.slideIndex));
+  } else if (b.slideIndex + 1 < b.slides.length) {
+    showBibleSlide(b.slideIndex + 1);
+  } else if (b.chapter < b.chapters && loadBibleChapter(b.book, b.chapter + 1)) {
+    showBibleSlide(0);
+  }
+}
+
+function prevBibleSlide() {
+  const b = globalState.bible;
+  if (b.slideIndex > 0) {
+    showBibleSlide(b.slideIndex - 1);
+  } else if (b.slideIndex === 0 && b.chapter > 1 && loadBibleChapter(b.book, b.chapter - 1)) {
+    showBibleSlide(globalState.bible.slides.length - 1);
+  }
+}
+
+function toggleBible() {
+  const b = globalState.bible;
+  if (b.slideIndex === -1) return;
+  if (b.isCleared) {
+    showBibleSlide(b.slideIndex);
+  } else {
+    hideBible();
+    broadcastContent();
+  }
+}
+
+let saveBibleStylesTimer = null;
+function updateBibleStyles(partial) {
+  globalState.bibleStyles = { ...globalState.bibleStyles, ...partial };
+  broadcast('update-bible-style', globalState.bibleStyles);
+  clearTimeout(saveBibleStylesTimer);
+  saveBibleStylesTimer = setTimeout(() => db.setSetting('styles.bible', globalState.bibleStyles), 400);
+}
+
 // Passador/teclado: o painel diz a aba (mode); o R400 com o app minimizado usa a última camada no ar
 function layerFor(mode) {
-  return mode === 'hymn' || mode === 'message' ? mode : globalState.activeLayer;
+  return ['message', 'hymn', 'bible'].includes(mode) ? mode : globalState.activeLayer;
 }
 
 function next(mode) {
-  if (layerFor(mode) === 'hymn') nextHymnSlide();
+  const layer = layerFor(mode);
+  if (layer === 'hymn') nextHymnSlide();
+  else if (layer === 'bible') nextBibleSlide();
   else nextParagraph();
 }
 
 function prev(mode) {
-  if (layerFor(mode) === 'hymn') prevHymnSlide();
+  const layer = layerFor(mode);
+  if (layer === 'hymn') prevHymnSlide();
+  else if (layer === 'bible') prevBibleSlide();
   else prevParagraph();
 }
 
 function toggleClear(mode) {
-  if (layerFor(mode) === 'hymn') toggleHymn();
+  const layer = layerFor(mode);
+  if (layer === 'hymn') toggleHymn();
+  else if (layer === 'bible') toggleBible();
   else toggleClearOnServer();
 }
 
@@ -400,6 +551,18 @@ wss.on('connection', (ws) => {
           break;
         case 'reset-hymn-styles':
           updateHymnStyles(DEFAULT_HYMN_STYLES);
+          break;
+        case 'bible-select':
+          selectBibleOnServer(payload.book, payload.chapter, payload.verse);
+          break;
+        case 'bible-show':
+          showBibleSlide(payload.index);
+          break;
+        case 'update-bible-styles':
+          updateBibleStyles(payload);
+          break;
+        case 'reset-bible-styles':
+          updateBibleStyles(DEFAULT_BIBLE_STYLES);
           break;
         case 'clear-screen':
           clearScreenOnServer();
@@ -558,6 +721,55 @@ app.post('/api/hymns/import', (req, res) => {
   const list = Array.isArray(req.body.hymns) ? req.body.hymns : [];
   if (list.length === 0) return res.status(400).json({ error: 'Nenhum hino para importar' });
   res.json({ success: true, ...hymns.importHymns(list) });
+});
+
+// ---------- API da Bíblia ----------
+
+app.get('/api/bible/books', (req, res) => {
+  res.json({ verses: bible.verseCount(), folder: bible.DEFAULT_FOLDER, books: bible.listBooks() });
+});
+
+app.get('/api/bible/search', (req, res) => {
+  res.json(bible.search(req.query.q, Number(req.query.limit) || 30));
+});
+
+app.get('/api/bible/chapter/:book/:chapter', (req, res) => {
+  const chapter = bible.getChapter(Number(req.params.book), Number(req.params.chapter));
+  if (!chapter) return res.status(404).json({ error: 'Capítulo não encontrado' });
+  res.json(chapter);
+});
+
+// Importação pelo painel: [{ path, text }] lidos da pasta "2 Biblia_ACF"
+app.post('/api/bible/import', (req, res) => {
+  try {
+    const files = Array.isArray(req.body.files) ? req.body.files : [];
+    res.json({ success: true, ...bible.importBible(files) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ---------- API de imagens de fundo ----------
+
+app.get('/api/backgrounds', (req, res) => {
+  res.json(backgrounds.list());
+});
+
+app.post('/api/backgrounds', express.raw({ type: 'image/*', limit: '25mb' }), (req, res) => {
+  try {
+    res.json({ success: true, ...backgrounds.save(req.query.name, req.body) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/backgrounds/:name', (req, res) => {
+  try {
+    if (!backgrounds.remove(req.params.name)) return res.status(404).json({ error: 'Imagem não encontrada' });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 app.get('/api/check-update', async (req, res) => {

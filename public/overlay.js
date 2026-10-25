@@ -1,4 +1,4 @@
-// Overlay do OBS / Telão: camada da Mensagem (caixa no rodapé) e camada dos Hinos.
+// Overlay do OBS / Telão: caixa da Mensagem (rodapé) e as camadas de Hinos e Bíblia.
 import { screenLabel } from './js/shared/hymn-text.js';
 
 const wsUrl = `ws://${window.location.host}`;
@@ -9,12 +9,6 @@ const overlayContainer = document.getElementById('overlay-container');
 const overlayBox = document.getElementById('overlay-box');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayText = document.getElementById('overlay-text');
-
-const hymnLayer = document.getElementById('hymn-layer');
-const hymnBox = document.getElementById('hymn-box');
-const hymnTitle = document.getElementById('hymn-title');
-const hymnText = document.getElementById('hymn-text');
-const hymnLabel = document.getElementById('hymn-label');
 
 const ANIMATION_CLASSES = ['anim-slide-up', 'anim-slide-side', 'anim-slide-down', 'anim-fade', 'anim-fade-slow', 'anim-clip-reveal', 'anim-zoom-in', 'anim-blur'];
 
@@ -110,95 +104,179 @@ function applyStyles() {
   }
 }
 
-// ================= Hinos =================
+// ================= Camadas de tela (Hinos e Bíblia) =================
+// Tela cheia ou faixa embaixo, fundo em cor (com transparência) ou imagem, texto que
+// diminui sozinho para caber e transição só no texto (o fundo não pisca na troca).
 
-let hymnStyles = {};
-let hymn = null;
-let shownHymnKey = null;
+function createScreenLayer(prefix, { content, look }) {
+  const layer = document.getElementById(`${prefix}-layer`);
+  const box = document.getElementById(`${prefix}-box`);
+  const title = document.getElementById(`${prefix}-title`);
+  const text = document.getElementById(`${prefix}-text`);
+  const label = document.getElementById(`${prefix}-label`);
+  let styles = {};
+  let state = null;
+  let shownKey = null;
 
-// Diminui a letra até caber na área (estrofes longas não podem sair da tela)
-function fitHymnText() {
-  const base = parseFloat(hymnStyles.fontSize) || 4.2;
-  const maxHeight = hymnStyles.layout === 'lower-third' ? window.innerHeight * 0.3 : window.innerHeight * 0.7;
-  const maxWidth = hymnText.parentElement.clientWidth;
-  let size = base;
-  hymnText.style.fontSize = `${size}rem`;
-  for (let i = 0; i < 14 && (hymnText.scrollHeight > maxHeight || hymnText.scrollWidth > maxWidth + 1); i++) {
-    size *= 0.92;
-    hymnText.style.fontSize = `${size}rem`;
-  }
-}
+  const isLower = () => look(styles).layout === 'lower-third';
 
-function renderHymnSlide(slide) {
-  const showTitle = hymnStyles.showTitle !== false && !!hymn.title;
-  const showNumber = hymnStyles.showNumber !== false && hymn.number;
-  hymnTitle.textContent = showTitle ? (showNumber ? `${hymn.number} · ${hymn.title}` : hymn.title) : '';
-  // Na tela cheia o título só fica invisível (a letra não pula de lugar); na faixa ele sai de vez
-  const lower = hymnStyles.layout === 'lower-third';
-  hymnTitle.style.visibility = showTitle ? 'visible' : 'hidden';
-  hymnTitle.style.display = !showTitle && lower ? 'none' : '';
-  const label = hymnStyles.showLabel !== false ? screenLabel(slide) : '';
-  hymnLabel.textContent = label;
-  hymnLabel.style.visibility = label ? 'visible' : 'hidden';
-  hymnText.textContent = slide.text;
-  fitHymnText();
-}
-
-function updateHymn(useTransition = true) {
-  const slide = hymn && !hymn.isCleared ? hymn.slides[hymn.slideIndex] : null;
-
-  if (!slide) {
-    hymnLayer.classList.add('hidden');
-    shownHymnKey = null;
-    return;
+  // Diminui a letra até caber na área (estrofe ou versículo longo não pode sair da tela)
+  function fitText(baseSize) {
+    const atBottom = !isLower() && look(styles).position === 'bottom';
+    const maxHeight = window.innerHeight * (isLower() ? 0.3 : atBottom ? 0.26 : 0.7);
+    const maxWidth = text.parentElement.clientWidth;
+    let size = baseSize;
+    text.style.fontSize = `${size}rem`;
+    for (let i = 0; i < 16 && (text.scrollHeight > maxHeight || text.scrollWidth > maxWidth + 1); i++) {
+      size *= 0.92;
+      text.style.fontSize = `${size}rem`;
+    }
   }
 
-  const key = `${hymn.id}:${hymn.slideIndex}:${slide.text}`;
-  const layerWasHidden = hymnLayer.classList.contains('hidden');
-
-  if (layerWasHidden || !useTransition) {
-    renderHymnSlide(slide);
-    hymnBox.classList.remove('hidden');
-    hymnLayer.classList.remove('hidden');
-  } else if (key !== shownHymnKey) {
-    // Troca de estrofe: o fundo fica, só o texto faz a transição
-    hymnBox.classList.add('hidden');
-    setTimeout(() => {
-      renderHymnSlide(slide);
-      hymnBox.classList.remove('hidden');
-    }, transitionTimeout(hymnStyles.animationType));
+  function setLine(el, value) {
+    el.textContent = value || '';
+    // Na tela cheia a linha só fica invisível (o texto não pula de lugar); na faixa ela sai de vez
+    el.style.visibility = value ? 'visible' : 'hidden';
+    el.style.display = !value && isLower() ? 'none' : '';
   }
-  shownHymnKey = key;
+
+  function render(slide) {
+    const c = content(state, slide, styles);
+    setLine(title, c.title);
+    setLine(label, c.label);
+    text.textContent = c.text;
+    fitText(parseFloat(look(styles).fontSize) || 4);
+  }
+
+  function currentSlide() {
+    return state && !state.isCleared ? state.slides[state.slideIndex] : null;
+  }
+
+  function update(useTransition) {
+    const slide = currentSlide();
+    if (!slide) {
+      layer.classList.add('hidden');
+      shownKey = null;
+      return;
+    }
+    const key = `${content(state, slide, styles).key}:${state.slideIndex}:${slide.text}`;
+    if (layer.classList.contains('hidden') || !useTransition) {
+      render(slide);
+      box.classList.remove('hidden');
+      layer.classList.remove('hidden');
+    } else if (key !== shownKey) {
+      // Troca de tela: o fundo fica, só o texto faz a transição
+      box.classList.add('hidden');
+      setTimeout(() => {
+        render(slide);
+        box.classList.remove('hidden');
+      }, transitionTimeout(look(styles).animationType));
+    }
+    shownKey = key;
+  }
+
+  function applyStyles() {
+    const l = look(styles);
+    const lower = l.layout === 'lower-third';
+    layer.classList.toggle('layout-lower', lower);
+    layer.classList.toggle('layout-full', !lower);
+    layer.classList.toggle('text-bottom', !lower && l.position === 'bottom');
+
+    // Fundo: cor (com transparência) por cima da imagem, se houver. Na tela cheia cobre
+    // a tela toda; na faixa, só a caixa.
+    const tint = `linear-gradient(${l.bgColor}, ${l.bgColor})`;
+    const background = l.bgImage ? `${tint}, url("${l.bgImage}") center / cover no-repeat` : l.bgColor;
+    layer.style.background = lower ? 'transparent' : background;
+    box.style.background = lower ? background : 'transparent';
+
+    box.style.fontFamily = l.fontFamily;
+    box.style.borderColor = l.accentColor;
+    text.style.color = l.textColor;
+    text.style.fontWeight = l.fontWeight;
+    text.style.textAlign = l.textAlign;
+    text.style.textAlignLast = l.textAlign === 'justify' ? 'center' : '';
+    text.style.textTransform = l.uppercase ? 'uppercase' : 'none';
+    text.style.textShadow = l.textShadow;
+    [title, label].forEach(el => {
+      el.style.color = l.accentColor;
+      el.style.fontSize = l.titleSize;
+    });
+
+    box.classList.remove(...ANIMATION_CLASSES);
+    box.classList.add(`anim-${l.animationType || 'fade'}`);
+
+    const slide = currentSlide();
+    if (slide) render(slide);
+  }
+
+  return {
+    setStyles(next) {
+      styles = { ...styles, ...next };
+      applyStyles();
+    },
+    setState(next, useTransition) {
+      state = next || null;
+      update(useTransition);
+    }
+  };
 }
 
-function applyHymnStyles() {
-  const lower = hymnStyles.layout === 'lower-third';
-  hymnLayer.classList.toggle('layout-lower', lower);
-  hymnLayer.classList.toggle('layout-full', !lower);
+const hymnLayer = createScreenLayer('hymn', {
+  content(hymn, slide, styles) {
+    const showTitle = styles.showTitle !== false && hymn.title;
+    const showNumber = styles.showNumber !== false && hymn.number;
+    return {
+      key: hymn.id,
+      title: showTitle ? (showNumber ? `${hymn.number} · ${hymn.title}` : hymn.title) : '',
+      label: styles.showLabel !== false && styles.layout !== 'lower-third' ? screenLabel(slide) : '',
+      text: slide.text
+    };
+  },
+  look: (s) => ({
+    layout: s.layout,
+    fontFamily: s.fontFamily,
+    fontSize: s.fontSize || '4.2rem',
+    fontWeight: 600,
+    textColor: s.textColor,
+    accentColor: s.accentColor,
+    titleSize: s.titleSize || '1.25rem',
+    textAlign: 'center',
+    uppercase: s.uppercase,
+    textShadow: s.textOutline ? outlineShadow(s.outlineColor || '#000000', 2) : '0 3px 10px rgba(0,0,0,0.45)',
+    bgColor: s.bgColor || 'rgba(5, 8, 20, 0.9)',
+    bgImage: s.bgImage,
+    position: s.position,
+    animationType: s.animationType
+  })
+});
 
-  // Na tela cheia o fundo cobre a tela toda; na faixa, só a caixa
-  hymnLayer.style.background = lower ? 'transparent' : hymnStyles.bgColor;
-  hymnBox.style.background = lower ? hymnStyles.bgColor : 'transparent';
-
-  hymnBox.style.fontFamily = hymnStyles.fontFamily;
-  hymnText.style.color = hymnStyles.textColor;
-  hymnText.style.textTransform = hymnStyles.uppercase ? 'uppercase' : 'none';
-  hymnTitle.style.color = hymnStyles.accentColor;
-  hymnTitle.style.fontSize = hymnStyles.titleSize || '1.25rem';
-  hymnLabel.style.fontSize = hymnStyles.titleSize || '1.25rem';
-  hymnLabel.style.color = hymnStyles.accentColor;
-  hymnBox.style.borderColor = hymnStyles.accentColor;
-
-  const shadow = hymnStyles.textOutline ? outlineShadow(hymnStyles.outlineColor || '#000000', 2) : '0 3px 10px rgba(0,0,0,0.45)';
-  hymnText.style.textShadow = shadow;
-
-  hymnBox.classList.remove(...ANIMATION_CLASSES);
-  hymnBox.classList.add(`anim-${hymnStyles.animationType || 'fade'}`);
-
-  if (hymn && !hymn.isCleared && hymn.slides[hymn.slideIndex]) {
-    renderHymnSlide(hymn.slides[hymn.slideIndex]);
-  }
-}
+const bibleLayer = createScreenLayer('bible', {
+  content(b, slide, styles) {
+    let ref = '';
+    if (styles.showRef !== false) {
+      ref = `${b.bookName} ${b.chapter}:${slide.verse}`;
+      if (styles.showVersion) ref += ' (ACF)';
+    }
+    const top = styles.refPosition === 'top';
+    return { key: `${b.book}:${b.chapter}`, title: top ? ref : '', label: top ? '' : ref, text: slide.text };
+  },
+  look: (s) => ({
+    layout: s.layout,
+    fontFamily: s.fontFamily,
+    fontSize: s.fontSize || '4.4rem',
+    fontWeight: s.bold === false ? 400 : 700,
+    textColor: s.textColor,
+    accentColor: s.refColor,
+    titleSize: s.refSize || '1.8rem',
+    textAlign: s.textAlign || 'center',
+    uppercase: false,
+    textShadow: s.textShadow === false ? 'none' : '0 4px 14px rgba(0,0,0,0.6)',
+    bgColor: s.bgColor || 'rgba(0, 0, 0, 1)',
+    bgImage: s.bgImage,
+    position: s.position,
+    animationType: s.animationType
+  })
+});
 
 // ================= Conexão =================
 
@@ -209,8 +287,8 @@ function applyState(state, useTransition) {
   isCleared = state.isCleared;
   updateContent(useTransition);
 
-  hymn = state.hymn || null;
-  updateHymn(useTransition);
+  hymnLayer.setState(state.hymn, useTransition);
+  bibleLayer.setState(state.bible, useTransition);
 }
 
 function connect() {
@@ -227,9 +305,9 @@ function connect() {
       switch (data.type) {
         case 'init':
           styleConfig = data.payload.styles;
-          hymnStyles = data.payload.hymnStyles || {};
           applyStyles();
-          applyHymnStyles();
+          hymnLayer.setStyles(data.payload.hymnStyles || {});
+          bibleLayer.setStyles(data.payload.bibleStyles || {});
           applyState(data.payload, false); // sem transição ao conectar
           break;
 
@@ -243,8 +321,11 @@ function connect() {
           break;
 
         case 'update-hymn-style':
-          hymnStyles = { ...hymnStyles, ...data.payload };
-          applyHymnStyles();
+          hymnLayer.setStyles(data.payload);
+          break;
+
+        case 'update-bible-style':
+          bibleLayer.setStyles(data.payload);
           break;
       }
     } catch (err) {
