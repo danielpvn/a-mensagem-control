@@ -8,7 +8,7 @@
   <!-- Fontes locais (funcionam sem internet) -->
   <link rel="stylesheet" href="fonts.css">
   
-  <link rel="stylesheet" href="overlay.css?v=1.3.0">
+  <link rel="stylesheet" href="overlay.css?v=1.4.0">
 </head>
 <body>
   <div id="overlay-container" class="overlay-container">
@@ -35,6 +35,20 @@
     </div>
   </div>
 
-  <script type="module" src="overlay.js?v=1.3.0"></script>
+  <!-- Mídia em tela cheia (duas gavetas para a transição) -->
+  <div id="media-layer" class="media-layer hidden">
+    <div id="media-slot-a" class="media-slot"></div>
+    <div id="media-slot-b" class="media-slot"></div>
+  </div>
+
+  <!-- Nome do pregador -->
+  <div id="lt-layer" class="lt-layer pos-bottom-left look-modern lt-anim-slide hidden">
+    <div class="lt-box">
+      <div class="lt-name" id="lt-name"></div>
+      <div class="lt-subtitle" id="lt-subtitle"></div>
+    </div>
+  </div>
+
+  <script type="module" src="overlay.js?v=1.4.0"></script>
 </body>
 </html>

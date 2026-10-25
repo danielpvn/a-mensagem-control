@@ -3,6 +3,9 @@ import { screenLabel } from './js/shared/hymn-text.js';
 
 const wsUrl = `ws://${window.location.host}`;
 const reconnectInterval = 3000;
+// Prévia dentro do painel: sem som e sem avisar andamento de vídeo (quem avisa é o OBS)
+const PREVIEW = new URLSearchParams(window.location.search).has('preview');
+let socket = null;
 
 // DOM Elements
 const overlayContainer = document.getElementById('overlay-container');
@@ -309,6 +312,239 @@ const bibleLayer = createScreenLayer('bible', {
   })
 });
 
+// ================= Mídia (imagens e vídeos em tela cheia) =================
+// Duas "gavetas" sobrepostas: o item novo carrega escondido na outra gaveta e só então
+// faz a transição, para nunca aparecer tela piscando ou carregando.
+
+const mediaLayer = document.getElementById('media-layer');
+const mediaSlots = [document.getElementById('media-slot-a'), document.getElementById('media-slot-b')];
+let mediaStyles = {};
+let mediaShown = null;      // { url, token, slot, el }
+let mediaRequest = 0;       // ignora carregamentos que ficaram velhos
+let lastProgressSent = 0;
+
+const mediaDuration = () => Math.max(0, Number(mediaStyles.duration ?? 0.6));
+
+function sendProgress(payload) {
+  if (PREVIEW || !socket || socket.readyState !== WebSocket.OPEN) return;
+  socket.send(JSON.stringify({ type: 'media-progress', payload }));
+}
+
+function stopSlot(slot) {
+  const video = slot.querySelector('video');
+  if (video) {
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+  }
+  slot.innerHTML = '';
+}
+
+function applyPlayback(el, playback, restart) {
+  if (!el || el.tagName !== 'VIDEO') return;
+  el.muted = PREVIEW || !!playback.muted; // a prévia do painel nunca toca som
+  el.volume = Math.min(1, Math.max(0, playback.volume ?? 1));
+  el.loop = !!playback.loop;
+  if (restart) el.currentTime = 0;
+  if (playback.playing) el.play().catch(() => {});
+  else el.pause();
+}
+
+function createMediaElement(item, playback, token) {
+  if (item.type === 'video') {
+    const video = document.createElement('video');
+    video.playsInline = true;
+    video.preload = 'auto';
+    video.muted = PREVIEW || !!playback.muted;
+    video.src = item.url;
+    video.addEventListener('timeupdate', () => {
+      const now = Date.now();
+      if (now - lastProgressSent < 500) return;
+      lastProgressSent = now;
+      sendProgress({ token, currentTime: video.currentTime, duration: video.duration || 0, paused: video.paused, ended: false });
+    });
+    video.addEventListener('ended', () => {
+      sendProgress({ token, currentTime: video.duration || 0, duration: video.duration || 0, paused: true, ended: true });
+    });
+    return { el: video, ready: new Promise(resolve => { video.addEventListener('loadeddata', resolve, { once: true }); video.addEventListener('error', resolve, { once: true }); }) };
+  }
+  const img = document.createElement('img');
+  img.src = item.url;
+  img.alt = '';
+  return { el: img, ready: img.decode().catch(() => {}) };
+}
+
+// Fundo desfocado atrás da mídia (modo "Inteira com fundo desfocado"): a própria foto ampliada
+// e desfocada preenche as laterais. No vídeo, usa um quadro do começo (fica parado).
+function createBackdrop(item, el) {
+  const backdrop = document.createElement('div');
+  backdrop.className = 'media-backdrop';
+  if (item.type === 'image') {
+    backdrop.style.backgroundImage = `url("${item.url}")`;
+  } else {
+    el.addEventListener('loadeddata', () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 96;
+        canvas.height = 54;
+        canvas.getContext('2d').drawImage(el, 0, 0, canvas.width, canvas.height);
+        backdrop.style.backgroundImage = `url("${canvas.toDataURL('image/jpeg', 0.7)}")`;
+      } catch (err) {
+        // sem fundo desfocado: fica a cor das bordas
+      }
+    }, { once: true });
+  }
+  return backdrop;
+}
+
+function setSlotStyle(slot, { opacity, transform, transition }) {
+  slot.style.transition = transition || 'none';
+  slot.style.opacity = opacity;
+  slot.style.transform = transform || 'none';
+}
+
+function hideMediaLayer() {
+  if (!mediaShown) return;
+  const leaving = mediaShown;
+  mediaShown = null;
+  const ms = mediaStyles.transition === 'cut' ? 0 : mediaDuration() * 1000;
+  mediaLayer.style.transition = `opacity ${ms}ms ease`;
+  mediaLayer.classList.add('hidden');
+  setTimeout(() => { if (!mediaShown) stopSlot(leaving.slot); }, ms + 50);
+}
+
+async function updateMedia(m) {
+  const item = m && !m.isCleared ? m.items[m.index] : null;
+  if (!item) {
+    hideMediaLayer();
+    return;
+  }
+
+  const playback = m.playback || {};
+  // Mesmo item no ar: só aplica tocar/pausar/som (ou recomeça se mandou de novo)
+  if (mediaShown && mediaShown.url === item.url) {
+    const restart = mediaShown.token !== playback.token;
+    mediaShown.token = playback.token;
+    applyPlayback(mediaShown.el, playback, restart);
+    return;
+  }
+
+  const request = ++mediaRequest;
+  const incoming = mediaShown && mediaShown.slot === mediaSlots[0] ? mediaSlots[1] : mediaSlots[0];
+  const outgoing = mediaShown;
+  stopSlot(incoming);
+  const { el, ready } = createMediaElement(item, playback, playback.token);
+  setSlotStyle(incoming, { opacity: 0 });
+  incoming.append(createBackdrop(item, el), el);
+  await ready;
+  if (request !== mediaRequest) {
+    stopSlot(incoming);
+    return;
+  }
+
+  const type = mediaStyles.transition || 'crossfade';
+  const ms = type === 'cut' ? 0 : mediaDuration() * 1000;
+  const layerWasHidden = mediaLayer.classList.contains('hidden');
+  mediaShown = { url: item.url, token: playback.token, slot: incoming, el };
+  applyPlayback(el, playback, false);
+
+  incoming.style.zIndex = 2;
+  if (outgoing) outgoing.slot.style.zIndex = 1;
+
+  if (layerWasHidden) {
+    // Entrando do nada: a camada inteira aparece com a transição
+    setSlotStyle(incoming, { opacity: 1 });
+    mediaLayer.style.transition = `opacity ${ms}ms ease`;
+    mediaLayer.classList.remove('hidden');
+  } else if (type === 'fade-black') {
+    if (outgoing) setSlotStyle(outgoing.slot, { opacity: 0, transition: `opacity ${ms / 2}ms ease` });
+    setTimeout(() => setSlotStyle(incoming, { opacity: 1, transition: `opacity ${ms / 2}ms ease` }), ms / 2);
+  } else if (type === 'slide') {
+    setSlotStyle(incoming, { opacity: 1, transform: 'translateX(100%)' });
+    incoming.offsetWidth; // aplica a posição inicial antes de animar
+    const t = `transform ${ms}ms cubic-bezier(0.65, 0, 0.35, 1)`;
+    setSlotStyle(incoming, { opacity: 1, transform: 'translateX(0)', transition: t });
+    if (outgoing) setSlotStyle(outgoing.slot, { opacity: 1, transform: 'translateX(-100%)', transition: t });
+  } else if (type === 'zoom') {
+    setSlotStyle(incoming, { opacity: 0, transform: 'scale(1.08)' });
+    incoming.offsetWidth;
+    setSlotStyle(incoming, { opacity: 1, transform: 'scale(1)', transition: `opacity ${ms}ms ease, transform ${ms}ms ease` });
+    if (outgoing) setSlotStyle(outgoing.slot, { opacity: 0, transition: `opacity ${ms}ms ease` });
+  } else {
+    // crossfade (e corte seco com 0ms)
+    incoming.offsetWidth;
+    setSlotStyle(incoming, { opacity: 1, transition: `opacity ${ms}ms ease` });
+    if (outgoing) setSlotStyle(outgoing.slot, { opacity: 0, transition: `opacity ${ms}ms ease` });
+  }
+
+  if (outgoing) {
+    setTimeout(() => {
+      if (mediaShown && mediaShown.slot !== outgoing.slot) stopSlot(outgoing.slot);
+    }, ms + 80);
+  }
+}
+
+function applyMediaStyles() {
+  const fit = mediaStyles.fit || 'blur';
+  mediaLayer.style.background = mediaStyles.bgColor || '#000000';
+  mediaLayer.classList.toggle('fit-cover', fit === 'cover');
+  mediaLayer.classList.toggle('fit-blur', fit === 'blur');
+  // Ao preencher a tela, qual parte da foto aparece (em cima = não corta a cabeça)
+  const focus = { top: 'center top', center: 'center center', bottom: 'center bottom' }[mediaStyles.focus] || 'center center';
+  mediaLayer.style.setProperty('--media-focus', focus);
+}
+
+// ================= Nome do pregador (lower third) =================
+
+const ltLayer = document.getElementById('lt-layer');
+const ltName = document.getElementById('lt-name');
+const ltSubtitle = document.getElementById('lt-subtitle');
+let ltStyles = {};
+let ltState = null;
+
+function applyLowerThirdStyles() {
+  const s = ltStyles;
+  ltLayer.className = ltLayer.className
+    .split(' ')
+    .filter(c => !c.startsWith('pos-') && !c.startsWith('look-') && !c.startsWith('lt-anim-'))
+    .join(' ');
+  ltLayer.classList.add(`pos-${s.position || 'bottom-left'}`, `look-${s.look || 'modern'}`, `lt-anim-${s.animation || 'slide'}`);
+  ltLayer.style.setProperty('--lt-scale', s.scale || 1);
+  ltLayer.style.setProperty('--lt-speed', s.speed || 1);
+  ltLayer.style.setProperty('--lt-name', s.nameColor || '#ffffff');
+  ltLayer.style.setProperty('--lt-subtitle', s.subtitleColor || '#cbd5e1');
+  ltLayer.style.setProperty('--lt-accent', s.accentColor || '#3b82f6');
+  ltLayer.style.setProperty('--lt-bg', s.bgColor || 'rgba(10, 15, 30, 0.85)');
+  ltLayer.style.fontFamily = s.fontFamily || 'Montserrat, sans-serif';
+  liftLowerThird();
+}
+
+// Se a caixa da Mensagem ou uma faixa de hino/Bíblia estiver no rodapé, o nome sobe para não cobrir
+function liftLowerThird() {
+  let lift = 0;
+  if (String(ltStyles.position || 'bottom-left').startsWith('bottom')) {
+    const boxes = [];
+    // Usa o estado (e não a animação): durante a troca de parágrafo a caixa fica escondida por um instante
+    if (!isCleared && !overlayContainer.classList.contains('telao-mode')) boxes.push(overlayBox);
+    document.querySelectorAll('.screen-layer.layout-lower:not(.hidden) .screen-box').forEach(b => boxes.push(b));
+    boxes.forEach(b => { lift = Math.max(lift, b.offsetHeight + 24); });
+  }
+  ltLayer.style.setProperty('--lt-lift', `${lift}px`);
+}
+
+function updateLowerThird(lt) {
+  ltState = lt || null;
+  if (!ltState || !ltState.visible) {
+    ltLayer.classList.add('hidden');
+    return;
+  }
+  ltName.textContent = ltState.name;
+  ltSubtitle.textContent = ltState.subtitle || '';
+  ltSubtitle.style.display = ltState.subtitle ? '' : 'none';
+  liftLowerThird();
+  ltLayer.classList.remove('hidden');
+}
+
 // ================= Conexão =================
 
 function applyState(state, useTransition) {
@@ -320,10 +556,15 @@ function applyState(state, useTransition) {
 
   hymnLayer.setState(state.hymn, useTransition);
   bibleLayer.setState(state.bible, useTransition);
+  updateMedia(state.media);
+  updateLowerThird(state.lowerThird);
+  // As caixas mudam de altura com a animação: confere de novo depois que assentam
+  setTimeout(liftLowerThird, 450);
 }
 
 function connect() {
   const ws = new WebSocket(wsUrl);
+  socket = ws;
 
   ws.onclose = () => {
     setTimeout(connect, reconnectInterval);
@@ -339,6 +580,10 @@ function connect() {
           applyStyles();
           hymnLayer.setStyles(data.payload.hymnStyles || {});
           bibleLayer.setStyles(data.payload.bibleStyles || {});
+          mediaStyles = data.payload.mediaStyles || {};
+          applyMediaStyles();
+          ltStyles = data.payload.lowerThirdStyles || {};
+          applyLowerThirdStyles();
           applyState(data.payload, false); // sem transição ao conectar
           break;
 
@@ -357,6 +602,16 @@ function connect() {
 
         case 'update-bible-style':
           bibleLayer.setStyles(data.payload);
+          break;
+
+        case 'update-media-style':
+          mediaStyles = { ...mediaStyles, ...data.payload };
+          applyMediaStyles();
+          break;
+
+        case 'update-lt-style':
+          ltStyles = { ...ltStyles, ...data.payload };
+          applyLowerThirdStyles();
           break;
       }
     } catch (err) {

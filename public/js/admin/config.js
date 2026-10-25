@@ -76,7 +76,53 @@ async function checkUpdates(manual = false) {
   }
 }
 
+async function loadSecurity() {
+  try {
+    const data = await (await fetch('/api/security')).json();
+    $('pin-status').textContent = data.hasPin
+      ? 'PIN ativo: celulares e outros computadores precisam do PIN para controlar.'
+      : 'Sem PIN: qualquer aparelho no mesmo Wi-Fi pode controlar o app. Recomendado criar um PIN.';
+    $('btn-pin-remove').hidden = !data.hasPin;
+  } catch (err) {
+    $('pin-status').textContent = 'Não foi possível verificar.';
+  }
+}
+
+async function savePin(pin) {
+  const res = await fetch('/api/security/pin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pin })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error);
+  return data.hasPin;
+}
+
+function setupSecurity() {
+  $('pin-set-form').onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await savePin($('pin-new').value);
+      $('pin-new').value = '';
+      toast('PIN salvo.', 'success');
+      loadSecurity();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+  $('btn-pin-remove').onclick = async () => {
+    const ok = await confirmDialog({ title: 'Remover o PIN?', text: 'Qualquer aparelho no mesmo Wi-Fi poderá controlar o app.', okLabel: 'Remover', danger: true });
+    if (!ok) return;
+    await savePin('');
+    toast('PIN removido.', 'success');
+    loadSecurity();
+  };
+  loadSecurity();
+}
+
 export function setupConfig() {
+  setupSecurity();
   document.querySelectorAll('[data-copy]').forEach(btn => {
     btn.onclick = () => copyText($(btn.dataset.copy).value);
   });

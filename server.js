@@ -9,6 +9,8 @@ const { parseRawSermonText, slugify } = require('./src/sermon-text');
 const hymns = require('./src/hymns');
 const bible = require('./src/bible');
 const backgrounds = require('./src/backgrounds');
+const media = require('./src/media');
+const auth = require('./src/auth');
 
 // Primeira vez neste PC: traz a Bíblia e os fundos da pasta da igreja, se existirem
 bible.autoImport();
@@ -23,6 +25,8 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
+// PIN: protege o painel e a API quando acessados de outro aparelho (antes dos arquivos estáticos)
+app.use(auth.middleware);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -34,6 +38,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 });
 
 app.use('/backgrounds', express.static(backgrounds.DIR));
+app.use('/media', express.static(media.DIR));
 
 const DEFAULT_MESSAGE_STYLES = {
   fontFamily: 'Outfit, sans-serif',
@@ -108,6 +113,30 @@ const DEFAULT_BIBLE_STYLES = {
   animationType: 'fade'
 };
 
+const DEFAULT_MEDIA_STYLES = {
+  transition: 'crossfade',       // 'crossfade', 'fade-black', 'cut', 'slide', 'zoom'
+  duration: 0.6,                 // segundos
+  fit: 'blur',                   // 'blur' (inteira, laterais com a própria foto desfocada), 'contain' (inteira, com bordas) ou 'cover' (preenche a tela)
+  focus: 'center',               // ao preencher: parte que aparece ('top', 'center', 'bottom')
+  bgColor: '#000000',            // cor das bordas
+  endAction: 'clear'             // fim do vídeo: 'clear' (tira da tela) ou 'hold' (fica no último quadro)
+};
+
+// Nome do pregador (lower third)
+const DEFAULT_LT_STYLES = {
+  position: 'bottom-left',       // 'bottom-left', 'bottom-center', 'bottom-right', 'top-left', 'top-right'
+  look: 'modern',                // 'modern' (barra colorida), 'minimal' (só texto e linha), 'solid' (faixa sólida)
+  fontFamily: 'Montserrat, sans-serif',
+  scale: 1,
+  nameColor: '#ffffff',
+  subtitleColor: '#cbd5e1',
+  accentColor: '#3b82f6',
+  bgColor: 'rgba(10, 15, 30, 0.85)',
+  animation: 'slide',            // 'slide', 'rise', 'drop', 'fade', 'zoom', 'blur', 'reveal', 'expand', 'flip', 'stagger'
+  speed: 1,                      // multiplicador da duração (0.6 rápida, 1 normal, 1.7 lenta)
+  autoHide: 8                    // segundos; 0 = só esconde quando o operador mandar
+};
+
 // Estilos salvos antes de existir o degradê não têm `bgMode`: mantém o fundo que a pessoa
 // já usava (imagem ou cor) em vez de trocar pelo degradê padrão
 function loadScreenStyles(key, defaults) {
@@ -154,7 +183,22 @@ let globalState = {
     isCleared: true,
     armed: false
   },
-  bibleStyles: loadScreenStyles('styles.bible', DEFAULT_BIBLE_STYLES)
+  bibleStyles: loadScreenStyles('styles.bible', DEFAULT_BIBLE_STYLES),
+
+  // Mídia: a pasta do culto aberta e o item no ar
+  media: {
+    folder: null,
+    items: [],
+    index: -1,
+    isCleared: true,
+    armed: false,
+    playback: { playing: true, muted: false, volume: 1, loop: false, token: 0 }
+  },
+  mediaStyles: { ...DEFAULT_MEDIA_STYLES, ...db.getSetting('styles.media', {}) },
+
+  // Nome do pregador: camada independente, pode aparecer junto com qualquer conteúdo
+  lowerThird: { visible: false, name: '', subtitle: '', token: 0 },
+  lowerThirdStyles: { ...DEFAULT_LT_STYLES, ...db.getSetting('styles.lowerThird', {}) }
 };
 
 let activeSermonParagraphs = [];
@@ -215,11 +259,17 @@ function hideBible() {
   globalState.bible.armed = false;
 }
 
+function hideMedia() {
+  globalState.media.isCleared = true;
+  globalState.media.armed = false;
+}
+
 function setParagraphOnServer(index) {
   if (index < 0 || index >= activeSermonParagraphs.length) return;
   positionParagraph(index);
   hideHymn();
   hideBible();
+  hideMedia();
   globalState.activeLayer = 'message';
   globalState.isCleared = false;
   globalState.armed = false;
@@ -271,6 +321,8 @@ function clearScreenOnServer() {
   hideMessage();
   hideHymn();
   hideBible();
+  hideMedia();
+  hideLowerThird(false);
   broadcastContent();
 }
 
@@ -316,6 +368,7 @@ function showHymnSlide(index) {
   hymn.armed = false;
   hideMessage();
   hideBible();
+  hideMedia();
   globalState.activeLayer = 'hymn';
   broadcastContent();
 }
@@ -440,6 +493,7 @@ function showBibleSlide(index) {
   b.armed = false;
   hideMessage();
   hideHymn();
+  hideMedia();
   globalState.activeLayer = 'bible';
   broadcastContent();
 }
@@ -502,15 +556,164 @@ function updateBibleStyles(partial) {
   saveBibleStylesTimer = setTimeout(() => db.setSetting('styles.bible', globalState.bibleStyles), 400);
 }
 
+// ---------- Mídia ao vivo ----------
+
+function openMediaFolder(folder) {
+  const m = globalState.media;
+  m.folder = folder || null;
+  m.items = folder ? media.listItems(folder).map(({ name, type, url }) => ({ name, type, url })) : [];
+  m.index = -1;
+  m.isCleared = true;
+  m.armed = false;
+  broadcastContent();
+}
+
+// Arquivos enviados/apagados na pasta aberta: atualiza a lista mantendo o item atual
+function refreshMediaItems(folder) {
+  const m = globalState.media;
+  if (m.folder !== folder) return;
+  const current = m.items[m.index];
+  m.items = media.listItems(folder).map(({ name, type, url }) => ({ name, type, url }));
+  if (current) {
+    const index = m.items.findIndex(i => i.name === current.name);
+    if (index === -1) {
+      m.index = -1;
+      hideMedia();
+    } else {
+      m.index = index;
+    }
+  }
+  broadcastContent();
+}
+
+function showMediaItem(index) {
+  const m = globalState.media;
+  if (index < 0 || index >= m.items.length) return;
+  m.index = index;
+  m.isCleared = false;
+  m.armed = false;
+  // Cada vez que vai ao ar o vídeo começa do início e tocando
+  m.playback = { ...m.playback, playing: true, token: m.playback.token + 1 };
+  hideMessage();
+  hideHymn();
+  hideBible();
+  globalState.activeLayer = 'media';
+  broadcastContent();
+}
+
+function armMediaItem(index) {
+  const m = globalState.media;
+  if (index < 0 || index >= m.items.length) return;
+  m.index = index;
+  m.isCleared = true;
+  m.armed = true;
+  broadcastContent();
+}
+
+function nextMediaItem() {
+  const m = globalState.media;
+  if (m.items.length === 0) return;
+  if (m.armed || m.index === -1) showMediaItem(Math.max(0, m.index));
+  else if (m.index + 1 < m.items.length) showMediaItem(m.index + 1);
+}
+
+function prevMediaItem() {
+  const m = globalState.media;
+  if (m.index > 0) showMediaItem(m.index - 1);
+}
+
+function toggleMedia() {
+  const m = globalState.media;
+  if (m.index === -1) return;
+  if (m.isCleared) showMediaItem(m.index);
+  else {
+    hideMedia();
+    broadcastContent();
+  }
+}
+
+// Tocar/pausar, recomeçar, som e repetir (vale para o vídeo no ar)
+function controlMedia({ action, value }) {
+  const p = globalState.media.playback;
+  if (action === 'play') p.playing = true;
+  else if (action === 'pause') p.playing = false;
+  else if (action === 'restart') { p.playing = true; p.token++; }
+  else if (action === 'mute') p.muted = !!value;
+  else if (action === 'volume') p.volume = Math.min(1, Math.max(0, Number(value) || 0));
+  else if (action === 'loop') p.loop = !!value;
+  else return;
+  broadcastContent();
+}
+
+// O overlay do OBS avisa o andamento do vídeo; no fim, tira da tela se configurado
+function onMediaProgress(payload) {
+  broadcast('media-progress', payload);
+  const m = globalState.media;
+  if (payload.ended && payload.token === m.playback.token && !m.playback.loop && !m.isCleared &&
+      globalState.mediaStyles.endAction === 'clear') {
+    hideMedia();
+    broadcastContent();
+  }
+}
+
+let saveMediaStylesTimer = null;
+function updateMediaStyles(partial) {
+  globalState.mediaStyles = { ...globalState.mediaStyles, ...partial };
+  broadcast('update-media-style', globalState.mediaStyles);
+  clearTimeout(saveMediaStylesTimer);
+  saveMediaStylesTimer = setTimeout(() => db.setSetting('styles.media', globalState.mediaStyles), 400);
+}
+
+// ---------- Nome do pregador (lower third) ----------
+
+let lowerThirdTimer = null;
+
+function hideLowerThird(broadcastNow = true) {
+  clearTimeout(lowerThirdTimer);
+  globalState.lowerThird.visible = false;
+  if (broadcastNow) broadcastContent();
+}
+
+function showLowerThird({ name, subtitle }) {
+  const cleanName = String(name || '').trim();
+  if (!cleanName) return;
+  clearTimeout(lowerThirdTimer);
+  globalState.lowerThird = {
+    visible: true,
+    name: cleanName,
+    subtitle: String(subtitle || '').trim(),
+    token: globalState.lowerThird.token + 1
+  };
+  broadcastContent();
+  // Some sozinho depois de alguns segundos (se configurado)
+  const seconds = Number(globalState.lowerThirdStyles.autoHide) || 0;
+  if (seconds > 0) lowerThirdTimer = setTimeout(() => hideLowerThird(), seconds * 1000);
+}
+
+function toggleLowerThird() {
+  const lt = globalState.lowerThird;
+  if (lt.visible) hideLowerThird();
+  else if (lt.name) showLowerThird(lt);
+}
+
+let saveLtStylesTimer = null;
+function updateLowerThirdStyles(partial) {
+  globalState.lowerThirdStyles = { ...globalState.lowerThirdStyles, ...partial };
+  broadcast('update-lt-style', globalState.lowerThirdStyles);
+  clearTimeout(saveLtStylesTimer);
+  saveLtStylesTimer = setTimeout(() => db.setSetting('styles.lowerThird', globalState.lowerThirdStyles), 400);
+}
+
 // Passador/teclado: o painel diz a aba (mode); o R400 com o app minimizado usa a última camada no ar
 function layerFor(mode) {
-  return ['message', 'hymn', 'bible'].includes(mode) ? mode : globalState.activeLayer;
+  return ['message', 'hymn', 'bible', 'media'].includes(mode) ? mode : globalState.activeLayer;
 }
 
 function next(mode) {
   const layer = layerFor(mode);
   if (layer === 'hymn') nextHymnSlide();
   else if (layer === 'bible') nextBibleSlide();
+  else if (layer === 'media') nextMediaItem();
   else nextParagraph();
 }
 
@@ -518,6 +721,7 @@ function prev(mode) {
   const layer = layerFor(mode);
   if (layer === 'hymn') prevHymnSlide();
   else if (layer === 'bible') prevBibleSlide();
+  else if (layer === 'media') prevMediaItem();
   else prevParagraph();
 }
 
@@ -525,6 +729,7 @@ function toggleClear(mode) {
   const layer = layerFor(mode);
   if (layer === 'hymn') toggleHymn();
   else if (layer === 'bible') toggleBible();
+  else if (layer === 'media') toggleMedia();
   else toggleClearOnServer();
 }
 
@@ -564,13 +769,21 @@ function checkAdminConnections() {
   }
 }
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
+  ws.canControl = auth.isAuthorized(req);
   ws.send(JSON.stringify({ type: 'init', payload: globalState }));
 
   ws.on('message', (messageStr) => {
     try {
       const data = JSON.parse(messageStr);
       const payload = data.payload || {};
+
+      // Andamento do vídeo vem do overlay (que pode estar num PC sem PIN)
+      if (data.type === 'media-progress') {
+        onMediaProgress(payload);
+        return;
+      }
+      if (!ws.canControl) return;
 
       switch (data.type) {
         case 'register-admin':
@@ -618,6 +831,39 @@ wss.on('connection', (ws) => {
           break;
         case 'reset-bible-styles':
           updateBibleStyles(DEFAULT_BIBLE_STYLES);
+          break;
+        case 'media-folder':
+          openMediaFolder(payload.folder);
+          break;
+        case 'media-show':
+          showMediaItem(payload.index);
+          break;
+        case 'media-arm':
+          armMediaItem(payload.index);
+          break;
+        case 'media-control':
+          controlMedia(payload);
+          break;
+        case 'update-media-styles':
+          updateMediaStyles(payload);
+          break;
+        case 'reset-media-styles':
+          updateMediaStyles(DEFAULT_MEDIA_STYLES);
+          break;
+        case 'lt-show':
+          showLowerThird(payload);
+          break;
+        case 'lt-hide':
+          hideLowerThird();
+          break;
+        case 'lt-toggle':
+          toggleLowerThird();
+          break;
+        case 'update-lt-styles':
+          updateLowerThirdStyles(payload);
+          break;
+        case 'reset-lt-styles':
+          updateLowerThirdStyles(DEFAULT_LT_STYLES);
           break;
         case 'clear-screen':
           clearScreenOnServer();
@@ -799,6 +1045,113 @@ app.post('/api/bible/import', (req, res) => {
   try {
     const files = Array.isArray(req.body.files) ? req.body.files : [];
     res.json({ success: true, ...bible.importBible(files) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ---------- API de mídias ----------
+
+app.get('/api/media/folders', (req, res) => {
+  res.json({ today: media.todayFolder(), folders: media.listFolders() });
+});
+
+app.post('/api/media/folders', (req, res) => {
+  try {
+    res.json({ success: true, folder: media.createFolder(req.body.name) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/media/folders/:folder', (req, res) => {
+  try {
+    if (!media.removeFolder(req.params.folder)) return res.status(404).json({ error: 'Pasta não encontrada' });
+    if (globalState.media.folder === req.params.folder) {
+      hideMedia();
+      openMediaFolder(null);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/media/items/:folder', (req, res) => {
+  try {
+    res.json(media.listItems(req.params.folder));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Envio em streaming: o corpo da requisição é o próprio arquivo
+app.post('/api/media/upload', async (req, res) => {
+  try {
+    const saved = await media.saveUpload(req, req.query.folder || media.todayFolder(), req.query.name);
+    refreshMediaItems(req.query.folder || media.todayFolder());
+    res.json({ success: true, ...saved });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/media/items/:folder/:name', (req, res) => {
+  try {
+    if (!media.removeItem(req.params.folder, req.params.name)) return res.status(404).json({ error: 'Arquivo não encontrado' });
+    refreshMediaItems(req.params.folder);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ---------- API do nome do pregador ----------
+
+const readPreachers = () => db.getSetting('preachers', []);
+
+app.get('/api/preachers', (req, res) => {
+  res.json(readPreachers());
+});
+
+app.post('/api/preachers', (req, res) => {
+  const name = String(req.body.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'Digite o nome do pregador.' });
+  const list = readPreachers();
+  const preacher = { id: Date.now().toString(36), name, subtitle: String(req.body.subtitle || '').trim() };
+  list.push(preacher);
+  db.setSetting('preachers', list);
+  res.json({ success: true, preacher });
+});
+
+app.put('/api/preachers/:id', (req, res) => {
+  const list = readPreachers();
+  const preacher = list.find(p => p.id === req.params.id);
+  if (!preacher) return res.status(404).json({ error: 'Pregador não encontrado' });
+  const name = String(req.body.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'Digite o nome do pregador.' });
+  preacher.name = name;
+  preacher.subtitle = String(req.body.subtitle || '').trim();
+  db.setSetting('preachers', list);
+  res.json({ success: true, preacher });
+});
+
+app.delete('/api/preachers/:id', (req, res) => {
+  db.setSetting('preachers', readPreachers().filter(p => p.id !== req.params.id));
+  res.json({ success: true });
+});
+
+// ---------- PIN para outros aparelhos ----------
+
+app.post('/api/pin/login', auth.login);
+
+app.get('/api/security', (req, res) => {
+  res.json({ hasPin: auth.hasPin(), local: auth.isLocal(req) });
+});
+
+app.post('/api/security/pin', (req, res) => {
+  try {
+    res.json({ success: true, hasPin: auth.setPin(req.body.pin) });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
