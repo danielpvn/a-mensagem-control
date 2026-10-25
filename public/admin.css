@@ -71,11 +71,11 @@ kbd {
 
 /* ---------- Estrutura ---------- */
 
+/* Coluna: barra de cima, aviso de atualização (quando tiver) e as abas ocupando o resto da janela */
 .app {
   height: 100vh;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   padding: 12px;
 }
@@ -334,7 +334,7 @@ fieldset > legend + * { clear: both; }
 
 /* ---------- Painéis / abas ---------- */
 
-.panels { min-height: 0; }
+.panels { flex: 1; min-height: 0; }
 .panel { display: none; height: 100%; }
 .panel.active { display: block; }
 
@@ -1023,6 +1023,57 @@ fieldset > legend + * { clear: both; }
 .video-progress { display: flex; align-items: center; gap: 10px; font-size: 0.78rem; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .grow-spacer { flex: 1; }
 
+/* Prévia da mídia selecionada (antes de ir ao ar) com zoom */
+.media-tile.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* A prévia usa o espaço que sobrar no cartão (fica menor quando aparecem os controles de vídeo) */
+.media-preview-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.media-preview-area { flex: 1; min-height: 120px; container-type: size; display: flex; justify-content: center; align-items: flex-start; }
+.media-preview {
+  position: relative;
+  width: min(100cqw, 100cqh * 16 / 9);
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: #000;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.media-preview.dragging { cursor: grabbing; }
+.media-preview .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-3); cursor: default; }
+.media-preview img, .media-preview video {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+  will-change: transform;
+}
+.media-preview.fit-cover img, .media-preview.fit-cover video { object-fit: cover; object-position: var(--media-focus, center); }
+.media-preview .media-backdrop { display: none; position: absolute; inset: -6%; background: center / cover no-repeat; filter: blur(14px) brightness(0.55) saturate(1.15); }
+.media-preview.fit-blur .media-backdrop { display: block; }
+.media-preview .preview-tag {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  padding: 3px 8px;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  pointer-events: none;
+}
+.media-preview .preview-tag.is-live { background: var(--live); }
+.zoom-bar { display: flex; align-items: center; gap: 8px; }
+.zoom-bar input[type="range"] { flex: 1; min-width: 80px; }
+.zoom-bar output { min-width: 3.2em; font-variant-numeric: tabular-nums; color: var(--text-2); font-size: 0.85rem; }
+.btn-icon { width: 32px; padding: 6px 0; justify-content: center; font-size: 1.05rem; line-height: 1; }
+
 /* ---------- Pregador do dia ---------- */
 
 .lt-form { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: var(--radius); background: var(--field); border: 1px solid var(--border); }
@@ -1067,6 +1118,56 @@ fieldset > legend + * { clear: both; }
   text-overflow: ellipsis;
 }
 .lt-chip-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+
+/* ---------- Banco online ---------- */
+
+.cloud-login { display: flex; flex-direction: column; gap: 8px; }
+.cloud-actions { display: flex; gap: 8px; align-items: center; }
+.cloud-advanced summary { cursor: pointer; color: var(--text-3); font-size: 0.8rem; padding: 4px 0; }
+.cloud-advanced[open] summary { margin-bottom: 8px; }
+.badge-ok { background: rgba(16, 185, 129, 0.16); color: #6ee7b7; }
+
+.cloud-dot {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  background: var(--field-hover) center / 14px no-repeat;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17.5 19H9a7 7 0 1 1 6.7-9h1.8a4.5 4.5 0 1 1 0 9Z'/%3E%3C/svg%3E");
+  box-shadow: inset 0 0 0 2px var(--text-3);
+}
+.cloud-dot.is-ok, .cloud-dot.is-idle { box-shadow: inset 0 0 0 2px var(--success); }
+.cloud-dot.is-syncing { box-shadow: inset 0 0 0 2px var(--accent); animation: pulse 1.6s infinite; }
+.cloud-dot.is-error, .cloud-dot.is-pending { box-shadow: inset 0 0 0 2px var(--armed); }
+.cloud-dot { position: relative; }
+/* Número de pedidos de acesso esperando (só editores) */
+.cloud-dot[data-count]:not([data-count=""])::after {
+  content: attr(data-count);
+  position: absolute;
+  top: -6px;
+  right: -7px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 99px;
+  background: var(--live);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+.cloud-members { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
+.member-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 10px; border-radius: var(--radius-sm); background: var(--field); border: 1px solid var(--border); }
+.member-row + .member-row { margin-top: 6px; }
+.member-row.is-pending { border-color: rgba(245, 158, 11, 0.5); background: var(--armed-soft); }
+.member-row.is-blocked { opacity: 0.6; }
+.member-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.member-info strong { font-size: 0.9rem; }
+.member-info span { font-size: 0.75rem; color: var(--text-2); }
+.member-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* ---------- Scrollbars ---------- */
 

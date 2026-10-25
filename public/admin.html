@@ -55,6 +55,7 @@
           <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m9 9 6 6M15 9l-6 6"/></svg>
           Limpar tela
         </button>
+        <span id="cloud-dot" class="cloud-dot" hidden title="Banco online"></span>
         <span id="ws-status" class="conn is-off" title="Desconectado do servidor"></span>
       </div>
     </header>
@@ -615,8 +616,28 @@
               <div class="reader-head">
                 <div class="reader-title-wrap">
                   <h2 id="media-current-title">Nada selecionado</h2>
-                  <p id="media-current-meta" class="muted">Clique numa mídia para colocar no ar.</p>
+                  <p id="media-current-meta" class="muted">Clique numa mídia para ver aqui antes de exibir.</p>
                 </div>
+                <button id="btn-media-show" class="btn btn-primary" disabled title="Colocar a mídia selecionada no ar (Enter ou dois cliques)">
+                  <svg viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                  Exibir
+                </button>
+              </div>
+
+              <div class="media-preview-wrap">
+                <div class="media-preview-area">
+                  <div id="media-preview" class="media-preview" title="Rodinha do mouse: zoom no ponto · arrastar: mover · dois cliques: exibir">
+                    <div class="empty">Selecione uma mídia na lista.</div>
+                  </div>
+                </div>
+                <div class="zoom-bar">
+                  <button id="btn-zoom-out" class="btn btn-secondary btn-sm btn-icon" title="Afastar">−</button>
+                  <input type="range" id="media-zoom" min="1" max="6" step="0.05" value="1" aria-label="Zoom">
+                  <button id="btn-zoom-in" class="btn btn-secondary btn-sm btn-icon" title="Aproximar">+</button>
+                  <output id="media-zoom-val">1.0x</output>
+                  <button id="btn-zoom-reset" class="btn btn-text btn-sm" title="Mostrar a mídia inteira">Sem zoom</button>
+                </div>
+                <p class="muted small">Zoom: <strong>rodinha do mouse</strong> no ponto, <strong>arraste</strong> para mover. No ar, muda na hora no telão.</p>
               </div>
 
               <div id="media-video-controls" class="video-controls" hidden>
@@ -647,7 +668,6 @@
                 <p class="muted small">O som do vídeo sai pelo OBS: marque <strong>"Controlar áudio via OBS"</strong> na fonte Navegador.</p>
               </div>
 
-              <div class="grow-spacer"></div>
 
               <div class="transport">
                 <button id="btn-media-prev" class="btn btn-transport" disabled title="Mídia anterior (← ou PageUp)">
@@ -826,6 +846,55 @@
             <h2>Controlar de outro aparelho</h2>
             <p class="muted">Com o celular ou notebook <strong>no mesmo Wi-Fi</strong> do computador da mídia, abra um destes endereços no navegador:</p>
             <div id="lan-urls" class="lan-urls"><div class="empty">Procurando endereços...</div></div>
+          </div>
+
+          <div class="card cloud-card">
+            <div class="card-head">
+              <h2>Banco online</h2>
+              <span id="cloud-badge" class="badge badge-off">Desligado</span>
+            </div>
+            <p class="muted" id="cloud-status-text">Verificando...</p>
+            <p class="muted small" id="cloud-pending"></p>
+
+            <form id="cloud-login-form" class="cloud-login" hidden>
+              <input type="email" id="cloud-email" placeholder="E-mail da igreja" autocomplete="username" required>
+              <input type="password" id="cloud-password" placeholder="Senha" autocomplete="current-password" required>
+              <button type="submit" class="btn btn-primary btn-sm">Entrar</button>
+              <button type="button" class="btn btn-text btn-sm" id="btn-cloud-show-signup">Não tem login? Pedir acesso</button>
+            </form>
+
+            <form id="cloud-signup-form" class="cloud-login" hidden>
+              <p class="muted small">Crie o login da sua igreja. O responsável pela biblioteca vai aprovar o pedido e, depois disso, as mensagens e os hinos chegam sozinhos.</p>
+              <input type="text" id="cloud-signup-church" placeholder="Nome da igreja (ex: Tabernáculo da Fé - Goiânia)" maxlength="80" required>
+              <input type="email" id="cloud-signup-email" placeholder="E-mail" autocomplete="username" required>
+              <input type="password" id="cloud-signup-password" placeholder="Senha (pelo menos 6 caracteres)" autocomplete="new-password" minlength="6" required>
+              <button type="submit" class="btn btn-primary btn-sm">Pedir acesso</button>
+              <button type="button" class="btn btn-text btn-sm" id="btn-cloud-show-login">Já tenho login</button>
+            </form>
+
+            <div id="cloud-members" class="cloud-members" hidden>
+              <div class="card-head">
+                <h3>Igrejas e pedidos de acesso</h3>
+                <button id="btn-cloud-members-refresh" class="btn btn-text btn-sm">Atualizar</button>
+              </div>
+              <div id="cloud-members-list"></div>
+            </div>
+
+            <div class="cloud-actions" id="cloud-actions" hidden>
+              <button id="btn-cloud-sync" class="btn btn-secondary btn-sm">Sincronizar agora</button>
+              <button id="btn-cloud-logout" class="btn btn-text btn-sm">Sair</button>
+            </div>
+
+            <p class="muted small">Mensagens, hinos e imagens de fundo ficam guardados online e chegam a todas as igrejas conectadas. Sem internet, o app continua funcionando normalmente.</p>
+
+            <details class="cloud-advanced">
+              <summary>Avançado</summary>
+              <form id="cloud-config-form" class="cloud-login">
+                <input type="url" id="cloud-url" placeholder="Endereço do projeto (https://...supabase.co)">
+                <input type="text" id="cloud-key" placeholder="Chave pública (anon)">
+                <button type="submit" class="btn btn-secondary btn-sm">Salvar</button>
+              </form>
+            </details>
           </div>
 
           <div class="card">

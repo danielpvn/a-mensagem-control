@@ -98,7 +98,7 @@ function selectCategory(name) {
   el.search.focus();
 }
 
-function refreshLibrary() {
+export function refreshLibrary() {
   fetchCategories().then(() => fetchHymnList()).then(() => { if (el.search.value.trim()) runSearch(); });
 }
 

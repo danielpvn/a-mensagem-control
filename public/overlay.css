@@ -157,8 +157,8 @@ body, html {
 .layout-full .screen-text-wrap { flex: 1; align-items: center; }
 
 /* Tela cheia com o texto na parte de baixo (ex: imagem com faixa no rodapé, no telão) */
-.layout-full.text-bottom .screen-box { justify-content: flex-end; padding-bottom: 4vh; }
-.layout-full.text-bottom .screen-text-wrap { flex: 0 0 auto; min-height: 26vh; align-items: center; }
+.layout-full.text-bottom .screen-box { justify-content: flex-end; padding-bottom: 3vh; }
+.layout-full.text-bottom .screen-text-wrap { flex: 0 0 auto; min-height: 20vh; align-items: center; }
 .layout-full.text-bottom .screen-title { margin-bottom: 1.5vh; }
 
 /* Faixa embaixo: caixa no rodapé, por cima da câmera */

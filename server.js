@@ -11,6 +11,7 @@ const bible = require('./src/bible');
 const backgrounds = require('./src/backgrounds');
 const media = require('./src/media');
 const auth = require('./src/auth');
+const sync = require('./src/sync');
 
 // Primeira vez neste PC: traz a Bíblia e os fundos da pasta da igreja, se existirem
 bible.autoImport();
@@ -192,7 +193,11 @@ let globalState = {
     index: -1,
     isCleared: true,
     armed: false,
-    playback: { playing: true, muted: false, volume: 1, loop: false, token: 0 }
+    playback: { playing: true, muted: false, volume: 1, loop: false, token: 0 },
+    // Zoom do item no ar: scale 1 = sem zoom; x/y = ponto (em %) que fica no centro da tela
+    zoom: { scale: 1, x: 50, y: 50 },
+    // Zoom preparado para cada arquivo da pasta (o operador ajusta antes do culto)
+    zooms: {}
   },
   mediaStyles: { ...DEFAULT_MEDIA_STYLES, ...db.getSetting('styles.media', {}) },
 
@@ -558,9 +563,52 @@ function updateBibleStyles(partial) {
 
 // ---------- Mídia ao vivo ----------
 
+const NO_ZOOM = { scale: 1, x: 50, y: 50 };
+
+// Zoom válido: até 6x, e o ponto central limitado para a imagem não "sair" da tela
+function cleanZoom(zoom) {
+  const scale = Math.min(6, Math.max(1, Number(zoom && zoom.scale) || 1));
+  const limit = 50 - 50 / scale; // quanto o centro pode se afastar do meio sem mostrar borda
+  const clamp = (v) => Math.min(50 + limit, Math.max(50 - limit, Number.isFinite(Number(v)) ? Number(v) : 50));
+  return { scale: Math.round(scale * 100) / 100, x: Math.round(clamp(zoom && zoom.x) * 10) / 10, y: Math.round(clamp(zoom && zoom.y) * 10) / 10 };
+}
+
+const zoomKey = (folder, name) => `${folder}/${name}`;
+const savedZooms = () => db.getSetting('mediaZooms', {});
+
+// Zooms preparados da pasta aberta (guardados no banco: valem para o culto inteiro)
+function zoomsFor(folder) {
+  const all = savedZooms();
+  const result = {};
+  Object.keys(all).forEach(key => {
+    if (key.startsWith(`${folder}/`)) result[key.slice(folder.length + 1)] = all[key];
+  });
+  return result;
+}
+
+// Ajusta o zoom de um arquivo. Se ele estiver no ar, o OBS aproxima na hora (com movimento suave).
+function setMediaZoom({ name, zoom }) {
+  const m = globalState.media;
+  if (!m.folder || !name) return;
+  const clean = cleanZoom(zoom);
+  const all = savedZooms();
+  if (clean.scale === 1) {
+    delete all[zoomKey(m.folder, name)];
+    delete m.zooms[name];
+  } else {
+    all[zoomKey(m.folder, name)] = clean;
+    m.zooms[name] = clean;
+  }
+  db.setSetting('mediaZooms', all);
+  const live = m.items[m.index];
+  if (live && live.name === name && !m.isCleared) m.zoom = clean;
+  broadcastContent();
+}
+
 function openMediaFolder(folder) {
   const m = globalState.media;
   m.folder = folder || null;
+  m.zooms = folder ? zoomsFor(folder) : {};
   m.items = folder ? media.listItems(folder).map(({ name, type, url }) => ({ name, type, url })) : [];
   m.index = -1;
   m.isCleared = true;
@@ -592,6 +640,8 @@ function showMediaItem(index) {
   m.index = index;
   m.isCleared = false;
   m.armed = false;
+  // Entra com o zoom que foi preparado para ele (ou sem zoom)
+  m.zoom = m.zooms[m.items[index].name] || NO_ZOOM;
   // Cada vez que vai ao ar o vídeo começa do início e tocando
   m.playback = { ...m.playback, playing: true, token: m.playback.token + 1 };
   hideMessage();
@@ -843,6 +893,9 @@ wss.on('connection', (ws, req) => {
           break;
         case 'media-control':
           controlMedia(payload);
+          break;
+        case 'media-zoom':
+          setMediaZoom(payload);
           break;
         case 'update-media-styles':
           updateMediaStyles(payload);
@@ -1141,6 +1194,60 @@ app.delete('/api/preachers/:id', (req, res) => {
   res.json({ success: true });
 });
 
+// ---------- Banco online (biblioteca compartilhada) ----------
+
+app.get('/api/cloud/status', (req, res) => {
+  res.json(sync.status());
+});
+
+// A senha só passa por aqui para pedir o acesso ao Supabase; não é guardada (fica só o token)
+app.post('/api/cloud/login', async (req, res) => {
+  try {
+    res.json(await sync.login(req.body.email, req.body.password));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// "Pedir acesso": a igreja nova cria o login e espera a aprovação de um editor
+app.post('/api/cloud/signup', async (req, res) => {
+  try {
+    res.json(await sync.signup(req.body.email, req.body.password, req.body.church));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Igrejas conectadas e pedidos de acesso (só editores)
+app.get('/api/cloud/members', async (req, res) => {
+  try {
+    res.json(await sync.listMembers());
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/cloud/members/:id', async (req, res) => {
+  try {
+    res.json(await sync.setMemberRole(req.params.id, req.body.role));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/cloud/logout', (req, res) => {
+  res.json(sync.logout());
+});
+
+app.post('/api/cloud/sync', async (req, res) => {
+  await sync.syncNow();
+  res.json(sync.status());
+});
+
+app.post('/api/cloud/config', (req, res) => {
+  res.json(sync.setConfig(req.body));
+});
+
 // ---------- PIN para outros aparelhos ----------
 
 app.post('/api/pin/login', auth.login);
@@ -1220,6 +1327,12 @@ server.listen(PORT, () => {
   } catch (err) {
     console.error('Erro na criação automática do atalho:', err);
   }
+
+  // Biblioteca compartilhada: sincroniza em segundo plano e avisa os painéis
+  sync.start({
+    onStatus: (status) => broadcast('sync-status', status),
+    onChanged: (changed) => broadcast('library-changed', changed)
+  });
 });
 
 module.exports = {
