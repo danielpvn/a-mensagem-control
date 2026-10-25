@@ -71,11 +71,11 @@ kbd {
 
 /* ---------- Estrutura ---------- */
 
+/* Coluna: barra de cima, aviso de atualização (quando tiver) e as abas ocupando o resto da janela */
 .app {
   height: 100vh;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   padding: 12px;
 }
@@ -334,7 +334,7 @@ fieldset > legend + * { clear: both; }
 
 /* ---------- Painéis / abas ---------- */
 
-.panels { min-height: 0; }
+.panels { flex: 1; min-height: 0; }
 .panel { display: none; height: 100%; }
 .panel.active { display: block; }
 
@@ -1025,11 +1025,12 @@ fieldset > legend + * { clear: both; }
 
 /* Prévia da mídia selecionada (antes de ir ao ar) com zoom */
 .media-tile.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
-.media-preview-wrap { display: flex; flex-direction: column; gap: 8px; }
+/* A prévia usa o espaço que sobrar no cartão (fica menor quando aparecem os controles de vídeo) */
+.media-preview-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.media-preview-area { flex: 1; min-height: 120px; container-type: size; display: flex; justify-content: center; align-items: flex-start; }
 .media-preview {
   position: relative;
-  width: 100%;
-  max-width: calc(34vh * 16 / 9);
+  width: min(100cqw, 100cqh * 16 / 9);
   aspect-ratio: 16 / 9;
   border-radius: var(--radius);
   border: 1px solid var(--border);

@@ -261,12 +261,14 @@ const hymnLayer = createScreenLayer('hymn', {
   content(hymn, slide, styles) {
     const showTitle = styles.showTitle !== false && hymn.title;
     const showNumber = styles.showNumber !== false && hymn.number;
-    return {
-      key: hymn.id,
-      title: showTitle ? (showNumber ? `${hymn.number} · ${hymn.title}` : hymn.title) : '',
-      label: styles.showLabel !== false && styles.layout !== 'lower-third' ? screenLabel(slide) : '',
-      text: slide.text
-    };
+    const name = showTitle ? (showNumber ? `${hymn.number} · ${hymn.title}` : hymn.title) : '';
+    const label = styles.showLabel !== false && styles.layout !== 'lower-third' ? screenLabel(slide) : '';
+    // Texto embaixo (imagem com faixa no rodapé): nome e estrofe numa linha só, embaixo da letra,
+    // para tudo ficar dentro da faixa
+    if (styles.layout !== 'lower-third' && styles.position === 'bottom') {
+      return { key: hymn.id, title: '', label: [name, label].filter(Boolean).join(' · '), text: slide.text };
+    }
+    return { key: hymn.id, title: name, label, text: slide.text };
   },
   look: (s) => ({
     layout: s.layout,

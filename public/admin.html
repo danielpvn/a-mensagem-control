@@ -625,8 +625,10 @@
               </div>
 
               <div class="media-preview-wrap">
-                <div id="media-preview" class="media-preview" title="Rodinha do mouse: zoom no ponto · arrastar: mover · dois cliques: exibir">
-                  <div class="empty">Selecione uma mídia na lista.</div>
+                <div class="media-preview-area">
+                  <div id="media-preview" class="media-preview" title="Rodinha do mouse: zoom no ponto · arrastar: mover · dois cliques: exibir">
+                    <div class="empty">Selecione uma mídia na lista.</div>
+                  </div>
                 </div>
                 <div class="zoom-bar">
                   <button id="btn-zoom-out" class="btn btn-secondary btn-sm btn-icon" title="Afastar">−</button>
@@ -635,7 +637,7 @@
                   <output id="media-zoom-val">1.0x</output>
                   <button id="btn-zoom-reset" class="btn btn-text btn-sm" title="Mostrar a mídia inteira">Sem zoom</button>
                 </div>
-                <p class="muted small">Gire a <strong>rodinha do mouse</strong> no ponto que quer aproximar e <strong>arraste</strong> para mover. Se a mídia estiver no ar, o zoom acontece na hora no telão; se não, ela já entra com esse zoom.</p>
+                <p class="muted small">Zoom: <strong>rodinha do mouse</strong> no ponto, <strong>arraste</strong> para mover. No ar, muda na hora no telão.</p>
               </div>
 
               <div id="media-video-controls" class="video-controls" hidden>
@@ -666,7 +668,6 @@
                 <p class="muted small">O som do vídeo sai pelo OBS: marque <strong>"Controlar áudio via OBS"</strong> na fonte Navegador.</p>
               </div>
 
-              <div class="grow-spacer"></div>
 
               <div class="transport">
                 <button id="btn-media-prev" class="btn btn-transport" disabled title="Mídia anterior (← ou PageUp)">
