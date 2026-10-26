@@ -61,11 +61,11 @@ async function checkUpdates(manual = false) {
   try {
     const data = await (await fetch('/api/check-update')).json();
     if (data.updateAvailable) {
-      $('update-version-text').textContent = `v${data.onlineVersion}`;
+      $('update-version-text').textContent = `v${data.onlineVersion}${data.isBeta ? ' (teste)' : ''}`;
       $('update-notes').textContent = data.notes || '';
       $('update-banner').hidden = false;
       $('btn-start-update').onclick = () => startUpdate(data.onlineVersion);
-      status.textContent = `Versão v${data.onlineVersion} disponível.`;
+      status.textContent = `Versão v${data.onlineVersion}${data.isBeta ? ' de teste' : ''} disponível.`;
     } else if (data.error) {
       status.textContent = manual ? 'Sem conexão com a internet para verificar.' : '';
     } else {
@@ -121,8 +121,29 @@ function setupSecurity() {
   loadSecurity();
 }
 
+// Canal de testes: liga/desliga e já procura a versão do canal escolhido
+async function setupBetaChannel() {
+  const box = $('beta-updates');
+  try {
+    box.checked = !!(await (await fetch('/api/update-channel')).json()).beta;
+  } catch (err) {
+    // sem servidor: fica desligado
+  }
+  box.onchange = async () => {
+    await fetch('/api/update-channel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ beta: box.checked })
+    });
+    toast(box.checked ? 'Este computador vai receber as versões de teste.' : 'Este computador volta a receber só as versões oficiais.', 'success');
+    $('update-banner').hidden = true;
+    checkUpdates(true);
+  };
+}
+
 export function setupConfig() {
   setupSecurity();
+  setupBetaChannel();
   document.querySelectorAll('[data-copy]').forEach(btn => {
     btn.onclick = () => copyText($(btn.dataset.copy).value);
   });
