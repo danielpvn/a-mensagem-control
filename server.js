@@ -1287,9 +1287,21 @@ app.delete('/api/backgrounds/:name', (req, res) => {
   }
 });
 
+// Canal de testes: este PC também recebe as versões de teste (update-beta.json da dev)
+const updateOptions = () => ({ beta: !!db.getSetting('betaUpdates', false) });
+
+app.get('/api/update-channel', (req, res) => {
+  res.json({ beta: updateOptions().beta, currentVersion: CURRENT_VERSION });
+});
+
+app.post('/api/update-channel', (req, res) => {
+  db.setSetting('betaUpdates', !!(req.body && req.body.beta));
+  res.json({ beta: updateOptions().beta });
+});
+
 app.get('/api/check-update', async (req, res) => {
   try {
-    res.json(await updater.checkForUpdate(CURRENT_VERSION));
+    res.json(await updater.checkForUpdate(CURRENT_VERSION, updateOptions()));
   } catch (err) {
     console.error('Erro ao checar atualizações:', err);
     res.json({ updateAvailable: false, currentVersion: CURRENT_VERSION, error: err.message });
@@ -1299,7 +1311,7 @@ app.get('/api/check-update', async (req, res) => {
 // A URL do pacote nunca vem do navegador: o updater lê do update.json oficial
 app.post('/api/trigger-update', async (req, res) => {
   try {
-    const launch = await updater.prepareUpdate(CURRENT_VERSION);
+    const launch = await updater.prepareUpdate(CURRENT_VERSION, updateOptions());
     res.json({ success: true });
     launch();
   } catch (err) {

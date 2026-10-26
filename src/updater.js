@@ -9,6 +9,8 @@ const os = require('os');
 const { exec, spawn } = require('child_process');
 
 const UPDATE_JSON_URL = 'https://raw.githubusercontent.com/danielpvn/a-mensagem-control/main/update.json';
+// Canal de testes: só é lido nos PCs que ligaram "Receber versões de teste" em Configurações
+const BETA_JSON_URL = 'https://raw.githubusercontent.com/danielpvn/a-mensagem-control/dev/update-beta.json';
 const ALLOWED_DOWNLOAD_PREFIX = 'https://github.com/danielpvn/a-mensagem-control/releases/download/';
 
 function downloadFile(url, destPath) {
@@ -87,33 +89,57 @@ function fetchJson(url) {
   });
 }
 
-function isNewerVersion(current, online) {
-  if (!current || !online) return false;
-  const partsCurrent = current.split('.').map(Number);
-  const partsOnline = online.split('.').map(Number);
-  for (let i = 0; i < Math.max(partsCurrent.length, partsOnline.length); i++) {
-    const c = partsCurrent[i] || 0;
-    const o = partsOnline[i] || 0;
-    if (o > c) return true;
-    if (c > o) return false;
-  }
-  return false;
+// "2.1.0-beta.2" -> { core: [2, 1, 0], beta: 2 }; versão final não tem beta
+function parseVersion(version) {
+  const [core, pre] = String(version).split('-');
+  const match = pre ? pre.match(/(\d+)$/) : null;
+  return { core: core.split('.').map(Number), beta: pre ? (match ? Number(match[1]) : 0) : null };
 }
 
-async function checkForUpdate(currentVersion) {
-  const updateData = await fetchJson(UPDATE_JSON_URL);
+// A versão final é mais nova que qualquer teste dela (2.1.0 > 2.1.0-beta.5)
+function isNewerVersion(current, online) {
+  if (!current || !online) return false;
+  const c = parseVersion(current);
+  const o = parseVersion(online);
+  for (let i = 0; i < Math.max(c.core.length, o.core.length); i++) {
+    const a = c.core[i] || 0;
+    const b = o.core[i] || 0;
+    if (b > a) return true;
+    if (a > b) return false;
+  }
+  if (c.beta === null) return false;
+  if (o.beta === null) return true;
+  return o.beta > c.beta;
+}
+
+// Escolhe a atualização: a oficial e, no canal de testes, a de teste se for mais nova
+async function latestRelease({ beta = false } = {}) {
+  const stable = await fetchJson(UPDATE_JSON_URL);
+  if (!beta) return stable;
+  try {
+    const test = await fetchJson(BETA_JSON_URL);
+    if (test && test.version && isNewerVersion(stable.version, test.version)) return { ...test, isBeta: true };
+  } catch (err) {
+    // sem arquivo de teste: fica na oficial
+  }
+  return stable;
+}
+
+async function checkForUpdate(currentVersion, options = {}) {
+  const updateData = await latestRelease(options);
   return {
     updateAvailable: isNewerVersion(currentVersion, updateData.version),
     currentVersion,
     onlineVersion: updateData.version,
+    isBeta: !!updateData.isBeta,
     notes: updateData.notes || ''
   };
 }
 
 // Baixa, extrai e agenda a troca dos arquivos. Resolve quando o .bat está pronto para rodar;
 // quem chama deve responder ao navegador e então chamar o retorno `launch()`.
-async function prepareUpdate(currentVersion) {
-  const info = await fetchJson(UPDATE_JSON_URL);
+async function prepareUpdate(currentVersion, options = {}) {
+  const info = await latestRelease(options);
   if (!isNewerVersion(currentVersion, info.version)) {
     throw new Error('Nenhuma versão nova disponível.');
   }
@@ -195,4 +221,4 @@ del "%~f0"
   };
 }
 
-module.exports = { checkForUpdate, prepareUpdate };
+module.exports = { checkForUpdate, prepareUpdate, isNewerVersion };

@@ -85,6 +85,16 @@ gh release create vX.Y.Z "dist/A_Mensagem_Control.zip" --title "Release vX.Y.Z" 
 Forneça sempre o link direto pronto para o usuário:
 `https://github.com/danielpvn/a-mensagem-control/releases/download/vX.Y.Z/A_Mensagem_Control.zip`
 
+### Pacote: nunca levar os dados do PC
+Na máquina do usuário a pasta do projeto também é a pasta de dados (`data/amc.db`, `data/media`, `data/backgrounds`, mensagens importadas). No Passo 2 acrescente `--ignore="\.zip$" --ignore="^/data/"` e, antes de compactar, copie só a mensagem de exemplo: `data/sermons/62-1014m_a_estatura_de_um_homem_perfeito.json` para `dist/A Mensagem Control-win32-x64/resources/app/data/sermons/`.
+
+## 4.1 Versão de teste (canal de testes)
+Para o usuário e quem testa com ele receberem uma versão antes das igrejas:
+- Nos PCs de teste: Configurações > Sobre > **"Receber versões de teste"** (`settings.betaUpdates`). Com ela ligada, `src/updater.js` também lê `update-beta.json` da branch **dev** e fica com a mais nova entre a oficial e a de teste. Desligada, só a oficial (`update.json` da `main`).
+- Versão de teste = `X.Y.Z-beta.N` (a final `X.Y.Z` é sempre mais nova que os testes dela, então quem testa recebe a final normalmente).
+- Fluxo: na branch de trabalho, colocar `X.Y.Z-beta.N` em `package.json`, `server.js` e `admin.html`; gerar exe e ZIP como nos Passos 2 e 3; `gh release create vX.Y.Z-beta.N "dist/A_Mensagem_Control.zip" --prerelease --target <branch> --title "Teste vX.Y.Z-beta.N" --notes "..."`; atualizar `update-beta.json` (versão, URL da tag e notas) e dar push na **dev**. NÃO mexer no `update.json` da `main`.
+- Aprovado: juntar na `dev` e na `main` e lançar `X.Y.Z` pelo fluxo normal.
+
 ---
 
 ## 5. Estrutura de Arquivos e Funções Principais
