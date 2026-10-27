@@ -2,6 +2,7 @@
 import { $, toast, confirmDialog, normalize, setupModalClose } from './ui.js';
 import * as ws from './ws.js';
 import { parseLyrics, buildSequence, slideName } from '../shared/hymn-text.js';
+import { makeSortable, moveItem } from './sortable.js';
 
 let hymnList = [];        // todos os hinos (para quando a busca está vazia)
 let results = [];         // o que está listado agora
@@ -33,6 +34,127 @@ const el = {
 };
 
 const hymnName = (h) => (h.number ? `${h.number} · ${h.title}` : h.title);
+
+// ---------- Lista do culto ----------
+
+const playlist = () => (state && state.hymnPlaylist) || [];
+const inPlaylist = (id) => playlist().some(h => h.id === id);
+const savePlaylist = (items) => ws.send('hymn-playlist', { items });
+
+function addToPlaylist(hymn) {
+  if (inPlaylist(hymn.id)) {
+    toast('Esse hino já está na lista do culto.');
+    return;
+  }
+  savePlaylist([...playlist(), { id: hymn.id, number: hymn.number, title: hymn.title, collection: hymn.collection }]);
+  toast(`"${hymnName(hymn)}" entrou na lista do culto.`, 'success');
+}
+
+// Próximo hino da lista depois do que está aberto (ou o primeiro, se o aberto não está na lista)
+function nextInPlaylist() {
+  const list = playlist();
+  const index = state && state.hymn.id ? list.findIndex(h => h.id === state.hymn.id) : -1;
+  return list[index + 1] || null;
+}
+
+function setView(view) {
+  document.querySelectorAll('input[name="hymn-view"]').forEach(r => { r.checked = r.value === view; });
+  $('hymn-search-view').hidden = view !== 'search';
+  $('hymn-list-view').hidden = view !== 'list';
+  try { localStorage.setItem('amc.hymnView', view); } catch (e) { /* sem armazenamento */ }
+}
+
+let playlistKey = '';
+function renderPlaylist() {
+  const list = playlist();
+  const count = $('hymn-list-count');
+  count.hidden = list.length === 0;
+  count.textContent = list.length;
+  $('btn-hymn-list-clear').hidden = list.length === 0;
+
+  const activeId = state.hymn.id;
+  const key = `${activeId}|${list.map(h => `${h.id}:${h.number}:${h.title}`).join('|')}`;
+  if (key === playlistKey) return;
+  playlistKey = key;
+
+  const box = $('hymn-playlist');
+  box.innerHTML = '';
+  if (list.length === 0) {
+    box.innerHTML = '<div class="empty">A lista do culto está vazia.<br>Na busca, clique no <strong>+</strong> de cada hino que vai ser cantado.</div>';
+    return;
+  }
+  list.forEach((hymn, i) => {
+    const row = document.createElement('div');
+    row.className = 'hymn-item playlist-row';
+    row.classList.toggle('active', hymn.id === activeId);
+    row.draggable = true;
+    row.title = 'Clique para abrir. Arraste para mudar a ordem.';
+    row.onclick = () => ws.send('hymn-select', { id: hymn.id });
+
+    const order = document.createElement('span');
+    order.className = 'playlist-order';
+    order.textContent = i + 1;
+    const num = document.createElement('span');
+    num.className = 'hymn-num';
+    num.textContent = hymn.number || '—';
+    const body = document.createElement('span');
+    body.className = 'hymn-item-body';
+    if (hymn.collection) {
+      const tag = document.createElement('span');
+      tag.className = 'hymn-category';
+      tag.textContent = hymn.collection;
+      body.appendChild(tag);
+    }
+    const title = document.createElement('span');
+    title.className = 'hymn-item-title';
+    title.textContent = hymn.title;
+    body.appendChild(title);
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn-x small';
+    remove.title = 'Tirar da lista';
+    remove.textContent = '×';
+    remove.onclick = (e) => {
+      e.stopPropagation();
+      savePlaylist(list.filter(h => h.id !== hymn.id));
+    };
+
+    row.append(order, num, body, remove);
+    box.appendChild(row);
+  });
+}
+
+function renderPlaylistButtons() {
+  const has = !!(state && state.hymn.id);
+  const add = $('btn-hymn-list-add');
+  add.hidden = !has || inPlaylist(state.hymn.id);
+  const next = nextInPlaylist();
+  const btnNext = $('btn-hymn-list-next');
+  btnNext.hidden = !next;
+  if (next) {
+    btnNext.textContent = `Próximo da lista: ${next.number || next.title}`;
+    btnNext.title = `Abrir "${hymnName(next)}"`;
+  }
+}
+
+function setupPlaylist() {
+  document.querySelectorAll('input[name="hymn-view"]').forEach(r => r.addEventListener('change', () => setView(r.value)));
+  let saved = 'search';
+  try { saved = localStorage.getItem('amc.hymnView') || 'search'; } catch (e) { /* sem armazenamento */ }
+  setView(saved);
+
+  makeSortable($('hymn-playlist'), '.playlist-row', (from, to) => savePlaylist(moveItem(playlist(), from, to)));
+  $('btn-hymn-list-add').onclick = () => state.hymn.id && addToPlaylist(state.hymn);
+  $('btn-hymn-list-next').onclick = () => {
+    const next = nextInPlaylist();
+    if (next) ws.send('hymn-select', { id: next.id });
+  };
+  $('btn-hymn-list-clear').onclick = async () => {
+    const ok = await confirmDialog({ title: 'Limpar a lista do culto?', text: 'Os hinos saem só da lista (continuam cadastrados).', okLabel: 'Limpar' });
+    if (ok) savePlaylist([]);
+  };
+}
 
 // ---------- Busca ----------
 
@@ -212,7 +334,19 @@ function renderResults(query) {
       body.appendChild(snippet);
     }
 
-    item.append(num, body);
+    // "+": põe na lista do culto sem abrir o hino
+    const add = document.createElement('span');
+    add.className = 'hymn-add';
+    add.setAttribute('role', 'button');
+    add.title = 'Colocar na lista do culto';
+    add.textContent = '+';
+    add.classList.toggle('added', inPlaylist(hymn.id));
+    add.onclick = (e) => {
+      e.stopPropagation();
+      addToPlaylist(hymn);
+    };
+
+    item.append(num, body, add);
     el.results.appendChild(item);
   });
   appendSearchEverywhere(query);
@@ -309,8 +443,18 @@ function renderTransport() {
 
 function onServerState(newState) {
   const previousId = state && state.hymn ? state.hymn.id : null;
+  const previousList = state ? state.hymnPlaylist : null;
   state = newState;
   renderHymn();
+  renderPlaylist();
+  renderPlaylistButtons();
+  if (state.hymnPlaylist !== previousList) {
+    const ids = new Set(playlist().map(h => h.id));
+    el.results.querySelectorAll('.hymn-item').forEach((item, i) => {
+      const add = item.querySelector('.hymn-add');
+      if (add && results[i]) add.classList.toggle('added', ids.has(results[i].id));
+    });
+  }
   if (state.hymn.id !== previousId) {
     el.results.querySelectorAll('.hymn-item').forEach((item, i) => {
       item.classList.toggle('active', results[i] && results[i].id === state.hymn.id);
@@ -636,7 +780,7 @@ export const hymnControls = {
   next: () => ws.send('next', { mode: 'hymn' }),
   prev: () => ws.send('prev', { mode: 'hymn' }),
   toggle: () => ws.send('toggle-clear', { mode: 'hymn' }),
-  focusSearch: () => { el.search.focus(); el.search.select(); }
+  focusSearch: () => { setView('search'); el.search.focus(); el.search.select(); }
 };
 
 export function setupHymns() {
@@ -669,5 +813,6 @@ export function setupHymns() {
 
   setupEditor();
   setupImport();
+  setupPlaylist();
   refreshLibrary();
 }

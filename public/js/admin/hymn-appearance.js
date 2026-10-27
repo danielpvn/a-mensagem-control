@@ -52,7 +52,10 @@ const input = {
   size: $('hymn-size'),
   titleSize: $('hymn-title-size'),
   animation: $('hymn-animation'),
+  speed: $('hymn-speed'),
   textColor: $('hymn-text-color'),
+  chorusColor: $('hymn-chorus-color'),
+  chorusOn: $('hymn-chorus-on'),
   accentColor: $('hymn-accent-color'),
   outlineColor: $('hymn-outline-color'),
   showTitle: $('hymn-show-title'),
@@ -71,6 +74,8 @@ function updateLabels() {
   $('hymn-lines-val').textContent = input.lines.value;
   $('hymn-size-val').textContent = input.size.value;
   $('hymn-title-size-val').textContent = input.titleSize.value;
+  $('hymn-speed-val').textContent = `${Number(input.speed.value).toFixed(1)} s`;
+  input.chorusColor.closest('.color-field').classList.toggle('disabled', !input.chorusOn.checked);
   input.showNumber.closest('.switch').classList.toggle('disabled', !input.showTitle.checked);
   input.outlineColor.closest('.color-field').classList.toggle('disabled', !input.outline.checked);
   // "Texto embaixo" só faz sentido na tela cheia
@@ -86,7 +91,10 @@ function gatherStyles() {
     fontSize: `${input.size.value}rem`,
     titleSize: `${input.titleSize.value}rem`,
     animationType: input.animation.value,
+    transitionTime: Number(input.speed.value),
     textColor: input.textColor.value,
+    chorusColor: input.chorusColor.value,
+    chorusColorOn: input.chorusOn.checked,
     accentColor: input.accentColor.value,
     outlineColor: input.outlineColor.value,
     showTitle: input.showTitle.checked,
@@ -106,7 +114,10 @@ function fillInputs(styles) {
   input.size.value = parseFloat(styles.fontSize) || 4.2;
   input.titleSize.value = parseFloat(styles.titleSize) || 1.25;
   input.animation.value = styles.animationType || 'fade';
+  input.speed.value = styles.transitionTime ?? 0.4;
   input.textColor.value = styles.textColor || '#ffffff';
+  input.chorusColor.value = styles.chorusColor || '#fde68a';
+  input.chorusOn.checked = styles.chorusColorOn === true;
   input.accentColor.value = styles.accentColor || '#93c5fd';
   input.outlineColor.value = styles.outlineColor || '#000000';
   input.showTitle.checked = styles.showTitle !== false;

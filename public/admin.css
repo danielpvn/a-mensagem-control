@@ -286,9 +286,37 @@ textarea { resize: vertical; min-height: 220px; line-height: 1.5; }
 
 input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; }
 
-fieldset { border: none; display: flex; flex-direction: column; gap: 12px; padding-top: 14px; border-top: 1px solid var(--border); }
-legend { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-3); padding-bottom: 10px; float: left; width: 100%; }
+/* Cada grupo de ajustes é uma caixa separada, com título claro; clicar no título fecha/abre */
+fieldset {
+  display: flex; flex-direction: column; gap: 12px;
+  margin: 0; padding: 0 14px 14px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  flex-shrink: 0;
+}
+legend {
+  float: left; width: 100%;
+  display: flex; align-items: center; gap: 9px;
+  padding: 12px 0 11px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.95rem; font-weight: 600; color: var(--text);
+  cursor: pointer; user-select: none;
+}
+legend::before { content: ''; width: 4px; height: 17px; border-radius: 2px; background: var(--accent); flex-shrink: 0; }
+legend::after {
+  content: ''; margin-left: auto; margin-right: 3px;
+  width: 7px; height: 7px; border-right: 2px solid var(--text-2); border-bottom: 2px solid var(--text-2);
+  transform: rotate(45deg) translateY(-2px); transition: transform 0.2s var(--ease);
+}
+legend:hover { color: #ffffff; }
+legend:hover::after { border-color: var(--text); }
+legend:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 fieldset > legend + * { clear: both; }
+fieldset.collapsed { padding-bottom: 0; }
+fieldset.collapsed > legend { border-bottom-color: transparent; }
+fieldset.collapsed > legend::after { transform: rotate(-45deg); }
+fieldset.collapsed > :not(legend) { display: none !important; }
 
 .color-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .color-field { display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 0.72rem; color: var(--text-2); cursor: pointer; transition: opacity 0.15s; }
@@ -1069,9 +1097,7 @@ fieldset > legend + * { clear: both; }
   pointer-events: none;
 }
 .media-preview .preview-tag.is-live { background: var(--live); }
-.zoom-bar { display: flex; align-items: center; gap: 8px; }
-.zoom-bar input[type="range"] { flex: 1; min-width: 80px; }
-.zoom-bar output { min-width: 3.2em; font-variant-numeric: tabular-nums; color: var(--text-2); font-size: 0.85rem; }
+.zoom-hint .btn { padding: 0 4px; vertical-align: baseline; }
 .btn-icon { width: 32px; padding: 6px 0; justify-content: center; font-size: 1.05rem; line-height: 1; }
 
 /* ---------- Pregador do dia ---------- */
@@ -1190,6 +1216,7 @@ fieldset > legend + * { clear: both; }
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     column-gap: 20px;
+    align-items: start;
     overflow: visible;
   }
   .appearance > .card-head, .appearance > p { grid-column: 1 / -1; }
@@ -1238,3 +1265,92 @@ fieldset > legend + * { clear: both; }
   }
   .btn-transport { padding: 16px 8px; font-size: 1rem; }
 }
+
+/* ---------- Lista do culto (hinos) ---------- */
+.hymn-view { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.count-pill { display: inline-block; min-width: 1.5em; margin-left: 4px; padding: 0 6px; border-radius: 99px; background: rgba(255, 255, 255, 0.18); font-size: 0.72rem; line-height: 1.5; }
+.segmented input:not(:checked) + span .count-pill { background: var(--accent-strong); color: #fff; }
+.hymn-item { position: relative; }
+.hymn-add {
+  flex-shrink: 0;
+  margin-left: auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  opacity: 0.55;
+}
+.hymn-item:hover .hymn-add, .hymn-item.focused .hymn-add { opacity: 1; }
+.hymn-add:hover { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+.hymn-add.added { opacity: 1; color: var(--accent); border-color: rgba(59, 130, 246, 0.45); }
+.hymn-add.added::before { content: '✓'; }
+.hymn-add.added { font-size: 0; }
+.hymn-add.added::before { font-size: 0.85rem; }
+.playlist-row { align-items: center; cursor: grab; }
+.playlist-row .btn-x { margin-left: auto; }
+.playlist-order { flex-shrink: 0; width: 18px; text-align: center; font-size: 0.78rem; font-weight: 700; color: var(--text-3); }
+.playlist-row.dragging, .media-tile.dragging { opacity: 0.4; }
+.drop-before { box-shadow: 0 -3px 0 var(--accent) !important; }
+.drop-after { box-shadow: 0 3px 0 var(--accent) !important; }
+.media-tile.drop-before { box-shadow: -4px 0 0 var(--accent) !important; }
+.media-tile.drop-after { box-shadow: 4px 0 0 var(--accent) !important; }
+
+/* ---------- Mídia: YouTube, ponto de início e vídeo no ar ---------- */
+.yt-form { position: relative; }
+.yt-form input { padding-left: 34px; }
+.yt-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: #f87171; pointer-events: none; }
+.media-badge.is-youtube { background: #dc2626; }
+.media-grid-hint { flex-shrink: 0; margin: -4px 0 0; text-align: center; }
+.media-tile { cursor: pointer; }
+.media-tile[draggable="true"]:active { cursor: grabbing; }
+
+/* Janela baixa: a parte do meio do cartão rola (título e botões Anterior/Exibir/Próximo ficam sempre à vista),
+   e a prévia nunca fica menor que 170px */
+.media-controls-card { min-height: 0; }
+.media-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; margin: 0 -6px; padding: 0 6px; }
+.media-scroll .media-preview-wrap { flex: 1 0 auto; }
+.media-scroll .media-preview-area { flex: 1 0 170px; min-height: 170px; }
+.media-preview .yt-wrap { position: relative; width: 100%; height: 100%; pointer-events: none; }
+.media-preview .yt-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+.media-cue { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: var(--radius); background: var(--field); border: 1px solid var(--border); }
+.cue-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.84rem; color: var(--text-2); }
+.cue-start { margin-right: auto; }
+.cue-start strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.video-progress .seek { flex: 1; min-width: 80px; }
+.video-progress .btn-icon { flex-shrink: 0; }
+.video-progress .btn-icon svg { width: 14px; height: 14px; }
+.switch-sm { gap: 6px; font-size: 0.78rem; flex-shrink: 0; }
+.switch-sm .switch-ui { width: 30px; height: 17px; }
+.switch-sm .switch-ui::after { width: 11px; height: 11px; }
+.switch-sm input:checked + .switch-ui::after { transform: translateX(13px); }
+.video-controls { gap: 10px; padding: 10px 12px; }
+.video-buttons .volume { width: 90px; flex: 0 1 90px; }
+.video-buttons output { font-size: 0.78rem; color: var(--text-2); min-width: 3em; font-variant-numeric: tabular-nums; }
+.video-buttons .switch { margin-left: auto; }
+.video-controls p { margin: 0; }
+
+/* Tocador escondido que faz o som sair neste computador (fora da tela, mas tocando) */
+.local-audio-host { position: fixed; left: -10000px; top: 0; width: 320px; height: 180px; overflow: hidden; pointer-events: none; }
+.local-audio-host video, .local-audio-host .yt-wrap, .local-audio-host iframe { width: 320px; height: 180px; }
+
+/* ---------- Aba Culto ---------- */
+.culto-side { overflow-y: auto; }
+.culto-side .lt-list { flex-shrink: 0; }
+.culto-reading { display: flex; flex-direction: column; gap: 12px; padding-top: 14px; border-top: 1px solid var(--border); flex-shrink: 0; }
+.culto-reading h3 {
+  margin: 0; display: flex; align-items: center; gap: 9px;
+  font-size: 0.95rem; font-weight: 600; color: var(--text); text-transform: none; letter-spacing: 0;
+}
+.culto-reading h3::before { content: ''; width: 4px; height: 17px; border-radius: 2px; background: var(--accent); }
+.preset-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.prayer-card { min-height: 0; }
+.prayer-card .field.grow { min-height: 0; }
+.prayer-card textarea { flex: 1; min-height: 90px; resize: none; font-size: 0.95rem; }
+.btn-prayer-toggle { width: 100%; padding: 13px; font-size: 0.98rem; }
+#prayer-summary { -webkit-line-clamp: 4; }

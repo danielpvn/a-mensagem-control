@@ -1,5 +1,5 @@
 // Ponto de entrada do painel do operador.
-import { $, setupTabs, selectTab, getActiveTab, isModalOpen } from './ui.js';
+import { $, setupTabs, selectTab, getActiveTab, isModalOpen, setupSections } from './ui.js';
 import * as ws from './ws.js';
 import { setupLive } from './live.js';
 import { setupMessage, messageControls, fetchSermons } from './message.js';
@@ -10,6 +10,8 @@ import { setupBible, bibleControls } from './bible.js';
 import { setupBibleAppearance } from './bible-appearance.js';
 import { setupMedia, mediaControls } from './media.js';
 import { setupLowerThird, toggleLowerThird } from './lowerthird.js';
+import { setupPrayer } from './prayer.js';
+import { setupReading } from './reading.js';
 import { setupAppearance } from './appearance.js';
 import { setupHymnAppearance } from './hymn-appearance.js';
 import { setupConfig } from './config.js';
@@ -108,8 +110,11 @@ setupBible();
 setupBibleAppearance();
 setupMedia();
 setupLowerThird();
+setupPrayer();
+setupReading();
 setupConfig();
 setupCloud();
 setupKeyboard();
 setupTabs();
+setupSections();
 ws.connect();

@@ -1,4 +1,5 @@
-// Nome do pregador (lower third): lista de pregadores, mostrar/esconder e aparência.
+// Nome do pregador (lower third), na aba Culto: lista de pregadores, leitura do culto
+// (vai embaixo do nome), mostrar/esconder e aparência.
 import { $, toast, confirmDialog } from './ui.js';
 import * as ws from './ws.js';
 
@@ -6,6 +7,8 @@ let preachers = [];
 let selectedId = null;
 let editingId = null;
 let lt = { visible: false, name: '', subtitle: '' };
+let reading = '';      // leitura do culto, guardada no servidor
+let readingTimer = null;
 
 try { selectedId = localStorage.getItem('amc.preacher'); } catch (e) { /* sem armazenamento */ }
 
@@ -47,11 +50,6 @@ function renderList() {
     const name = document.createElement('strong');
     name.textContent = p.name;
     text.appendChild(name);
-    if (p.subtitle) {
-      const sub = document.createElement('span');
-      sub.textContent = p.subtitle;
-      text.appendChild(sub);
-    }
 
     const edit = document.createElement('button');
     edit.type = 'button';
@@ -98,7 +96,6 @@ function openForm(preacher) {
   editingId = preacher ? preacher.id : null;
   const form = $('lt-form');
   $('lt-form-name').value = preacher ? preacher.name : '';
-  $('lt-form-subtitle').value = preacher ? preacher.subtitle : 'Tabernáculo da Fé · Luziânia';
   form.hidden = false;
   $('lt-form-name').focus();
 }
@@ -109,7 +106,7 @@ function setupForm() {
   $('btn-lt-cancel').onclick = () => { form.hidden = true; };
   form.onsubmit = async (e) => {
     e.preventDefault();
-    const body = { name: $('lt-form-name').value, subtitle: $('lt-form-subtitle').value };
+    const body = { name: $('lt-form-name').value, subtitle: '' };
     const res = await fetch(editingId ? `/api/preachers/${editingId}` : '/api/preachers', {
       method: editingId ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -133,8 +130,22 @@ export function toggleLowerThird() {
     return;
   }
   const p = selected();
-  if (p) ws.send('lt-show', { name: p.name, subtitle: p.subtitle });
-  else toast('Cadastre e escolha o pregador na aba Mídia.', 'error');
+  if (p) ws.send('lt-show', { name: p.name, subtitle: currentReading() });
+  else toast('Cadastre e escolha o pregador na aba Culto.', 'error');
+}
+
+// O que está digitado agora (pode ainda não ter chegado ao servidor)
+const currentReading = () => $('service-reading').value.trim();
+
+function setupReading() {
+  const input = $('service-reading');
+  input.addEventListener('input', () => {
+    clearTimeout(readingTimer);
+    readingTimer = setTimeout(() => ws.send('service-reading', { text: input.value }), 400);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') input.blur();
+  });
 }
 
 // ---------- Aparência ----------
@@ -198,6 +209,11 @@ function sendStyles() {
 export function setupLowerThird() {
   const onState = (state) => {
     lt = state.lowerThird || lt;
+    // A leitura pode ter sido trocada em outro aparelho
+    if (state.serviceReading !== undefined && state.serviceReading !== reading) {
+      reading = state.serviceReading;
+      if (document.activeElement !== $('service-reading')) $('service-reading').value = reading;
+    }
     renderList();
   };
   ws.on('init', (state) => { onState(state); fillStyles(state.lowerThirdStyles); });
@@ -213,7 +229,7 @@ export function setupLowerThird() {
       toast('Cadastre e escolha um pregador primeiro.', 'error');
       return;
     }
-    if (!lt.visible) ws.send('lt-show', { name: p.name, subtitle: p.subtitle });
+    if (!lt.visible) ws.send('lt-show', { name: p.name, subtitle: currentReading() });
     setTimeout(() => ws.send('lt-hide'), 2500);
   };
   $('btn-lt-reset').onclick = () => ws.send('reset-lt-styles');
@@ -221,5 +237,6 @@ export function setupLowerThird() {
   $('lt-chip').onclick = () => ws.send('lt-hide');
 
   setupForm();
+  setupReading();
   loadPreachers();
 }

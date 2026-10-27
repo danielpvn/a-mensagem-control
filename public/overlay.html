@@ -8,7 +8,7 @@
   <!-- Fontes locais (funcionam sem internet) -->
   <link rel="stylesheet" href="fonts.css">
   
-  <link rel="stylesheet" href="overlay.css?v=1.4.0">
+  <link rel="stylesheet" href="overlay.css?v=2.1.1">
 </head>
 <body>
   <div id="overlay-container" class="overlay-container">
@@ -41,6 +41,72 @@
     <div id="media-slot-b" class="media-slot"></div>
   </div>
 
+  <!-- Pedidos de oração (tela cheia com os nomes) -->
+  <div id="prayer-layer" class="prayer-layer hidden">
+    <div class="prayer-frame">
+      <div class="prayer-head">
+        <div id="prayer-title" class="prayer-title"></div>
+        <div class="prayer-stripes"><i></i><i></i><i></i></div>
+      </div>
+      <div id="prayer-names" class="prayer-names"></div>
+    </div>
+  </div>
+
+  <!-- Anúncio da leitura bíblica: Bíblia aberta com a faixa da passagem -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <linearGradient id="rd-lea" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5c2c17"/><stop offset=".55" stop-color="#3a1a0c"/><stop offset="1" stop-color="#1e0d06"/></linearGradient>
+    <linearGradient id="rd-pap" x1="0" x2="1"><stop offset="0" stop-color="#e9dcc0"/><stop offset=".1" stop-color="#fbf6ea"/><stop offset=".72" stop-color="#f6eedb"/><stop offset=".9" stop-color="#e0d0ad"/><stop offset="1" stop-color="#b09c74"/></linearGradient>
+    <linearGradient id="rd-sheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#8a7550" stop-opacity=".18"/></linearGradient>
+    <linearGradient id="rd-gilt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff0b8"/><stop offset=".45" stop-color="#e2b043"/><stop offset="1" stop-color="#7d5511"/></linearGradient>
+    <linearGradient id="rd-giltH" x1="0" x2="1"><stop offset="0" stop-color="#7d5511"/><stop offset=".5" stop-color="#e2b043"/><stop offset="1" stop-color="#fff0b8"/></linearGradient>
+    <linearGradient id="rd-ribR" x1="0" x2="1"><stop offset="0" stop-color="#6e100c"/><stop offset=".45" stop-color="#d8443a"/><stop offset="1" stop-color="#6e100c"/></linearGradient>
+    <linearGradient id="rd-ribG" x1="0" x2="1"><stop offset="0" stop-color="#8a6116"/><stop offset=".45" stop-color="#f6d27a"/><stop offset="1" stop-color="#8a6116"/></linearGradient>
+    <linearGradient id="rd-ribB" x1="0" x2="1"><stop offset="0" stop-color="#0f2142"/><stop offset=".45" stop-color="#3d64a8"/><stop offset="1" stop-color="#0f2142"/></linearGradient>
+    <symbol id="rd-half" viewBox="0 0 120 160">
+      <path d="M10 9Q60 -1 120 13L120 154Q62 139 5 158L0 18Z" fill="url(#rd-lea)"/>
+      <path d="M6 22L10 150Q62 134 118 147" fill="none" stroke="#9a6a35" stroke-width=".7" stroke-dasharray="2.2 1.8" opacity=".8"/>
+      <path d="M14 12L14 128L9 145L8 21Z" fill="url(#rd-giltH)"/>
+      <path d="M14 128Q66 114 120 126L120 143Q64 128 9 145Z" fill="url(#rd-gilt)"/>
+      <g fill="none" stroke="#8a6116" stroke-width=".35" opacity=".7"><path d="M13 132Q66 118 120 130"/><path d="M12 136Q65 122 120 134"/><path d="M11 140Q64 125 120 138"/></g>
+      <path d="M14 12Q64 2 120 18L120 126Q66 114 14 128Z" fill="url(#rd-pap)"/>
+      <path d="M14 12Q64 2 120 18L120 126Q66 114 14 128Z" fill="url(#rd-sheen)"/>
+      <path d="M14 12Q64 2 120 18" fill="none" stroke="#d8c9a6" stroke-width=".6"/>
+      <g id="rd-lines"></g>
+      <path d="M112 16L120 18L120 126L112 124Z" fill="#8a7550" opacity=".18"/>
+    </symbol>
+  </defs></svg>
+  <div id="reading-layer" class="reading-layer look-bible3d hidden">
+    <div class="rd-wrap">
+      <div class="rd-scene"><div class="rd-float"><div class="rd-book">
+        <div class="rd-shadow"></div>
+        <div class="rd-half"></div>
+        <div class="rd-half"><svg viewBox="0 0 120 160"><use href="#rd-half" width="120" height="160" transform="translate(120,0) scale(-1,1)"/></svg></div>
+        <div class="rd-cover">
+          <div class="rd-face"><svg viewBox="0 0 120 160">
+            <path d="M0 9L110 7Q119 7 119 16L119 151Q119 158 110 158L0 158Z" fill="url(#rd-lea)"/>
+            <rect x="0" y="9" width="9" height="149" fill="#1e0d06" opacity=".55"/>
+            <path d="M14 15H106Q112 15 112 21V145Q112 151 106 151H14" fill="none" stroke="#9a6a35" stroke-width=".7" stroke-dasharray="2.2 1.8" opacity=".8"/>
+            <path d="M63 46V114M46 68H80" stroke="url(#rd-giltH)" stroke-width="5.5" stroke-linecap="round"/>
+          </svg></div>
+          <div class="rd-face rd-inside"><svg viewBox="0 0 120 160"><use href="#rd-half" width="120" height="160"/></svg></div>
+        </div>
+        <span class="rd-rib r1"><svg viewBox="0 0 7 34" preserveAspectRatio="none"><path d="M0 0H7V34L3.5 29L0 34Z" fill="url(#rd-ribR)"/></svg></span>
+        <span class="rd-rib r2"><svg viewBox="0 0 7 44" preserveAspectRatio="none"><path d="M0 0H7V44L3.5 39L0 44Z" fill="url(#rd-ribG)"/></svg></span>
+        <span class="rd-rib r3"><svg viewBox="0 0 7 28" preserveAspectRatio="none"><path d="M0 0H7V28L3.5 23L0 28Z" fill="url(#rd-ribB)"/></svg></span>
+      </div></div></div>
+      <div class="rd-band-clip"><div class="rd-band"><div id="reading-text" class="rd-text"></div></div></div>
+    </div>
+    <!-- Outros estilos (cartão escuro, faixa clara, só texto e linha) -->
+    <div class="rd-flat">
+      <div class="rd-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5C5.5 4.2 8.8 4.2 12 6.2c3.2-2 6.5-2 9-.7V19c-2.5-1.3-5.8-1.3-9 .7-3.2-2-6.5-2-9-.7Z"/><path d="M12 6.2V19.7"/></svg></div>
+      <div class="rd-sep"></div>
+      <div class="rd-words">
+        <div id="reading-label" class="rd-label"></div>
+        <div id="reading-ref" class="rd-ref"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Nome do pregador -->
   <div id="lt-layer" class="lt-layer pos-bottom-left look-modern lt-anim-slide hidden">
     <div class="lt-box">
@@ -49,6 +115,6 @@
     </div>
   </div>
 
-  <script type="module" src="overlay.js?v=1.4.0"></script>
+  <script type="module" src="overlay.js?v=2.1.1"></script>
 </body>
 </html>
