@@ -171,10 +171,24 @@ body, html {
   padding: 14px 40px 16px;
   border-radius: 14px;
   border-left: 5px solid #93c5fd;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(12px);
+  /* Sombra e desfoque acompanham a transparência da faixa */
+  box-shadow: 0 20px 40px rgba(0, 0, 0, calc(0.45 * var(--band-opacity, 1)));
+  backdrop-filter: blur(calc(12px * var(--band-opacity, 1)));
   gap: 4px;
+  position: relative;
+  isolation: isolate;
 }
+.layout-lower .screen-box::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--band-bg);
+  background-size: var(--band-size, auto);
+  opacity: var(--band-opacity, 1);
+}
+.layout-lower .screen-box.band-animated::before { animation: bg-drift 28s ease-in-out infinite alternate; }
 
 /* Degradê com movimento suave (bem lento, para não distrair) */
 .bg-animated {
@@ -573,7 +587,7 @@ body, html {
 /* Outros estilos do anúncio: cartão escuro, faixa clara, só texto e linha */
 .rd-flat { display: none; align-items: center; gap: 1.4em; }
 .reading-layer:not(.look-bible3d) .rd-wrap { display: none; }
-.reading-layer:not(.look-bible3d) .rd-flat { display: flex; }
+.look-card .rd-flat, .look-light .rd-flat, .look-line .rd-flat { display: flex; }
 .rd-icon { color: var(--rd-border); display: flex; align-items: center; }
 .rd-icon svg { width: 3.4em; height: 3.4em; display: block; }
 .rd-sep { width: 0.12em; align-self: stretch; background: var(--rd-border); opacity: 0.5; }
@@ -619,3 +633,50 @@ body, html {
 }
 @keyframes rd-words-in { from { opacity: 0; transform: translateX(-1em); } to { opacity: 1; transform: none; } }
 @keyframes rd-words-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(-1em); } }
+
+/* Faixa com a Bíblia e a luz: a imagem ocupa a parte de baixo da tela; a passagem vai na faixa azul */
+.rd-photo { display: none; position: fixed; left: 0; right: 0; bottom: 0; aspect-ratio: 1920 / 432; }
+.look-photo .rd-photo { display: block; }
+.rd-photo img { width: 100%; height: 100%; display: block; }
+.rd-photo-text {
+  position: absolute; left: 47%; right: 2%; top: 36.1%; height: 45.6%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.35vw;
+  text-align: center;
+}
+.rd-photo-label { color: var(--rd-border); font-family: Montserrat, sans-serif; font-weight: 700; font-size: calc(1vw * var(--rd-scale)); letter-spacing: 0.35em; text-transform: uppercase; }
+.rd-photo-ref { color: var(--rd-text); font-weight: 700; font-size: calc(3.9vw * var(--rd-scale)); line-height: 1.1; white-space: nowrap; text-shadow: 0 0.06em 0.25em rgba(0, 0, 0, 0.55); }
+.rd-label-any:empty { display: none; }
+
+/* Tela cheia: foto da Bíblia com os raios; a passagem fica na parte escura, à direita */
+.rd-fullscreen { display: none; position: fixed; inset: 0; overflow: hidden; }
+.look-full .rd-fullscreen { display: block; }
+.rd-full-bg { position: absolute; inset: 0; background: #120a05 url("img/leitura-tela.jpg") center / cover no-repeat; }
+.rd-full-text {
+  position: absolute; left: 50%; right: 4%; top: 38%; bottom: 20%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.2vw;
+  text-align: center;
+}
+.rd-full-label { color: var(--rd-border); font-family: Montserrat, sans-serif; font-weight: 700; font-size: calc(1.45vw * var(--rd-scale)); letter-spacing: 0.4em; text-transform: uppercase; text-shadow: 0 0.1em 0.4em rgba(0, 0, 0, 0.8); }
+.rd-full-ref { color: var(--rd-text); font-weight: 700; font-size: calc(5.6vw * var(--rd-scale)); line-height: 1.1; white-space: nowrap; text-shadow: 0 0.05em 0.3em rgba(0, 0, 0, 0.85), 0 0 1.2em rgba(0, 0, 0, 0.6); }
+.rd-full-line { width: 26%; height: 0.22vw; border-radius: 1em; background: var(--rd-border); box-shadow: 0 0 1vw var(--rd-border); }
+
+/* Entrada da faixa com foto: abre da luz para a direita (luz, Bíblia e depois a faixa); o texto vem por último */
+.reading-layer.show .rd-photo img { animation: rd-wipe-in 1.3s cubic-bezier(.45, .05, .25, 1) both; }
+.reading-layer.show .rd-photo-text { animation: rd-text-in .7s 1s ease-out both; }
+.reading-layer.leaving .rd-photo-text { animation: rd-text-out .35s ease-in both; }
+.reading-layer.leaving .rd-photo img { animation: rd-wipe-out .9s .25s cubic-bezier(.6, 0, .4, 1) both; }
+@keyframes rd-wipe-in { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes rd-wipe-out { from { clip-path: inset(0 0 0 0); } to { clip-path: inset(0 100% 0 0); } }
+@keyframes rd-text-in { from { opacity: 0; transform: translateY(0.8vw); } to { opacity: 1; transform: none; } }
+@keyframes rd-text-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(0.8vw); } }
+
+/* Tela cheia: a foto acende devagar com uma aproximação bem leve; o texto sobe depois */
+.reading-layer.show .rd-full-bg { animation: rd-bg-in 1s ease-out both, rd-bg-zoom 14s ease-out both; }
+.reading-layer.show .rd-full-text { animation: rd-text-in .8s .6s ease-out both; }
+.reading-layer.show .rd-full-line { animation: rd-line-in .7s 1.1s ease-out both; }
+.reading-layer.leaving .rd-full-text { animation: rd-text-out .4s ease-in both; }
+.reading-layer.leaving .rd-fullscreen { animation: rd-fade-out .8s .3s ease-in both; }
+@keyframes rd-bg-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rd-bg-zoom { from { transform: scale(1.08); } to { transform: scale(1); } }
+@keyframes rd-line-in { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes rd-fade-out { from { opacity: 1; } to { opacity: 0; } }

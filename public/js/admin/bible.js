@@ -278,7 +278,8 @@ function renderChapter() {
         row.type = 'button';
         row.className = 'p-row';
         row.dataset.index = index;
-        row.onclick = () => ws.send('bible-show', { index });
+        // Clicar só prepara; quem põe no ar é o Exibir (ou o Próximo)
+        row.onclick = () => ws.send('bible-cue', { index });
         const num = document.createElement('span');
         num.className = 'p-num';
         num.textContent = verseLabel(slide);
@@ -293,30 +294,34 @@ function renderChapter() {
     }
   }
 
+  const cue = b.cue ?? -1;
   let current = null;
   el.verses.querySelectorAll('.p-row').forEach(row => {
-    const isCurrent = Number(row.dataset.index) === b.slideIndex;
+    const index = Number(row.dataset.index);
+    const isCurrent = index === b.slideIndex;
     row.classList.toggle('live', isCurrent && !b.isCleared);
-    row.classList.toggle('armed', isCurrent && b.isCleared && b.armed);
+    row.classList.toggle('armed', (isCurrent && b.isCleared && b.armed) || index === cue);
     row.classList.toggle('held', isCurrent && b.isCleared && !b.armed);
-    if (isCurrent) current = row;
+    if (index === (cue !== -1 ? cue : b.slideIndex)) current = row;
   });
   if (current) current.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
   // Transporte e "próximo"
-  const isLive = has && !b.isCleared && b.slideIndex !== -1;
+  const onAir = !b.isCleared;  // algum versículo na tela (pode ser de outro capítulo)
   const atStart = b.slideIndex === -1;
   const atEnd = b.slideIndex >= b.slides.length - 1 && b.chapter >= b.chapters;
+  // Com algo preparado, o botão põe no ar; sem, alterna o que está na tela
+  const willHide = onAir && cue === -1;
   el.btnPrev.disabled = !has || (b.slideIndex <= 0 && b.chapter <= 1);
-  el.btnNext.disabled = !has || (!b.armed && !atStart && atEnd);
-  el.btnToggle.disabled = !has || atStart;
-  el.btnToggleLabel.textContent = isLive ? 'Ocultar' : 'Exibir';
-  el.btnToggle.classList.toggle('is-live', isLive);
+  el.btnNext.disabled = !has || (cue === -1 && !b.armed && !atStart && atEnd);
+  el.btnToggle.disabled = !onAir && cue === -1 && (!has || atStart);
+  el.btnToggleLabel.textContent = willHide ? 'Ocultar' : 'Exibir';
+  el.btnToggle.classList.toggle('is-live', willHide);
 
   let next = null;
   let nextName = '';
   if (has) {
-    next = b.armed || atStart ? b.slides[Math.max(0, b.slideIndex)] : b.slides[b.slideIndex + 1];
+    next = cue !== -1 ? b.slides[cue] : b.armed || atStart ? b.slides[Math.max(0, b.slideIndex)] : b.slides[b.slideIndex + 1];
     if (next) nextName = `${b.bookName} ${b.chapter}:${verseLabel(next)}`;
     else if (b.chapter < b.chapters) nextName = `${b.bookName} ${b.chapter + 1}:1`;
   }

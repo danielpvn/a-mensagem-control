@@ -88,6 +88,13 @@ export function setupTabs() {
   if (saved && document.querySelector(`.tab[data-tab="${saved}"]`)) selectTab(saved);
 }
 
+// Toca uma animação só nas prévias do painel (o overlay dentro do iframe); nunca chega no OBS
+export function previewInPanel(message) {
+  document.querySelectorAll('[data-stage] iframe').forEach(frame => {
+    if (frame.contentWindow) frame.contentWindow.postMessage(message, window.location.origin);
+  });
+}
+
 // Grupos de ajustes (fieldset): clicar no título fecha/abre; lembra o que ficou fechado
 export function setupSections() {
   let closed = [];

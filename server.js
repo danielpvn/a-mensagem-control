@@ -17,9 +17,10 @@ const sync = require('./src/sync');
 bible.autoImport();
 backgrounds.autoImport();
 const updater = require('./src/updater');
+const tfSermons = require('./src/tf-sermons');
 const { createDesktopShortcut } = require('./src/shortcut');
 
-const CURRENT_VERSION = '2.1.0-beta.1';
+const CURRENT_VERSION = '2.1.0-beta.2';
 const PORT = process.env.PORT || 3000;
 
 const app = express();
@@ -145,13 +146,15 @@ const DEFAULT_LT_STYLES = {
 
 // Anúncio da leitura bíblica (Bíblia aberta com a faixa da passagem, embaixo no meio)
 const DEFAULT_READING_STYLES = {
-  look: 'bible3d',               // 'bible3d' (Bíblia 3D com faixa), 'card' (cartão escuro), 'light' (faixa clara), 'line' (só texto e linha)
+  // 'photo' (faixa com a Bíblia e a luz), 'full' (tela cheia com a Bíblia), 'bible3d' (Bíblia 3D com faixa),
+  // 'card' (cartão escuro), 'light' (faixa clara), 'line' (só texto e linha)
+  look: 'photo',
   label: 'LEITURA BÍBLICA',      // texto pequeno em cima da passagem (não aparece na Bíblia 3D)
-  fontFamily: "'Crimson Pro', serif",
-  scale: 1,                      // tamanho do conjunto (Bíblia e faixa)
+  fontFamily: 'Montserrat, sans-serif',
+  scale: 1,                      // tamanho do conjunto
   textColor: '#ffffff',          // passagem
-  bandColor: '#11151c',          // faixa / fundo
-  borderColor: '#c99a2e',        // borda, ícone e texto de cima
+  bandColor: '#11151c',          // faixa / fundo (nos estilos que têm)
+  borderColor: '#9cc7ff',        // borda, ícone, linha e texto de cima
   autoHide: 0                   // segundos; 0 = só esconde quando o operador mandar
 };
 
@@ -187,6 +190,10 @@ let globalState = {
   isCleared: true,
   // "Armado": parágrafo posicionado mas oculto; o próximo "avançar" exibe ele em vez de pular
   armed: false,
+  // Clicar num parágrafo só prepara: com a Mensagem no ar, o escolhido fica em "cue" até o Exibir
+  cue: -1,
+  // O que está no ar de verdade (fica igual enquanto o operador navega por outra mensagem)
+  messageAir: null,
   styles: { ...DEFAULT_MESSAGE_STYLES, ...db.getSetting('styles.message', {}) },
 
   // Qual camada o passador controla: a última que foi para o ar ('message' ou 'hymn')
@@ -198,7 +205,9 @@ let globalState = {
     slides: [],
     slideIndex: -1,
     isCleared: true,
-    armed: false
+    armed: false,
+    cue: -1,
+    air: null
   },
   hymnStyles: loadScreenStyles('styles.hymn', DEFAULT_HYMN_STYLES),
   // Lista de hinos que vão ser cantados no culto (na ordem)
@@ -213,7 +222,9 @@ let globalState = {
     slides: [],
     slideIndex: -1,
     isCleared: true,
-    armed: false
+    armed: false,
+    cue: -1,
+    air: null
   },
   bibleStyles: loadScreenStyles('styles.bible', DEFAULT_BIBLE_STYLES),
 
@@ -271,6 +282,8 @@ function resetParagraphState() {
   globalState.currentParagraphNumber = null;
   globalState.isCleared = true;
   globalState.armed = false;
+  globalState.cue = -1;
+  globalState.messageAir = null;
 }
 
 function loadSermonOnServer(id) {
@@ -280,7 +293,14 @@ function loadSermonOnServer(id) {
   globalState.activeSermonTitle = sermon ? sermon.title : '';
   globalState.activeSermonDate = sermon ? sermon.date : '';
   globalState.paragraphCount = activeSermonParagraphs.length;
-  resetParagraphState();
+  if (globalState.isCleared) {
+    resetParagraphState();
+  } else {
+    // A Mensagem no ar continua na tela até o operador exibir outra coisa
+    globalState.currentParagraphIndex = -1;
+    globalState.armed = false;
+    globalState.cue = -1;
+  }
   broadcastContent();
 }
 
@@ -295,16 +315,22 @@ function positionParagraph(index) {
 function hideHymn() {
   globalState.hymn.isCleared = true;
   globalState.hymn.armed = false;
+  globalState.hymn.cue = -1;
+  globalState.hymn.air = null;
 }
 
 function hideMessage() {
   globalState.isCleared = true;
   globalState.armed = false;
+  globalState.cue = -1;
+  globalState.messageAir = null;
 }
 
 function hideBible() {
   globalState.bible.isCleared = true;
   globalState.bible.armed = false;
+  globalState.bible.cue = -1;
+  globalState.bible.air = null;
 }
 
 function hideMedia() {
@@ -326,6 +352,12 @@ function setParagraphOnServer(index) {
   globalState.activeLayer = 'message';
   globalState.isCleared = false;
   globalState.armed = false;
+  globalState.cue = -1;
+  globalState.messageAir = {
+    title: globalState.activeSermonTitle,
+    number: globalState.currentParagraphNumber,
+    text: globalState.currentParagraphText
+  };
   db.saveProgress(globalState.activeSermonId, index, globalState.currentParagraphNumber);
   broadcastContent();
 }
@@ -339,8 +371,26 @@ function armParagraphOnServer(index) {
   broadcastContent();
 }
 
+// Clique num parágrafo: só prepara. Sem nada no ar, fica "pronto"; com a Mensagem no ar,
+// o que está na tela continua e o escolhido espera o Exibir (ou o Próximo)
+function cueParagraphOnServer(index) {
+  if (index < 0 || index >= activeSermonParagraphs.length) return;
+  if (globalState.isCleared) {
+    positionParagraph(index);
+    globalState.armed = true;
+    globalState.cue = -1;
+  } else {
+    globalState.cue = index === globalState.currentParagraphIndex ? -1 : index;
+  }
+  broadcastContent();
+}
+
 function nextParagraph() {
   if (activeSermonParagraphs.length === 0) return;
+  if (globalState.cue !== -1) {
+    setParagraphOnServer(globalState.cue);
+    return;
+  }
   if (globalState.armed) {
     setParagraphOnServer(globalState.currentParagraphIndex);
     return;
@@ -359,13 +409,15 @@ function prevParagraph() {
   }
 }
 
+// Exibir/Ocultar: o preparado entra no ar; sem preparado, alterna o que está na tela
 function toggleClearOnServer() {
-  if (globalState.currentParagraphIndex === -1) return;
-  if (globalState.isCleared) {
-    setParagraphOnServer(globalState.currentParagraphIndex);
-  } else {
-    globalState.isCleared = true;
+  if (globalState.cue !== -1) {
+    setParagraphOnServer(globalState.cue);
+  } else if (!globalState.isCleared) {
+    hideMessage();
     broadcastContent();
+  } else if (globalState.currentParagraphIndex !== -1) {
+    setParagraphOnServer(globalState.currentParagraphIndex);
   }
 }
 
@@ -387,7 +439,10 @@ function hymnSlidesFor(id) {
   return hymns.getHymnSlides(id, Number(globalState.hymnStyles.linesPerSlide) || 4);
 }
 
+// Abrir outro hino não mexe na tela: o que está no ar (air) continua até o Exibir
 function setHymnState(hymn, slideIndex = -1) {
+  const previous = globalState.hymn;
+  const live = previous && !previous.isCleared && previous.air;
   globalState.hymn = {
     id: hymn ? hymn.id : null,
     number: hymn ? hymn.number : null,
@@ -395,8 +450,10 @@ function setHymnState(hymn, slideIndex = -1) {
     collection: hymn ? hymn.collection : null,
     slides: hymn ? hymn.slides : [],
     slideIndex,
-    isCleared: true,
-    armed: false
+    isCleared: !live,
+    armed: false,
+    cue: -1,
+    air: live ? previous.air : null
   };
 }
 
@@ -408,8 +465,12 @@ function selectHymnOnServer(id, match) {
     const line = Number(match.lineIndex) || 0;
     const index = hymn.slides.findIndex(s => s.sectionIndex === match.sectionIndex && line >= s.firstLine && line < s.firstLine + s.lineCount);
     if (index !== -1) {
-      globalState.hymn.slideIndex = index;
-      globalState.hymn.armed = true;
+      if (globalState.hymn.isCleared) {
+        globalState.hymn.slideIndex = index;
+        globalState.hymn.armed = true;
+      } else {
+        globalState.hymn.cue = index;
+      }
     }
   }
   broadcastContent();
@@ -421,6 +482,8 @@ function showHymnSlide(index) {
   hymn.slideIndex = index;
   hymn.isCleared = false;
   hymn.armed = false;
+  hymn.cue = -1;
+  hymn.air = { id: hymn.id, number: hymn.number, title: hymn.title, collection: hymn.collection, slide: hymn.slides[index] };
   hideMessage();
   hideBible();
   hideMedia();
@@ -429,9 +492,27 @@ function showHymnSlide(index) {
   broadcastContent();
 }
 
+// Clique numa tela do hino: só prepara (mesma regra dos parágrafos)
+function cueHymnSlide(index) {
+  const hymn = globalState.hymn;
+  if (index < 0 || index >= hymn.slides.length) return;
+  if (hymn.isCleared) {
+    hymn.slideIndex = index;
+    hymn.armed = true;
+    hymn.cue = -1;
+  } else {
+    hymn.cue = index === hymn.slideIndex ? -1 : index;
+  }
+  broadcastContent();
+}
+
 function nextHymnSlide() {
   const hymn = globalState.hymn;
   if (hymn.slides.length === 0) return;
+  if (hymn.cue !== -1) {
+    showHymnSlide(hymn.cue);
+    return;
+  }
   if (hymn.armed || hymn.slideIndex === -1) {
     showHymnSlide(Math.max(0, hymn.slideIndex));
     return;
@@ -446,12 +527,13 @@ function prevHymnSlide() {
 
 function toggleHymn() {
   const hymn = globalState.hymn;
-  if (hymn.slideIndex === -1) return;
-  if (hymn.isCleared) {
-    showHymnSlide(hymn.slideIndex);
-  } else {
+  if (hymn.cue !== -1) {
+    showHymnSlide(hymn.cue);
+  } else if (!hymn.isCleared) {
     hideHymn();
     broadcastContent();
+  } else if (hymn.slideIndex !== -1) {
+    showHymnSlide(hymn.slideIndex);
   }
 }
 
@@ -527,15 +609,21 @@ function bibleSlides(chapter) {
 function loadBibleChapter(book, chapterNumber) {
   const chapter = bible.getChapter(book, chapterNumber);
   if (!chapter) return false;
+  // Abrir outro capítulo não mexe na tela: o versículo no ar (air) continua até o Exibir
+  const previous = globalState.bible;
+  const live = !previous.isCleared && previous.air;
+  const same = previous.book === book && previous.chapter === chapterNumber;
   globalState.bible = {
     book,
     bookName: chapter.bookName,
     chapter: chapterNumber,
     chapters: chapter.chapters,
     slides: bibleSlides(chapter),
-    slideIndex: -1,
-    isCleared: true,
-    armed: false
+    slideIndex: live && same ? previous.slideIndex : -1,
+    isCleared: !live,
+    armed: false,
+    cue: -1,
+    air: live ? previous.air : null
   };
   return true;
 }
@@ -543,10 +631,15 @@ function loadBibleChapter(book, chapterNumber) {
 function selectBibleOnServer(book, chapter, verse) {
   if (!loadBibleChapter(Number(book), Number(chapter))) return;
   if (verse) {
-    const index = globalState.bible.slides.findIndex(s => s.verse === Number(verse));
+    const b = globalState.bible;
+    const index = b.slides.findIndex(s => s.verse === Number(verse));
     if (index !== -1) {
-      globalState.bible.slideIndex = index;
-      globalState.bible.armed = true;
+      if (b.isCleared) {
+        b.slideIndex = index;
+        b.armed = true;
+      } else if (index !== b.slideIndex) {
+        b.cue = index;
+      }
     }
   }
   broadcastContent();
@@ -558,6 +651,8 @@ function showBibleSlide(index) {
   b.slideIndex = index;
   b.isCleared = false;
   b.armed = false;
+  b.cue = -1;
+  b.air = { book: b.book, bookName: b.bookName, chapter: b.chapter, slide: b.slides[index] };
   hideMessage();
   hideHymn();
   hideMedia();
@@ -567,9 +662,27 @@ function showBibleSlide(index) {
 }
 
 // No fim do capítulo, segue para o próximo (o pastor pode ler um trecho que atravessa capítulos)
+// Clique num versículo: só prepara (mesma regra dos parágrafos)
+function cueBibleSlide(index) {
+  const b = globalState.bible;
+  if (index < 0 || index >= b.slides.length) return;
+  if (b.isCleared) {
+    b.slideIndex = index;
+    b.armed = true;
+    b.cue = -1;
+  } else {
+    b.cue = index === b.slideIndex ? -1 : index;
+  }
+  broadcastContent();
+}
+
 function nextBibleSlide() {
   const b = globalState.bible;
   if (b.slides.length === 0) return;
+  if (b.cue !== -1) {
+    showBibleSlide(b.cue);
+    return;
+  }
   if (b.armed || b.slideIndex === -1) {
     showBibleSlide(Math.max(0, b.slideIndex));
   } else if (b.slideIndex + 1 < b.slides.length) {
@@ -590,12 +703,13 @@ function prevBibleSlide() {
 
 function toggleBible() {
   const b = globalState.bible;
-  if (b.slideIndex === -1) return;
-  if (b.isCleared) {
-    showBibleSlide(b.slideIndex);
-  } else {
+  if (b.cue !== -1) {
+    showBibleSlide(b.cue);
+  } else if (!b.isCleared) {
     hideBible();
     broadcastContent();
+  } else if (b.slideIndex !== -1) {
+    showBibleSlide(b.slideIndex);
   }
 }
 
@@ -868,7 +982,12 @@ function hideReading(broadcastNow = true) {
   if (broadcastNow) broadcastContent();
 }
 
-function showReading() {
+// Da aba Bíblia vem a passagem escolhida (vira também a leitura do culto, embaixo do nome do pregador)
+function showReading(text) {
+  if (text !== undefined && String(text).trim()) {
+    globalState.serviceReading = String(text).trim().slice(0, 80);
+    db.setSetting('serviceReading', globalState.serviceReading);
+  }
   if (!globalState.serviceReading) return;
   clearTimeout(readingTimer);
   hideLowerThird(false);
@@ -1019,6 +1138,9 @@ wss.on('connection', (ws, req) => {
         case 'arm-paragraph':
           armParagraphOnServer(payload.index);
           break;
+        case 'cue-paragraph':
+          cueParagraphOnServer(payload.index);
+          break;
         case 'next':
           next(payload.mode);
           break;
@@ -1034,6 +1156,9 @@ wss.on('connection', (ws, req) => {
         case 'hymn-show':
           showHymnSlide(payload.index);
           break;
+        case 'hymn-cue':
+          cueHymnSlide(payload.index);
+          break;
         case 'hymn-playlist':
           setHymnPlaylist(payload.items);
           break;
@@ -1048,6 +1173,9 @@ wss.on('connection', (ws, req) => {
           break;
         case 'bible-show':
           showBibleSlide(payload.index);
+          break;
+        case 'bible-cue':
+          cueBibleSlide(payload.index);
           break;
         case 'update-bible-styles':
           updateBibleStyles(payload);
@@ -1101,7 +1229,7 @@ wss.on('connection', (ws, req) => {
           setServiceReading(payload.text);
           break;
         case 'reading-show':
-          showReading();
+          showReading(payload.text);
           break;
         case 'reading-hide':
           hideReading();
@@ -1167,6 +1295,28 @@ app.get('/api/info', (req, res) => {
 });
 
 // API: Listar sermões disponíveis
+// Baixa todas as mensagens do site do Tabernáculo da Fé e troca as do app (o andamento vai pelo WebSocket)
+app.post('/api/sermons/import-site', (req, res) => {
+  if (tfSermons.isRunning()) return res.status(409).json({ error: 'A importação já está em andamento.' });
+  res.status(202).json({ started: true });
+  let last = 0;
+  tfSermons.importFromSite({
+    onProgress: (p) => {
+      // Não precisa avisar o painel a cada mensagem: no máximo umas 4 vezes por segundo
+      const now = Date.now();
+      if (now - last > 250 || p.done === p.total) {
+        last = now;
+        broadcast('site-import', { status: 'running', ...p });
+      }
+    }
+  }).then(result => {
+    broadcast('site-import', { status: 'done', result });
+    broadcast('library-changed', { sermons: result.imported, hymns: 0, backgrounds: 0 });
+  }).catch(err => {
+    broadcast('site-import', { status: 'error', message: err.message });
+  });
+});
+
 app.get('/api/sermons', (req, res) => {
   try {
     res.json(db.listSermons());

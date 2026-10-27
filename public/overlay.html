@@ -8,7 +8,7 @@
   <!-- Fontes locais (funcionam sem internet) -->
   <link rel="stylesheet" href="fonts.css">
   
-  <link rel="stylesheet" href="overlay.css?v=2.1.1">
+  <link rel="stylesheet" href="overlay.css?v=2.1.3">
 </head>
 <body>
   <div id="overlay-container" class="overlay-container">
@@ -75,7 +75,7 @@
       <path d="M112 16L120 18L120 126L112 124Z" fill="#8a7550" opacity=".18"/>
     </symbol>
   </defs></svg>
-  <div id="reading-layer" class="reading-layer look-bible3d hidden">
+  <div id="reading-layer" class="reading-layer look-photo hidden">
     <div class="rd-wrap">
       <div class="rd-scene"><div class="rd-float"><div class="rd-book">
         <div class="rd-shadow"></div>
@@ -96,6 +96,16 @@
       </div></div></div>
       <div class="rd-band-clip"><div class="rd-band"><div id="reading-text" class="rd-text"></div></div></div>
     </div>
+    <!-- Faixa com a Bíblia e a luz (imagem com fundo transparente, a passagem vai na faixa azul) -->
+    <div class="rd-photo">
+      <img src="img/leitura-faixa.png" alt="">
+      <div class="rd-photo-text"><div class="rd-label-any rd-photo-label"></div><div class="rd-ref-any rd-photo-ref"></div></div>
+    </div>
+    <!-- Tela cheia com a Bíblia e os raios de luz -->
+    <div class="rd-fullscreen">
+      <div class="rd-full-bg"></div>
+      <div class="rd-full-text"><div class="rd-label-any rd-full-label"></div><div class="rd-ref-any rd-full-ref"></div><div class="rd-full-line"></div></div>
+    </div>
     <!-- Outros estilos (cartão escuro, faixa clara, só texto e linha) -->
     <div class="rd-flat">
       <div class="rd-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5C5.5 4.2 8.8 4.2 12 6.2c3.2-2 6.5-2 9-.7V19c-2.5-1.3-5.8-1.3-9 .7-3.2-2-6.5-2-9-.7Z"/><path d="M12 6.2V19.7"/></svg></div>
@@ -115,6 +125,6 @@
     </div>
   </div>
 
-  <script type="module" src="overlay.js?v=2.1.1"></script>
+  <script type="module" src="overlay.js?v=2.1.3"></script>
 </body>
 </html>

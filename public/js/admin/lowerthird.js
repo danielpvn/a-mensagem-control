@@ -1,6 +1,6 @@
 // Nome do pregador (lower third), na aba Culto: lista de pregadores, leitura do culto
 // (vai embaixo do nome), mostrar/esconder e aparência.
-import { $, toast, confirmDialog } from './ui.js';
+import { $, toast, confirmDialog, previewInPanel } from './ui.js';
 import * as ws from './ws.js';
 
 let preachers = [];
@@ -222,16 +222,14 @@ export function setupLowerThird() {
 
   [...styleInputs, ...lookRadios, ...speedRadios].forEach(input => input.addEventListener('input', sendStyles));
 
-  // Mostra o nome e esconde depois de 2,5 s para ver o efeito escolhido
-  $('btn-lt-preview').onclick = () => {
+  // Mostra o efeito escolhido só na prévia do painel (não vai para o OBS)
+  const previewEffect = () => {
     const p = selected();
-    if (!p && !lt.visible) {
-      toast('Cadastre e escolha um pregador primeiro.', 'error');
-      return;
-    }
-    if (!lt.visible) ws.send('lt-show', { name: p.name, subtitle: currentReading() });
-    setTimeout(() => ws.send('lt-hide'), 2500);
+    previewInPanel({ type: 'preview-lt', name: p ? p.name : 'Pr. Nome do Pregador', subtitle: currentReading() });
   };
+  $('btn-lt-preview').onclick = previewEffect;
+  // Ao trocar o efeito ou a velocidade, já mostra como fica (o estilo novo chega no overlay antes)
+  [$('lt-animation'), ...speedRadios, ...lookRadios].forEach(input => input.addEventListener('change', () => setTimeout(previewEffect, 250)));
   $('btn-lt-reset').onclick = () => ws.send('reset-lt-styles');
   $('btn-lt-toggle').onclick = toggleLowerThird;
   $('lt-chip').onclick = () => ws.send('lt-hide');

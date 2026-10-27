@@ -225,13 +225,22 @@ function createScreenLayer(prefix, { content, look }) {
     layer.style.setProperty('--anim-speed', l.speed);
 
     // Fundo: na tela cheia cobre a tela toda; na faixa, só a caixa
-    const target = lower ? box : layer;
-    const other = lower ? layer : box;
-    target.style.background = l.background.css;
-    if (l.background.size) target.style.backgroundSize = l.background.size;
-    other.style.background = 'transparent';
-    target.classList.toggle('bg-animated', l.background.animate);
-    other.classList.remove('bg-animated');
+    // Na faixa o fundo vai numa camada atrás do texto (::before), para a transparência não apagar a letra
+    if (lower) {
+      layer.style.background = 'transparent';
+      layer.classList.remove('bg-animated');
+      box.style.background = 'transparent';
+      box.style.setProperty('--band-bg', l.background.css);
+      box.style.setProperty('--band-size', l.background.size || 'auto');
+      box.style.setProperty('--band-opacity', 1 - Math.min(100, Math.max(0, Number(styles.bandTransparency) || 0)) / 100);
+      box.classList.toggle('band-animated', l.background.animate);
+    } else {
+      layer.style.background = l.background.css;
+      layer.style.backgroundSize = l.background.size || '';
+      layer.classList.toggle('bg-animated', l.background.animate);
+      box.style.background = 'transparent';
+      box.classList.remove('band-animated');
+    }
 
     box.style.fontFamily = l.fontFamily;
     box.style.borderColor = l.accentColor;
@@ -583,8 +592,36 @@ function liftLowerThird() {
   readingLayer.style.setProperty('--rd-lift', `${lift}px`);
 }
 
+let ltPreviewing = false;
+let ltPreviewTimer = null;
+
+// Só nas prévias do painel: mostra o nome com o efeito escolhido e esconde, sem ir para o OBS
+function previewLowerThird(name, subtitle) {
+  if (ltState && ltState.visible) return; // já está no ar
+  ltPreviewing = true;
+  clearTimeout(ltPreviewTimer);
+  ltName.textContent = name || 'Nome do pregador';
+  ltSubtitle.textContent = subtitle || '';
+  ltSubtitle.style.display = subtitle ? '' : 'none';
+  ltLayer.classList.add('hidden');
+  void ltLayer.offsetWidth;
+  ltLayer.classList.remove('hidden');
+  ltPreviewTimer = setTimeout(() => {
+    ltLayer.classList.add('hidden');
+    ltPreviewTimer = setTimeout(() => {
+      ltPreviewing = false;
+      updateLowerThird(ltState);
+    }, 1500);
+  }, 2600);
+}
+
 function updateLowerThird(lt) {
   ltState = lt || null;
+  if (ltPreviewing && ltState && ltState.visible) {
+    ltPreviewing = false;
+    clearTimeout(ltPreviewTimer);
+  }
+  if (ltPreviewing) return;
   if (!ltState || !ltState.visible) {
     ltLayer.classList.add('hidden');
     return;
@@ -661,48 +698,92 @@ function fitReadingText() {
   }
 }
 
+function setReadingText(text) {
+  readingText.textContent = text;
+  readingRef.textContent = text;
+  document.querySelectorAll('.rd-ref-any').forEach(el => { el.textContent = text; });
+  fitReadingText();
+}
+
 function applyReadingStyles() {
   const s = readingStyles;
+  const font = s.fontFamily || "'Crimson Pro', serif";
   readingLayer.style.setProperty('--rd-scale', s.scale || 1);
   readingLayer.style.setProperty('--rd-text', s.textColor || '#ffffff');
   readingLayer.style.setProperty('--rd-band', s.bandColor || '#11151c');
   readingLayer.style.setProperty('--rd-border', s.borderColor || '#c99a2e');
-  readingText.style.fontFamily = s.fontFamily || "'Crimson Pro', serif";
-  readingRef.style.fontFamily = s.fontFamily || "'Crimson Pro', serif";
-  readingLabel.textContent = s.label ?? 'LEITURA BÍBLICA';
+  readingText.style.fontFamily = font;
+  readingRef.style.fontFamily = font;
+  document.querySelectorAll('.rd-ref-any').forEach(el => { el.style.fontFamily = font; });
+  const label = s.label ?? 'LEITURA BÍBLICA';
+  readingLabel.textContent = label;
+  document.querySelectorAll('.rd-label-any').forEach(el => { el.textContent = label; });
   readingLayer.className = readingLayer.className.split(' ').filter(c => !c.startsWith('look-')).join(' ');
-  readingLayer.classList.add(`look-${s.look || 'bible3d'}`);
+  readingLayer.classList.add(`look-${s.look || 'photo'}`);
   fitReadingText();
 }
 
+let readingLast = null;        // último estado do servidor (para voltar depois de uma prévia)
+let readingPreviewing = false; // tocando a animação só na prévia do painel
+let readingPreviewTimer = null;
+
+function playReadingIn() {
+  clearTimeout(readingHideTimer);
+  readingLayer.classList.remove('hidden', 'leaving', 'show');
+  void readingLayer.offsetWidth;
+  readingLayer.classList.add('show');
+}
+
+function playReadingOut(after) {
+  readingLayer.classList.remove('show');
+  readingLayer.classList.add('leaving');
+  clearTimeout(readingHideTimer);
+  readingHideTimer = setTimeout(() => {
+    readingLayer.classList.remove('leaving');
+    readingLayer.classList.add('hidden');
+    if (after) after();
+  }, 1850);
+}
+
 function updateReading(state) {
+  readingLast = state;
   const announce = state.readingAnnounce || {};
   const text = state.serviceReading || '';
   if (announce.visible && text) {
-    clearTimeout(readingHideTimer);
-    if (readingText.textContent !== text) {
-      readingText.textContent = text;
-      readingRef.textContent = text;
-      fitReadingText();
+    // Entrou no ar de verdade: a prévia para
+    if (readingPreviewing) {
+      readingPreviewing = false;
+      clearTimeout(readingPreviewTimer);
+      readingToken = null;
     }
+    if (readingText.textContent !== text) setReadingText(text);
     // Cada "Exibir" toca a entrada de novo
     if (announce.token !== readingToken || !readingLayer.classList.contains('show')) {
       readingToken = announce.token;
-      readingLayer.classList.remove('hidden', 'leaving', 'show');
-      void readingLayer.offsetWidth;
-      readingLayer.classList.add('show');
+      playReadingIn();
     }
     return;
   }
-  if (readingLayer.classList.contains('show')) {
-    readingLayer.classList.remove('show');
-    readingLayer.classList.add('leaving');
-    clearTimeout(readingHideTimer);
-    readingHideTimer = setTimeout(() => {
-      readingLayer.classList.remove('leaving');
-      readingLayer.classList.add('hidden');
-    }, 1850);
+  if (readingPreviewing) return;
+  if (readingLayer.classList.contains('show')) playReadingOut();
+}
+
+// Só nas prévias do painel: mostra a entrada e a saída sem mandar nada para o OBS
+function previewReading(text) {
+  const live = readingLast && readingLast.readingAnnounce && readingLast.readingAnnounce.visible;
+  if (live) {
+    // Já está no ar: só repete a entrada aqui na prévia
+    playReadingIn();
+    return;
   }
+  readingPreviewing = true;
+  clearTimeout(readingPreviewTimer);
+  setReadingText(text || 'Efésios 4:11');
+  playReadingIn();
+  readingPreviewTimer = setTimeout(() => playReadingOut(() => {
+    readingPreviewing = false;
+    if (readingLast) setReadingText(readingLast.serviceReading || '');
+  }), 4500);
 }
 
 window.addEventListener('resize', fitReadingText);
@@ -780,15 +861,23 @@ function applyPrayerStyles() {
 
 // ================= Conexão =================
 
+// Hino/Bíblia: a tela no ar fica guardada em `air` (independe do que o operador abriu depois)
+function onAir(content) {
+  if (!content || content.isCleared || !content.air || !content.air.slide) return { ...(content || {}), slides: [], slideIndex: -1, isCleared: true };
+  return { ...content, ...content.air, slides: [content.air.slide], slideIndex: 0, isCleared: false };
+}
+
 function applyState(state, useTransition) {
-  activeSermonTitle = state.activeSermonTitle;
-  currentParagraphNumber = state.currentParagraphNumber;
-  currentParagraphText = state.currentParagraphText;
-  isCleared = state.isCleared;
+  // Mostra só o que foi para o ar (o operador pode estar navegando por outra mensagem/hino/capítulo)
+  const air = state.messageAir;
+  activeSermonTitle = air ? air.title : state.activeSermonTitle;
+  currentParagraphNumber = air ? air.number : state.currentParagraphNumber;
+  currentParagraphText = air ? air.text : state.currentParagraphText;
+  isCleared = state.isCleared || !air;
   updateContent(useTransition);
 
-  hymnLayer.setState(state.hymn, useTransition);
-  bibleLayer.setState(state.bible, useTransition);
+  hymnLayer.setState(onAir(state.hymn), useTransition);
+  bibleLayer.setState(onAir(state.bible), useTransition);
   updateMedia(state.media);
   updatePrayer(state.prayer);
   updateLowerThird(state.lowerThird);
@@ -867,6 +956,15 @@ function connect() {
       console.error('Erro ao processar mensagem do WebSocket:', err);
     }
   };
+}
+
+// O painel pede para ver uma animação só na prévia dele (nunca chega no OBS)
+if (PREVIEW) {
+  window.addEventListener('message', (event) => {
+    if (event.origin !== window.location.origin || !event.data) return;
+    if (event.data.type === 'preview-reading') previewReading(event.data.text);
+    if (event.data.type === 'preview-lt') previewLowerThird(event.data.name, event.data.subtitle);
+  });
 }
 
 connect();

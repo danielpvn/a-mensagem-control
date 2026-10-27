@@ -7,7 +7,7 @@
   <link rel="icon" href="assets/favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="assets/favicon.png">
   <link rel="stylesheet" href="fonts.css">
-  <link rel="stylesheet" href="admin.css?v=2.1.1">
+  <link rel="stylesheet" href="admin.css?v=2.1.5">
 </head>
 <body>
   <div class="app">
@@ -17,7 +17,7 @@
         <img src="assets/logo.svg" alt="" class="brand-logo">
         <div class="brand-text">
           <strong>A MENSAGEM</strong>
-          <span>CONTROL <em id="app-version" class="version-tag">v2.1.0-beta.1</em></span>
+          <span>CONTROL <em id="app-version" class="version-tag">v2.1.0-beta.2</em></span>
         </div>
       </div>
 
@@ -245,9 +245,10 @@
                 </button>
               </div>
             </div>
-            <div class="segmented" role="radiogroup" aria-label="Mostrar">
+            <div class="segmented segmented-3" role="radiogroup" aria-label="Mostrar">
               <label><input type="radio" name="hymn-view" value="search" checked><span>Buscar</span></label>
-              <label><input type="radio" name="hymn-view" value="list"><span>Lista do culto <b id="hymn-list-count" class="count-pill" hidden></b></span></label>
+              <label title="Lista do culto"><input type="radio" name="hymn-view" value="list"><span>Lista <b id="hymn-list-count" class="count-pill" hidden></b></span></label>
+              <label title="Louvor fora do hinário: solo, dupla, trio ou grupo"><input type="radio" name="hymn-view" value="special"><span>Especial</span></label>
             </div>
             <div id="hymn-search-view" class="hymn-view">
               <label class="search search-lg">
@@ -266,6 +267,34 @@
             <div id="hymn-list-view" class="hymn-view" hidden>
               <div id="hymn-playlist" class="sermon-list hymn-playlist" aria-label="Lista do culto"></div>
               <button id="btn-hymn-list-clear" class="btn btn-text btn-sm" hidden>Limpar a lista</button>
+            </div>
+            <!-- Louvor especial: alguém canta um louvor fora do hinário (aparece na faixa do nome do pregador) -->
+            <div id="hymn-special-view" class="hymn-view special-view" hidden>
+              <p class="muted small">Para um louvor fora do hinário. Aparece embaixo, na mesma faixa do nome do pregador.</p>
+              <div class="field">
+                <label for="special-title">Nome do louvor</label>
+                <input type="text" id="special-title" placeholder="Ex: Grandioso És Tu" maxlength="80" autocomplete="off">
+              </div>
+              <div class="field">
+                <label>Quem canta</label>
+                <div class="segmented segmented-4 special-kinds" role="radiogroup" aria-label="Quantos cantam">
+                  <label><input type="radio" name="special-kind" value="Solo"><span>Solo</span></label>
+                  <label><input type="radio" name="special-kind" value="Dupla"><span>Dupla</span></label>
+                  <label><input type="radio" name="special-kind" value="Trio"><span>Trio</span></label>
+                  <label><input type="radio" name="special-kind" value="Grupo"><span>Grupo</span></label>
+                </div>
+                <input type="text" id="special-singers" placeholder="Nomes (ex: Irmã Maria e Irmão João)" maxlength="80" autocomplete="off">
+              </div>
+              <div class="special-sample" id="special-sample" hidden>
+                <span class="muted small">Vai aparecer assim:</span>
+                <strong id="special-sample-name"></strong>
+                <span id="special-sample-sub" class="muted"></span>
+              </div>
+              <button id="btn-special-toggle" class="btn btn-primary btn-lt-toggle" disabled>Mostrar no telão</button>
+              <div class="special-recent-wrap" id="special-recent-wrap" hidden>
+                <div class="field-row"><span class="muted small">Recentes (clique para usar de novo)</span></div>
+                <div id="special-recent" class="special-recent"></div>
+              </div>
             </div>
           </aside>
 
@@ -348,6 +377,10 @@
               <div class="segmented" role="radiogroup" aria-label="Posição do texto" id="hymn-position-group">
                 <label><input type="radio" name="hymn-position" value="center" checked><span>Texto no centro</span></label>
                 <label><input type="radio" name="hymn-position" value="bottom"><span>Texto embaixo</span></label>
+              </div>
+              <div class="field" id="hymn-band-field">
+                <div class="field-row"><label for="hymn-band-transp">Transparência da faixa</label><output id="hymn-band-transp-val">0%</output></div>
+                <input type="range" id="hymn-band-transp" min="0" max="100" step="5" value="0">
               </div>
               <div class="field">
                 <div class="field-row"><label for="hymn-lines">Linhas por tela</label><output id="hymn-lines-val">4</output></div>
@@ -472,6 +505,20 @@
                 </div>
               </div>
 
+              <div id="bible-announce" class="announce-bar" hidden>
+                <div class="announce-ref">
+                  <span class="muted small">Leitura</span>
+                  <strong id="bible-announce-ref">—</strong>
+                </div>
+                <label class="announce-end muted small">até o versículo
+                  <select id="bible-announce-end"><option value="">—</option></select>
+                </label>
+                <button id="btn-bible-announce" class="btn btn-secondary btn-sm" title="Mostra no telão o anúncio da leitura com a passagem escolhida">
+                  <svg viewBox="0 0 24 24"><path d="M3 5.5C5.5 4.2 8.8 4.2 12 6.2c3.2-2 6.5-2 9-.7V19c-2.5-1.3-5.8-1.3-9 .7-3.2-2-6.5-2-9-.7Z"/><path d="M12 6.2V19.7"/></svg>
+                  <span id="btn-bible-announce-label">Anunciar leitura</span>
+                </button>
+              </div>
+
               <div id="bible-verses" class="paragraphs-list">
                 <div class="empty">Os versículos do capítulo aparecem aqui.</div>
               </div>
@@ -514,6 +561,10 @@
               <div class="segmented" role="radiogroup" aria-label="Posição do texto" id="bible-position-group">
                 <label><input type="radio" name="bible-position" value="center" checked><span>Texto no centro</span></label>
                 <label><input type="radio" name="bible-position" value="bottom"><span>Texto embaixo</span></label>
+              </div>
+              <div class="field" id="bible-band-field">
+                <div class="field-row"><label for="bible-band-transp">Transparência da faixa</label><output id="bible-band-transp-val">0%</output></div>
+                <input type="range" id="bible-band-transp" min="0" max="100" step="5" value="0">
               </div>
             </fieldset>
 
@@ -585,6 +636,62 @@
             <fieldset>
               <legend>Fundo</legend>
               <div id="bible-bg-editor"></div>
+            </fieldset>
+            <fieldset>
+              <legend>Anúncio da leitura</legend>
+              <div class="field">
+                <label for="reading-look">Estilo</label>
+                <select id="reading-look">
+                  <option value="photo">Faixa com a Bíblia e a luz</option>
+                  <option value="full">Tela cheia com a Bíblia</option>
+                  <option value="bible3d">Bíblia 3D com faixa</option>
+                  <option value="card">Cartão escuro</option>
+                  <option value="light">Faixa clara</option>
+                  <option value="line">Só texto e linha</option>
+                </select>
+              </div>
+              <button type="button" id="btn-reading-preview" class="btn btn-secondary btn-sm" title="Toca a entrada e a saída só nesta prévia; não vai para o OBS">Ver a animação (só na prévia)</button>
+              <div class="field" id="reading-label-field">
+                <label for="reading-label">Texto de cima</label>
+                <input type="text" id="reading-label" maxlength="40" placeholder="LEITURA BÍBLICA" autocomplete="off">
+              </div>
+              <div class="field" id="reading-presets" hidden>
+                <label>Cores prontas</label>
+                <div class="preset-row">
+                  <button type="button" class="btn btn-secondary btn-sm" data-reading-preset="dark">Faixa escura</button>
+                  <button type="button" class="btn btn-secondary btn-sm" data-reading-preset="gold">Faixa dourada</button>
+                </div>
+              </div>
+              <div class="field">
+                <label for="reading-font">Fonte da passagem</label>
+                <select id="reading-font">
+                  <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
+                  <option value="Outfit, sans-serif">Outfit (moderna)</option>
+                  <option value="'Crimson Pro', serif">Crimson Pro (com serifa)</option>
+                  <option value="'Lora', serif">Lora (elegante, com serifa)</option>
+                  <option value="'Playfair Display', serif">Playfair Display (tradicional)</option>
+                </select>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="reading-scale">Tamanho</label><output id="reading-scale-val">100%</output></div>
+                <input type="range" id="reading-scale" min="0.6" max="1.6" step="0.05" value="1">
+              </div>
+              <div class="color-grid">
+                <label class="color-field"><input type="color" id="reading-text-color" value="#ffffff"><span>Passagem</span></label>
+                <label class="color-field"><input type="color" id="reading-band-color" value="#11151c"><span>Fundo</span></label>
+                <label class="color-field"><input type="color" id="reading-border-color" value="#9cc7ff"><span id="reading-border-name">Detalhes</span></label>
+              </div>
+              <div class="field">
+                <label for="reading-autohide">Esconder sozinho depois de</label>
+                <select id="reading-autohide">
+                  <option value="0">Não esconder sozinho</option>
+                  <option value="8">8 segundos</option>
+                  <option value="12">12 segundos</option>
+                  <option value="20">20 segundos</option>
+                  <option value="30">30 segundos</option>
+                </select>
+              </div>
+              <button id="btn-reading-reset" class="btn btn-text btn-sm">Restaurar padrão do anúncio</button>
             </fieldset>
           </aside>
         </div>
@@ -831,20 +938,10 @@
             <div class="culto-reading">
               <h3>Leitura do culto</h3>
               <div class="field">
-                <label for="service-reading">Passagem (vai abaixo do nome e no anúncio)</label>
+                <label for="service-reading">Passagem (vai abaixo do nome do pregador)</label>
                 <input type="text" id="service-reading" placeholder="Ex: Efésios 4:11-13" maxlength="80" autocomplete="off">
               </div>
-              <button id="btn-reading-toggle" class="btn btn-primary btn-lt-toggle" disabled>Anunciar leitura</button>
-              <div class="field">
-                <label for="reading-autohide">Esconder o anúncio sozinho depois de</label>
-                <select id="reading-autohide">
-                  <option value="0">Não esconder sozinho</option>
-                  <option value="8">8 segundos</option>
-                  <option value="12">12 segundos</option>
-                  <option value="20">20 segundos</option>
-                  <option value="30">30 segundos</option>
-                </select>
-              </div>
+              <p class="muted small">Para mostrar a leitura no telão, use <strong>Anunciar leitura</strong> na aba Bíblia.</p>
             </div>
           </aside>
 
@@ -932,7 +1029,7 @@
                   <label><input type="radio" name="lt-speed" value="1.7"><span>Lenta</span></label>
                 </div>
               </div>
-              <button type="button" id="btn-lt-preview" class="btn btn-secondary btn-sm" title="Mostra e esconde o nome para ver o efeito">Ver o efeito</button>
+              <button type="button" id="btn-lt-preview" class="btn btn-secondary btn-sm" title="Mostra o efeito só nesta prévia; não vai para o OBS">Ver o efeito (só na prévia)</button>
               <div class="field">
                 <label for="lt-font">Fonte</label>
                 <select id="lt-font">
@@ -960,49 +1057,6 @@
               <button id="btn-lt-reset" class="btn btn-text btn-sm">Restaurar padrão do nome</button>
             </fieldset>
 
-            <fieldset>
-              <legend>Anúncio da leitura</legend>
-              <div class="field">
-                <label for="reading-look">Estilo</label>
-                <select id="reading-look">
-                  <option value="bible3d">Bíblia 3D com faixa</option>
-                  <option value="card">Cartão escuro</option>
-                  <option value="light">Faixa clara</option>
-                  <option value="line">Só texto e linha</option>
-                </select>
-              </div>
-              <div class="field" id="reading-label-field" hidden>
-                <label for="reading-label">Texto de cima</label>
-                <input type="text" id="reading-label" maxlength="40" placeholder="LEITURA BÍBLICA" autocomplete="off">
-              </div>
-              <div class="field" id="reading-presets">
-                <label>Cores prontas</label>
-                <div class="preset-row">
-                  <button type="button" class="btn btn-secondary btn-sm" data-reading-preset="dark">Faixa escura</button>
-                  <button type="button" class="btn btn-secondary btn-sm" data-reading-preset="gold">Faixa dourada</button>
-                </div>
-              </div>
-              <div class="field">
-                <label for="reading-font">Fonte da passagem</label>
-                <select id="reading-font">
-                  <option value="'Crimson Pro', serif">Crimson Pro (com serifa)</option>
-                  <option value="'Lora', serif">Lora (elegante, com serifa)</option>
-                  <option value="'Playfair Display', serif">Playfair Display (tradicional)</option>
-                  <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
-                  <option value="Outfit, sans-serif">Outfit (moderna)</option>
-                </select>
-              </div>
-              <div class="field">
-                <div class="field-row"><label for="reading-scale">Tamanho</label><output id="reading-scale-val">100%</output></div>
-                <input type="range" id="reading-scale" min="0.6" max="1.6" step="0.05" value="1">
-              </div>
-              <div class="color-grid">
-                <label class="color-field"><input type="color" id="reading-text-color" value="#ffffff"><span>Passagem</span></label>
-                <label class="color-field"><input type="color" id="reading-band-color" value="#11151c"><span>Fundo</span></label>
-                <label class="color-field"><input type="color" id="reading-border-color" value="#c99a2e"><span id="reading-border-name">Borda</span></label>
-              </div>
-              <button id="btn-reading-reset" class="btn btn-text btn-sm">Restaurar padrão do anúncio</button>
-            </fieldset>
 
             <fieldset>
               <legend>Pedidos de oração</legend>
@@ -1117,6 +1171,17 @@
           </div>
 
           <div class="card">
+            <h2>Mensagens do site</h2>
+            <p class="muted">Baixa todas as mensagens do site de busca do Tabernáculo da Fé (<strong>busca.tabernaculodafe.org.br</strong>) e troca as mensagens do app por elas.</p>
+            <button type="button" id="btn-site-import" class="btn btn-secondary btn-sm">Baixar todas as mensagens do site</button>
+            <div id="site-import-progress" class="site-import" hidden>
+              <div class="progress-track"><div id="site-import-bar" class="progress-bar"></div></div>
+              <p class="muted small" id="site-import-text"></p>
+            </div>
+            <p class="muted small">Leva alguns minutos. O que já está no ar não sai da tela. Neste computador de editor, as mensagens novas também vão para o banco online das igrejas.</p>
+          </div>
+
+          <div class="card">
             <h2>Bíblia ACF</h2>
             <p class="muted" id="bible-status">Verificando...</p>
             <label class="btn btn-secondary btn-sm file-button">
@@ -1140,7 +1205,7 @@
 
           <div class="card">
             <h2>Sobre</h2>
-            <p class="muted">A Mensagem Control <strong id="about-version">v2.1.0-beta.1</strong></p>
+            <p class="muted">A Mensagem Control <strong id="about-version">v2.1.0-beta.2</strong></p>
             <p class="muted small">Feito para as equipes de mídia das igrejas do Tabernáculo da Fé.</p>
             <button id="btn-check-update" class="btn btn-secondary btn-sm">Verificar atualizações</button>
             <p id="update-status" class="muted small"></p>
@@ -1246,10 +1311,14 @@
           <input type="file" id="hymn-files" accept=".txt,.json" multiple>
           <svg viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
           <strong>Escolher arquivos</strong>
-          <span class="muted small">.txt soltos</span>
+          <span class="muted small">um ou vários .txt (segure Ctrl para marcar vários; dá para somar de outras pastas)</span>
         </label>
       </div>
       <div id="hymn-import-summary" class="import-summary" hidden></div>
+      <div class="field" id="hymn-import-category-field" hidden>
+        <label for="hymn-import-category">Categoria dos arquivos soltos</label>
+        <input type="text" id="hymn-import-category" placeholder="Ex: Harpa Cristã (vazio = sem categoria)" list="hymn-category-options" autocomplete="off">
+      </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-secondary" data-close>Cancelar</button>
         <button type="button" id="btn-hymn-import-confirm" class="btn btn-primary" disabled>Importar</button>
@@ -1280,6 +1349,6 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script type="module" src="js/admin/main.js?v=2.1.1"></script>
+  <script type="module" src="js/admin/main.js?v=2.1.5"></script>
 </body>
 </html>

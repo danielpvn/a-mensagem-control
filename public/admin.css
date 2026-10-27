@@ -837,7 +837,10 @@ fieldset.collapsed > :not(legend) { display: none !important; }
 .dropzone input { display: none; }
 .dropzone svg { width: 28px; height: 28px; color: var(--accent); }
 .import-summary { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: var(--radius-sm); background: var(--field); font-size: 0.88rem; }
-.import-summary ul { padding-left: 18px; color: var(--text-2); line-height: 1.6; }
+.import-summary ul { padding-left: 18px; color: var(--text-2); line-height: 1.6; max-height: 220px; overflow-y: auto; }
+.import-summary-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.import-summary .import-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.import-summary .import-item .btn-x { font-size: 1.1rem; line-height: 1; padding: 0 4px; }
 
 /* ---------- Bíblia ---------- */
 
@@ -964,6 +967,8 @@ fieldset.collapsed > :not(legend) { display: none !important; }
 .bg-tile:hover .bg-remove { opacity: 1; }
 
 .segmented-3 { grid-template-columns: repeat(3, 1fr); }
+.segmented-4 { grid-template-columns: repeat(4, 1fr); }
+.segmented-4 span, .segmented-3 span { padding-left: 2px; padding-right: 2px; }
 .segmented.disabled { opacity: 0.4; pointer-events: none; }
 .color-grid-3 { grid-template-columns: repeat(3, 1fr); }
 .file-button { position: relative; align-self: flex-start; }
@@ -1349,6 +1354,34 @@ fieldset.collapsed > :not(legend) { display: none !important; }
 }
 .culto-reading h3::before { content: ''; width: 4px; height: 17px; border-radius: 2px; background: var(--accent); }
 .preset-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Aba Bíblia: anunciar a leitura com a passagem escolhida */
+.announce-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; flex-shrink: 0;
+  padding: 10px 12px; margin-bottom: 10px;
+  background: var(--accent-soft); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: var(--radius);
+}
+.announce-ref { display: flex; flex-direction: column; line-height: 1.2; margin-right: auto; }
+.announce-ref strong { font-size: 1rem; }
+.announce-end { display: flex; align-items: center; gap: 6px; }
+.announce-end select { width: auto; padding: 4px 8px; }
+#btn-bible-announce svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+#btn-bible-announce.is-live { background: var(--live-soft); color: #fecaca; border-color: rgba(239, 68, 68, 0.4); }
+
+/* Aba Hinos: louvor especial (fora do hinário) */
+.special-view { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; min-height: 0; }
+.special-view .field input[type="text"] { width: 100%; }
+.special-kinds { margin-bottom: 8px; }
+
+.special-sample { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--radius); background: var(--field); border-left: 3px solid var(--accent); }
+.special-sample strong { font-size: 1rem; }
+.special-recent { display: flex; flex-direction: column; gap: 6px; }
+.special-item { display: flex; align-items: center; gap: 6px; }
+.special-item .special-use { flex: 1; min-width: 0; text-align: left; display: flex; flex-direction: column; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--field); border: 1px solid var(--border); color: var(--text); cursor: pointer; }
+.special-item .special-use:hover { background: var(--field-hover); border-color: var(--border-strong); }
+.special-item .special-use span { font-size: 0.78rem; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.special-item .special-use strong { font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.special-item.on-air .special-use { border-color: rgba(239, 68, 68, 0.5); background: var(--live-soft); }
 .prayer-card { min-height: 0; }
 .prayer-card .field.grow { min-height: 0; }
 .prayer-card textarea { flex: 1; min-height: 90px; resize: none; font-size: 0.95rem; }

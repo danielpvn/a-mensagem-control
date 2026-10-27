@@ -285,13 +285,14 @@ async function pullBackgrounds() {
 // ---------- Enviar (push, só editor) ----------
 
 // Envia em lotes; o servidor devolve a hora oficial de cada item
-async function upsert(table, rows, key) {
+// Mensagens são grandes (todos os parágrafos): vão em lotes menores para o pedido não ficar enorme
+async function upsert(table, rows, key, batch = 200, select = '') {
   const done = [];
-  for (let i = 0; i < rows.length; i += 200) {
-    const res = await api(`/rest/v1/${table}?on_conflict=${key}`, {
+  for (let i = 0; i < rows.length; i += batch) {
+    const res = await api(`/rest/v1/${table}?on_conflict=${key}${select ? `&select=${select}` : ''}`, {
       method: 'POST',
       headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-      body: rows.slice(i, i + 200)
+      body: rows.slice(i, i + batch)
     });
     done.push(...await res.json());
   }
@@ -316,7 +317,7 @@ async function pushDeletions(kind, table, key) {
 
 async function pushSermons() {
   const rows = db.dirtySermons().map(s => ({ id: s.id, title: s.title, date: s.date, paragraphs: s.paragraphs, deleted: false }));
-  if (rows.length) (await upsert('library_sermons', rows, 'id')).forEach(r => db.markSermonSynced(r.id, r.updated_at));
+  if (rows.length) (await upsert('library_sermons', rows, 'id', 10, 'id,updated_at')).forEach(r => db.markSermonSynced(r.id, r.updated_at));
   return rows.length + await pushDeletions('sermon', 'library_sermons', 'id');
 }
 

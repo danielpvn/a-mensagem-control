@@ -53,6 +53,7 @@ const input = {
   titleSize: $('hymn-title-size'),
   animation: $('hymn-animation'),
   speed: $('hymn-speed'),
+  bandTransp: $('hymn-band-transp'),
   textColor: $('hymn-text-color'),
   chorusColor: $('hymn-chorus-color'),
   chorusOn: $('hymn-chorus-on'),
@@ -80,6 +81,9 @@ function updateLabels() {
   input.outlineColor.closest('.color-field').classList.toggle('disabled', !input.outline.checked);
   // "Texto embaixo" só faz sentido na tela cheia
   $('hymn-position-group').classList.toggle('disabled', checkedValue(layoutRadios) !== 'fullscreen');
+  // Transparência só vale para a faixa embaixo
+  $('hymn-band-field').hidden = checkedValue(layoutRadios) !== 'lower-third';
+  $('hymn-band-transp-val').textContent = `${input.bandTransp.value}%`;
 }
 
 function gatherStyles() {
@@ -92,6 +96,7 @@ function gatherStyles() {
     titleSize: `${input.titleSize.value}rem`,
     animationType: input.animation.value,
     transitionTime: Number(input.speed.value),
+    bandTransparency: Number(input.bandTransp.value),
     textColor: input.textColor.value,
     chorusColor: input.chorusColor.value,
     chorusColorOn: input.chorusOn.checked,
@@ -115,6 +120,7 @@ function fillInputs(styles) {
   input.titleSize.value = parseFloat(styles.titleSize) || 1.25;
   input.animation.value = styles.animationType || 'fade';
   input.speed.value = styles.transitionTime ?? 0.4;
+  input.bandTransp.value = styles.bandTransparency ?? 0;
   input.textColor.value = styles.textColor || '#ffffff';
   input.chorusColor.value = styles.chorusColor || '#fde68a';
   input.chorusOn.checked = styles.chorusColorOn === true;

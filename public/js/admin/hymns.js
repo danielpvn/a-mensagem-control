@@ -61,6 +61,7 @@ function setView(view) {
   document.querySelectorAll('input[name="hymn-view"]').forEach(r => { r.checked = r.value === view; });
   $('hymn-search-view').hidden = view !== 'search';
   $('hymn-list-view').hidden = view !== 'list';
+  $('hymn-special-view').hidden = view !== 'special';
   try { localStorage.setItem('amc.hymnView', view); } catch (e) { /* sem armazenamento */ }
 }
 
@@ -368,7 +369,128 @@ function chooseResult(hymn) {
 
 // ---------- Estrofes ----------
 
+// ---------- Louvor especial (fora do hinário) ----------
+// Alguém canta solo, em dupla, trio ou grupo um louvor que não está no hinário. Aparece na mesma
+// faixa do nome do pregador: o nome do louvor em cima e quem canta embaixo ("Dupla · Maria e João").
+// Os recentes ficam guardados neste aparelho para usar de novo com um clique.
+
+const readJson = (key, fallback) => {
+  try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch (e) { return fallback; }
+};
+const writeJson = (key, value) => {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* sem armazenamento */ }
+};
+const kindRadios = [...document.querySelectorAll('input[name="special-kind"]')];
+
+function specialFromForm() {
+  const checked = kindRadios.find(r => r.checked);
+  return { title: $('special-title').value.trim(), kind: checked ? checked.value : '', singers: $('special-singers').value.trim() };
+}
+
+// O que vai na faixa: sem nome do louvor, os nomes de quem canta vão em cima
+function specialLines({ title, kind, singers }) {
+  if (title) return { name: title, subtitle: [kind, singers].filter(Boolean).join(' · ') };
+  return { name: singers, subtitle: singers ? kind : '' };
+}
+
+const sameLines = (a, b) => a.name === b.name && (a.subtitle || '') === (b.subtitle || '');
+const ltLines = () => {
+  const lt = (state && state.lowerThird) || {};
+  return lt.visible ? { name: lt.name, subtitle: lt.subtitle || '' } : null;
+};
+
+function renderSpecial() {
+  const lines = specialLines(specialFromForm());
+  const live = ltLines();
+  const isLive = !!(live && lines.name && sameLines(live, lines));
+  $('special-sample').hidden = !lines.name;
+  $('special-sample-name').textContent = lines.name;
+  $('special-sample-sub').textContent = lines.subtitle;
+  $('special-sample-sub').hidden = !lines.subtitle;
+  const btn = $('btn-special-toggle');
+  btn.disabled = !lines.name && !isLive;
+  btn.textContent = isLive ? 'Esconder do telão' : 'Mostrar no telão';
+  btn.classList.toggle('btn-danger', isLive);
+  btn.classList.toggle('btn-primary', !isLive);
+
+  const recent = readJson('amc.specials', []);
+  $('special-recent-wrap').hidden = recent.length === 0;
+  const list = $('special-recent');
+  list.innerHTML = '';
+  recent.forEach((item, i) => {
+    const row = document.createElement('div');
+    row.className = 'special-item';
+    row.classList.toggle('on-air', !!(live && sameLines(live, specialLines(item))));
+    const use = document.createElement('button');
+    use.type = 'button';
+    use.className = 'special-use';
+    use.title = 'Usar de novo';
+    const name = document.createElement('strong');
+    const l = specialLines(item);
+    name.textContent = l.name;
+    const sub = document.createElement('span');
+    sub.textContent = l.subtitle || ' ';
+    use.append(name, sub);
+    use.onclick = () => fillSpecial(item);
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn-x';
+    remove.title = 'Tirar dos recentes';
+    remove.textContent = '×';
+    remove.onclick = () => {
+      writeJson('amc.specials', readJson('amc.specials', []).filter((_, j) => j !== i));
+      renderSpecial();
+    };
+    row.append(use, remove);
+    list.appendChild(row);
+  });
+}
+
+function fillSpecial({ title, kind, singers }) {
+  $('special-title').value = title || '';
+  $('special-singers').value = singers || '';
+  kindRadios.forEach(r => { r.checked = r.value === kind; });
+  renderSpecial();
+}
+
+function rememberSpecial(item) {
+  const key = (x) => `${x.title}|${x.kind}|${x.singers}`.toLowerCase();
+  writeJson('amc.specials', [item, ...readJson('amc.specials', []).filter(x => key(x) !== key(item))].slice(0, 12));
+}
+
+function setupSpecial() {
+  ['special-title', 'special-singers'].forEach(id => {
+    $(id).addEventListener('input', renderSpecial);
+    // Enter mostra no telão
+    $(id).addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); if (!$('btn-special-toggle').disabled) $('btn-special-toggle').click(); }
+    });
+  });
+  // Clicar de novo na opção marcada desmarca (quem canta pode ficar sem "Solo/Dupla...")
+  kindRadios.forEach(r => {
+    r.addEventListener('mousedown', () => { r.dataset.was = String(r.checked); });
+    r.addEventListener('click', () => {
+      if (r.dataset.was === 'true') r.checked = false;
+      renderSpecial();
+    });
+  });
+  $('btn-special-toggle').onclick = () => {
+    const item = specialFromForm();
+    const lines = specialLines(item);
+    const live = ltLines();
+    if (live && sameLines(live, lines)) {
+      ws.send('lt-hide');
+      return;
+    }
+    if (!lines.name) return;
+    rememberSpecial(item);
+    ws.send('lt-show', lines);
+  };
+  renderSpecial();
+}
+
 function renderHymn() {
+  renderSpecial();
   const hymn = state && state.hymn;
   const has = !!(hymn && hymn.id);
   const key = has ? `${hymn.id}|${hymn.slides.map(s => s.text).join('¦')}` : '';
@@ -390,7 +512,8 @@ function renderHymn() {
         card.type = 'button';
         card.className = `slide-card ${slide.kind === 'chorus' ? 'is-chorus' : ''}`;
         card.dataset.index = index;
-        card.onclick = () => ws.send('hymn-show', { index });
+        // Clicar só prepara; quem põe no ar é o Exibir (ou o Próximo)
+        card.onclick = () => ws.send('hymn-cue', { index });
 
         const label = document.createElement('span');
         label.className = 'slide-label';
@@ -412,13 +535,15 @@ function renderHymn() {
 
 function highlightSlide() {
   const hymn = state.hymn;
+  const cue = hymn.cue ?? -1;
   let current = null;
   el.slides.querySelectorAll('.slide-card').forEach(card => {
-    const isCurrent = Number(card.dataset.index) === hymn.slideIndex;
+    const index = Number(card.dataset.index);
+    const isCurrent = index === hymn.slideIndex;
     card.classList.toggle('live', isCurrent && !hymn.isCleared);
-    card.classList.toggle('armed', isCurrent && hymn.isCleared && hymn.armed);
+    card.classList.toggle('armed', (isCurrent && hymn.isCleared && hymn.armed) || index === cue);
     card.classList.toggle('held', isCurrent && hymn.isCleared && !hymn.armed);
-    if (isCurrent) current = card;
+    if (index === (cue !== -1 ? cue : hymn.slideIndex)) current = card;
   });
   if (current) current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -426,17 +551,20 @@ function highlightSlide() {
 function renderTransport() {
   const hymn = state.hymn;
   const has = !!hymn.id && hymn.slides.length > 0;
-  const isLive = has && !hymn.isCleared && hymn.slideIndex !== -1;
+  const cue = hymn.cue ?? -1;
+  const onAir = !hymn.isCleared;  // algum hino na tela (pode ser outro, que estava no ar antes)
   const atStart = hymn.slideIndex === -1;
+  // Com algo preparado, o botão põe no ar; sem, alterna o que está na tela
+  const willHide = onAir && cue === -1;
 
   el.btnPrev.disabled = !has || hymn.slideIndex <= 0;
-  el.btnNext.disabled = !has || (!hymn.armed && !atStart && hymn.slideIndex >= hymn.slides.length - 1);
-  el.btnToggle.disabled = !has || atStart;
-  el.btnToggleLabel.textContent = isLive ? 'Ocultar' : 'Exibir';
-  el.btnToggle.classList.toggle('is-live', isLive);
+  el.btnNext.disabled = !has || (cue === -1 && !hymn.armed && !atStart && hymn.slideIndex >= hymn.slides.length - 1);
+  el.btnToggle.disabled = !onAir && cue === -1 && (!has || atStart);
+  el.btnToggleLabel.textContent = willHide ? 'Ocultar' : 'Exibir';
+  el.btnToggle.classList.toggle('is-live', willHide);
 
   let next = null;
-  if (has) next = hymn.armed || atStart ? hymn.slides[Math.max(0, hymn.slideIndex)] : hymn.slides[hymn.slideIndex + 1];
+  if (has) next = cue !== -1 ? hymn.slides[cue] : hymn.armed || atStart ? hymn.slides[Math.max(0, hymn.slideIndex)] : hymn.slides[hymn.slideIndex + 1];
   el.nextLabel.textContent = next ? `Próximo · ${slideName(next)}` : 'Próximo';
   el.nextText.textContent = next ? next.text : (has ? 'Fim do hino.' : '—');
 }
@@ -675,11 +803,18 @@ function setupImport() {
   const dropzone = $('hymn-dropzone');
   let pending = [];
 
+  const categoryField = $('hymn-import-category-field');
+  const categoryInput = $('hymn-import-category');
+  const problems = [];
+
   const close = () => {
     modal.hidden = true;
     folderInput.value = '';
     filesInput.value = '';
     pending = [];
+    problems.length = 0;
+    categoryInput.value = '';
+    categoryField.hidden = true;
     summary.hidden = true;
     confirm.disabled = true;
     confirm.textContent = 'Importar';
@@ -687,41 +822,53 @@ function setupImport() {
   setupModalClose(modal, close);
   $('btn-hymn-import').onclick = () => { modal.hidden = false; };
 
-  // Recebe [{ file, path }]; o path define a categoria
-  const handleFiles = async (items) => {
-    let hymnFiles = items.filter(({ file }) => /\.(txt|json)$/i.test(file.name));
-    // Escolheu só uma pasta de categoria (ex: "Harpa Cristã", com os .txt direto nela):
-    // a própria pasta é a categoria
-    if (hymnFiles.some(({ path }) => path.split('/').length === 2)) {
-      hymnFiles = hymnFiles.map(({ file, path }) => ({ file, path: `_/${path}` }));
-    }
-    summary.hidden = false;
-    summary.textContent = `Lendo ${hymnFiles.length} arquivos...`;
-    pending = [];
-    const problems = [];
-    for (const { file, path } of hymnFiles) {
-      try {
-        pending.push(...await readHymnFile(file, path));
-      } catch (err) {
-        problems.push(path || file.name);
-      }
-    }
-    pending = pending.filter(h => h.title && h.lyrics.trim());
+  const hymnKey = (h) => `${h.collection}|${h.number}|${h.title}`.toLowerCase();
+  const hymnLabel = (h) => [h.number, h.title].filter(Boolean).join(' - ');
 
-    // Resumo por categoria
-    const byCategory = new Map();
-    pending.forEach(h => byCategory.set(h.collection || 'Sem categoria', (byCategory.get(h.collection || 'Sem categoria') || 0) + 1));
-
+  // Mostra o que já foi escolhido. Poucos hinos: lista com × para tirar; muitos: resumo por categoria
+  const renderSummary = () => {
+    summary.hidden = pending.length === 0 && problems.length === 0;
+    categoryField.hidden = !pending.some(h => h.loose);
     summary.innerHTML = '';
-    const head = document.createElement('strong');
-    head.textContent = `${pending.length} hinos prontos para importar`;
+    const head = document.createElement('div');
+    head.className = 'import-summary-head';
+    const title = document.createElement('strong');
+    title.textContent = pending.length === 1 ? '1 hino pronto para importar' : `${pending.length} hinos prontos para importar`;
+    head.appendChild(title);
+    if (pending.length) {
+      const clear = document.createElement('button');
+      clear.type = 'button';
+      clear.className = 'btn btn-text btn-sm';
+      clear.textContent = 'Limpar seleção';
+      clear.onclick = () => { pending = []; problems.length = 0; renderSummary(); };
+      head.appendChild(clear);
+    }
     summary.appendChild(head);
     const list = document.createElement('ul');
-    [...byCategory.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR')).forEach(([name, count]) => {
-      const li = document.createElement('li');
-      li.textContent = `${name}: ${count}`;
-      list.appendChild(li);
-    });
+    if (pending.length <= 30) {
+      pending.forEach((h, i) => {
+        const li = document.createElement('li');
+        li.className = 'import-item';
+        const name = document.createElement('span');
+        name.textContent = hymnLabel(h) + (h.collection ? ` · ${h.collection}` : '');
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'btn-x';
+        remove.title = 'Tirar da importação';
+        remove.textContent = '×';
+        remove.onclick = () => { pending.splice(i, 1); renderSummary(); };
+        li.append(name, remove);
+        list.appendChild(li);
+      });
+    } else {
+      const byCategory = new Map();
+      pending.forEach(h => byCategory.set(h.collection || 'Sem categoria', (byCategory.get(h.collection || 'Sem categoria') || 0) + 1));
+      [...byCategory.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR')).forEach(([name, count]) => {
+        const li = document.createElement('li');
+        li.textContent = `${name}: ${count}`;
+        list.appendChild(li);
+      });
+    }
     summary.appendChild(list);
     const note = document.createElement('p');
     note.className = 'muted small';
@@ -734,7 +881,36 @@ function setupImport() {
       summary.appendChild(warn);
     }
     confirm.disabled = pending.length === 0;
-    confirm.textContent = pending.length ? `Importar ${pending.length} hinos` : 'Importar';
+    confirm.textContent = pending.length ? (pending.length === 1 ? 'Importar 1 hino' : `Importar ${pending.length} hinos`) : 'Importar';
+  };
+
+  // Recebe [{ file, path }]; o path define a categoria. Cada escolha SOMA à anterior
+  // (dá para juntar arquivos de pastas diferentes)
+  const handleFiles = async (items) => {
+    let hymnFiles = items.filter(({ file }) => /\.(txt|json)$/i.test(file.name));
+    // Escolheu só uma pasta de categoria (ex: "Harpa Cristã", com os .txt direto nela):
+    // a própria pasta é a categoria
+    if (hymnFiles.some(({ path }) => path.split('/').length === 2)) {
+      hymnFiles = hymnFiles.map(({ file, path }) => ({ file, path: `_/${path}` }));
+    }
+    summary.hidden = false;
+    summary.textContent = `Lendo ${hymnFiles.length} arquivos...`;
+    const seen = new Set(pending.map(hymnKey));
+    for (const { file, path } of hymnFiles) {
+      try {
+        const loose = !path.includes('/');
+        for (const h of await readHymnFile(file, path)) {
+          if (!h.title || !h.lyrics.trim() || seen.has(hymnKey(h))) continue;
+          seen.add(hymnKey(h));
+          pending.push({ ...h, loose: loose && !h.collection });
+        }
+      } catch (err) {
+        problems.push(path || file.name);
+      }
+    }
+    folderInput.value = '';
+    filesInput.value = '';
+    renderSummary();
   };
 
   folderInput.onchange = () => handleFiles([...folderInput.files].map(file => ({ file, path: file.webkitRelativePath })));
@@ -756,7 +932,8 @@ function setupImport() {
       const res = await fetch('/api/hymns/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hymns: pending })
+        // Arquivos soltos (sem pasta) ficam na categoria escrita no campo
+        body: JSON.stringify({ hymns: pending.map(({ loose, ...h }) => (loose ? { ...h, collection: categoryInput.value.trim() } : h)) })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -784,6 +961,7 @@ export const hymnControls = {
 };
 
 export function setupHymns() {
+  setupSpecial();
   ws.on('init', onServerState);
   ws.on('update-content', onServerState);
 
