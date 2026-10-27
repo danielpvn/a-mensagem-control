@@ -1,5 +1,5 @@
 {
-  "version": "2.1.0-beta.1",
-  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.1.0-beta.1/A_Mensagem_Control.zip",
-  "notes": "Teste: velocidade e cor do coro nos hinos, lista de hinos do culto, mídia com ordem livre, início do vídeo, YouTube por link e som neste computador, nova aba Culto (leitura do culto, anúncio da leitura com Bíblia 3D, pedidos de oração) e menus de aparência em caixas."
+  "version": "2.1.0-beta.2",
+  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.1.0-beta.2/A_Mensagem_Control.zip",
+  "notes": "Teste: nada vai ao ar sem o Exibir; anúncio da leitura na aba Bíblia com estilos novos (faixa com a Bíblia e a luz, tela cheia); prévia das animações só no painel; transparência da faixa; importar vários hinos; louvor especial; baixar as mensagens do site do Tabernáculo da Fé."
 }
