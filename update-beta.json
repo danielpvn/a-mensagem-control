@@ -1,5 +1,5 @@
 {
-  "version": "2.0.2",
-  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.0.2/A_Mensagem_Control.zip",
-  "notes": "Nenhuma versão de teste no momento."
+  "version": "2.1.0-beta.1",
+  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.1.0-beta.1/A_Mensagem_Control.zip",
+  "notes": "Teste: velocidade e cor do coro nos hinos, lista de hinos do culto, mídia com ordem livre, início do vídeo, YouTube por link e som neste computador, nova aba Culto (leitura do culto, anúncio da leitura com Bíblia 3D, pedidos de oração) e menus de aparência em caixas."
 }
