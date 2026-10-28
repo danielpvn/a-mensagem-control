@@ -1,5 +1,5 @@
 {
-  "version": "2.0.2",
-  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.0.2/A_Mensagem_Control.zip",
-  "notes": "Nenhuma versão de teste no momento."
+  "version": "2.1.0-beta.6",
+  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.1.0-beta.6/A_Mensagem_Control.zip",
+  "notes": "Teste: aba Sons virou Agendamentos, com vídeos, playlists (um atrás do outro, com transição e tempo de transição) e agendar a hora de início da playlist; ícone sem o fundo azul; imagem do som no OBS; louvor especial na aba Culto; opção sem transição em tudo."
 }

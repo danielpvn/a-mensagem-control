@@ -1,11 +1,13 @@
-// Nome do pregador (lower third): lista de pregadores, mostrar/esconder e aparência.
-import { $, toast, confirmDialog } from './ui.js';
+// Nome do pregador (lower third), na aba Culto: lista de pregadores, mostrar/esconder e aparência.
+// A faixa é a mesma do louvor especial (special.js), cada um com o seu visual.
+import { $, toast, confirmDialog, previewInPanel } from './ui.js';
 import * as ws from './ws.js';
 
 let preachers = [];
 let selectedId = null;
 let editingId = null;
-let lt = { visible: false, name: '', subtitle: '' };
+let lt = { visible: false, name: '', subtitle: '', kind: 'preacher' };
+const preacherOnAir = () => lt.visible && lt.kind !== 'special';
 
 try { selectedId = localStorage.getItem('amc.preacher'); } catch (e) { /* sem armazenamento */ }
 
@@ -39,7 +41,7 @@ function renderList() {
     const row = document.createElement('div');
     row.className = 'lt-row';
     row.classList.toggle('active', p.id === selectedId);
-    row.classList.toggle('on-air', lt.visible && lt.name === p.name);
+    row.classList.toggle('on-air', preacherOnAir() && lt.name === p.name);
     row.onclick = () => selectPreacher(p.id);
 
     const text = document.createElement('div');
@@ -47,11 +49,6 @@ function renderList() {
     const name = document.createElement('strong');
     name.textContent = p.name;
     text.appendChild(name);
-    if (p.subtitle) {
-      const sub = document.createElement('span');
-      sub.textContent = p.subtitle;
-      text.appendChild(sub);
-    }
 
     const edit = document.createElement('button');
     edit.type = 'button';
@@ -83,22 +80,22 @@ function renderList() {
 function renderButton() {
   const btn = $('btn-lt-toggle');
   const p = selected();
-  btn.disabled = !lt.visible && !p;
-  btn.classList.toggle('btn-danger', lt.visible);
-  btn.classList.toggle('btn-primary', !lt.visible);
-  btn.innerHTML = lt.visible ? 'Esconder nome <kbd>N</kbd>' : 'Mostrar nome <kbd>N</kbd>';
+  const onAir = preacherOnAir();
+  btn.disabled = !onAir && !p;
+  btn.classList.toggle('btn-danger', onAir);
+  btn.classList.toggle('btn-primary', !onAir);
+  btn.innerHTML = onAir ? 'Esconder nome <kbd>N</kbd>' : 'Mostrar nome <kbd>N</kbd>';
 
-  // Lembrete no topo enquanto o nome está na tela
+  // Lembrete no topo enquanto o nome (ou o louvor especial) está na tela
   const chip = $('lt-chip');
   chip.hidden = !lt.visible;
-  $('lt-chip-label').textContent = lt.visible ? `Nome no ar · ${lt.name}` : '';
+  $('lt-chip-label').textContent = lt.visible ? `${lt.kind === 'special' ? 'Louvor no ar' : 'Nome no ar'} · ${lt.name}` : '';
 }
 
 function openForm(preacher) {
   editingId = preacher ? preacher.id : null;
   const form = $('lt-form');
   $('lt-form-name').value = preacher ? preacher.name : '';
-  $('lt-form-subtitle').value = preacher ? preacher.subtitle : 'Tabernáculo da Fé · Luziânia';
   form.hidden = false;
   $('lt-form-name').focus();
 }
@@ -109,7 +106,7 @@ function setupForm() {
   $('btn-lt-cancel').onclick = () => { form.hidden = true; };
   form.onsubmit = async (e) => {
     e.preventDefault();
-    const body = { name: $('lt-form-name').value, subtitle: $('lt-form-subtitle').value };
+    const body = { name: $('lt-form-name').value, subtitle: '' };
     const res = await fetch(editingId ? `/api/preachers/${editingId}` : '/api/preachers', {
       method: editingId ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -126,21 +123,19 @@ function setupForm() {
   };
 }
 
-// Mostra o pregador escolhido ou esconde o nome (botão e tecla N)
+// Mostra o pregador escolhido ou esconde o nome (botão e tecla N). Só o nome, sem nada embaixo.
 export function toggleLowerThird() {
-  if (lt.visible) {
+  // Com o louvor especial no ar, o N troca pelo nome do pregador
+  if (preacherOnAir()) {
     ws.send('lt-hide');
     return;
   }
   const p = selected();
-  if (p) ws.send('lt-show', { name: p.name, subtitle: p.subtitle });
-  else toast('Cadastre e escolha o pregador na aba Mídia.', 'error');
+  if (p) ws.send('lt-show', { name: p.name, subtitle: '', kind: 'preacher' });
+  else toast('Cadastre e escolha o pregador na aba Culto.', 'error');
 }
 
-// ---------- Aparência ----------
-
-const lookRadios = [...document.querySelectorAll('input[name="lt-look"]')];
-const speedRadios = [...document.querySelectorAll('input[name="lt-speed"]')];
+// ---------- Aparência (serve para o pregador e para o louvor especial) ----------
 
 function hexToRgba(hex, alpha) {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -156,43 +151,59 @@ function parseRgba(rgbaStr) {
   return { hex: '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1), opacity: match[4] ? Math.round(parseFloat(match[4]) * 100) : 100 };
 }
 
-const styleInputs = ['lt-autohide', 'lt-position', 'lt-animation', 'lt-font', 'lt-scale', 'lt-name-color', 'lt-subtitle-color', 'lt-accent-color', 'lt-bg-color', 'lt-bg-opacity'].map($);
+// Liga os controles de aparência de uma faixa. `prefix` = começo dos ids no admin.html
+// ("lt" para o pregador, "sp" para o louvor especial); `type` = nome nas mensagens do
+// WebSocket ("lt" -> update-lt-styles / update-lt-style / reset-lt-styles).
+export function setupLtStyleControls({ prefix, type, stateKey, preview, defaults = {} }) {
+  const id = (name) => $(`${prefix}-${name}`);
+  const lookRadios = [...document.querySelectorAll(`input[name="${prefix}-look"]`)];
+  const speedRadios = [...document.querySelectorAll(`input[name="${prefix}-speed"]`)];
+  const inputs = ['autohide', 'position', 'animation', 'font', 'scale', 'name-color', 'subtitle-color', 'accent-color', 'bg-color', 'bg-opacity'].map(id);
 
-function fillStyles(s) {
-  if (!s || styleInputs.includes(document.activeElement)) return;
-  $('lt-autohide').value = String(s.autoHide ?? 8);
-  $('lt-position').value = s.position || 'bottom-left';
-  $('lt-animation').value = s.animation || 'slide';
-  $('lt-font').value = s.fontFamily || 'Montserrat, sans-serif';
-  $('lt-scale').value = s.scale ?? 1;
-  $('lt-scale-val').textContent = `${Math.round((s.scale ?? 1) * 100)}%`;
-  $('lt-name-color').value = s.nameColor || '#ffffff';
-  $('lt-subtitle-color').value = s.subtitleColor || '#cbd5e1';
-  $('lt-accent-color').value = s.accentColor || '#3b82f6';
-  const { hex, opacity } = parseRgba(s.bgColor);
-  $('lt-bg-color').value = hex;
-  $('lt-bg-opacity').value = opacity;
-  $('lt-opacity-val').textContent = `${opacity}%`;
-  lookRadios.forEach(r => { r.checked = r.value === (s.look || 'modern'); });
-  speedRadios.forEach(r => { r.checked = Number(r.value) === Number(s.speed || 1); });
-}
+  const fill = (s) => {
+    if (!s || inputs.includes(document.activeElement)) return;
+    id('autohide').value = String(s.autoHide ?? 8);
+    id('position').value = s.position || 'bottom-left';
+    id('animation').value = s.animation || 'slide';
+    id('font').value = s.fontFamily || 'Montserrat, sans-serif';
+    id('scale').value = s.scale ?? 1;
+    id('scale-val').textContent = `${Math.round((s.scale ?? 1) * 100)}%`;
+    id('name-color').value = s.nameColor || '#ffffff';
+    id('subtitle-color').value = s.subtitleColor || '#cbd5e1';
+    id('accent-color').value = s.accentColor || defaults.accentColor || '#3b82f6';
+    const { hex, opacity } = parseRgba(s.bgColor);
+    id('bg-color').value = hex;
+    id('bg-opacity').value = opacity;
+    id('opacity-val').textContent = `${opacity}%`;
+    lookRadios.forEach(r => { r.checked = r.value === (s.look || 'modern'); });
+    speedRadios.forEach(r => { r.checked = Number(r.value) === Number(s.speed || 1); });
+  };
 
-function sendStyles() {
-  $('lt-scale-val').textContent = `${Math.round(Number($('lt-scale').value) * 100)}%`;
-  $('lt-opacity-val').textContent = `${$('lt-bg-opacity').value}%`;
-  ws.send('update-lt-styles', {
-    autoHide: Number($('lt-autohide').value),
-    position: $('lt-position').value,
-    animation: $('lt-animation').value,
-    fontFamily: $('lt-font').value,
-    scale: Number($('lt-scale').value),
-    nameColor: $('lt-name-color').value,
-    subtitleColor: $('lt-subtitle-color').value,
-    accentColor: $('lt-accent-color').value,
-    bgColor: hexToRgba($('lt-bg-color').value, Number($('lt-bg-opacity').value) / 100),
-    look: (lookRadios.find(r => r.checked) || lookRadios[0]).value,
-    speed: Number((speedRadios.find(r => r.checked) || speedRadios[1]).value)
-  });
+  const send = () => {
+    id('scale-val').textContent = `${Math.round(Number(id('scale').value) * 100)}%`;
+    id('opacity-val').textContent = `${id('bg-opacity').value}%`;
+    ws.send(`update-${type}-styles`, {
+      autoHide: Number(id('autohide').value),
+      position: id('position').value,
+      animation: id('animation').value,
+      fontFamily: id('font').value,
+      scale: Number(id('scale').value),
+      nameColor: id('name-color').value,
+      subtitleColor: id('subtitle-color').value,
+      accentColor: id('accent-color').value,
+      bgColor: hexToRgba(id('bg-color').value, Number(id('bg-opacity').value) / 100),
+      look: (lookRadios.find(r => r.checked) || lookRadios[0]).value,
+      speed: Number((speedRadios.find(r => r.checked) || speedRadios[1]).value)
+    });
+  };
+
+  ws.on('init', (state) => fill(state[stateKey]));
+  ws.on(`update-${type}-style`, fill);
+  [...inputs, ...lookRadios, ...speedRadios].forEach(input => input.addEventListener('input', send));
+  // "Ver o efeito" e trocar efeito/velocidade/estilo mostram como fica só na prévia do painel
+  $(`btn-${prefix}-preview`).onclick = preview;
+  [id('animation'), ...speedRadios, ...lookRadios].forEach(input => input.addEventListener('change', () => setTimeout(preview, 250)));
+  $(`btn-${prefix}-reset`).onclick = () => ws.send(`reset-${type}-styles`);
 }
 
 export function setupLowerThird() {
@@ -200,23 +211,18 @@ export function setupLowerThird() {
     lt = state.lowerThird || lt;
     renderList();
   };
-  ws.on('init', (state) => { onState(state); fillStyles(state.lowerThirdStyles); });
+  ws.on('init', onState);
   ws.on('update-content', onState);
-  ws.on('update-lt-style', fillStyles);
 
-  [...styleInputs, ...lookRadios, ...speedRadios].forEach(input => input.addEventListener('input', sendStyles));
-
-  // Mostra o nome e esconde depois de 2,5 s para ver o efeito escolhido
-  $('btn-lt-preview').onclick = () => {
-    const p = selected();
-    if (!p && !lt.visible) {
-      toast('Cadastre e escolha um pregador primeiro.', 'error');
-      return;
+  setupLtStyleControls({
+    prefix: 'lt',
+    type: 'lt',
+    stateKey: 'lowerThirdStyles',
+    preview: () => {
+      const p = selected();
+      previewInPanel({ type: 'preview-lt', name: p ? p.name : 'Pr. Nome do Pregador', subtitle: '', kind: 'preacher' });
     }
-    if (!lt.visible) ws.send('lt-show', { name: p.name, subtitle: p.subtitle });
-    setTimeout(() => ws.send('lt-hide'), 2500);
-  };
-  $('btn-lt-reset').onclick = () => ws.send('reset-lt-styles');
+  });
   $('btn-lt-toggle').onclick = toggleLowerThird;
   $('lt-chip').onclick = () => ws.send('lt-hide');
 

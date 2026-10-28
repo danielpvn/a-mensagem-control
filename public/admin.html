@@ -7,7 +7,7 @@
   <link rel="icon" href="assets/favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="assets/favicon.png">
   <link rel="stylesheet" href="fonts.css">
-  <link rel="stylesheet" href="admin.css?v=1.5.0">
+  <link rel="stylesheet" href="admin.css?v=2.1.13">
 </head>
 <body>
   <div class="app">
@@ -17,7 +17,7 @@
         <img src="assets/logo.svg" alt="" class="brand-logo">
         <div class="brand-text">
           <strong>A MENSAGEM</strong>
-          <span>CONTROL <em id="app-version" class="version-tag">v2.0.2</em></span>
+          <span>CONTROL <em id="app-version" class="version-tag">v2.1.0</em></span>
         </div>
       </div>
 
@@ -37,6 +37,14 @@
         <button class="tab" role="tab" data-tab="midia">
           <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>
           Mídia
+        </button>
+        <button class="tab" role="tab" data-tab="culto">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 21v-1a7 7 0 0 1 7-7h2a7 7 0 0 1 7 7v1"/></svg>
+          Culto
+        </button>
+        <button class="tab" role="tab" data-tab="sons">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M12 14v3l2 1"/></svg>
+          Agendamentos
         </button>
         <button class="tab" role="tab" data-tab="config">
           <svg viewBox="0 0 24 24"><path d="M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.6a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.6a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -197,6 +205,7 @@
                   <option value="zoom-in">Zoom suave</option>
                   <option value="blur">Desfoque</option>
                   <option value="clip-reveal">Cortina</option>
+                  <option value="none">Sem transição</option>
                 </select>
               </div>
             </fieldset>
@@ -241,17 +250,27 @@
                 </button>
               </div>
             </div>
-            <label class="search search-lg">
-              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-              <input type="search" id="hymn-search" placeholder="Digite o que estão cantando, o número ou o título..." autocomplete="off" spellcheck="false">
-            </label>
-            <label class="category-select" id="hymn-category-wrap" hidden>
-              <span>Categoria</span>
-              <select id="hymn-category"></select>
-            </label>
-            <p id="hymn-search-hint" class="muted small">Ex.: <em>"quando a aurora"</em>. <kbd>↑</kbd> <kbd>↓</kbd> escolhem e <kbd>Enter</kbd> deixa pronto.</p>
-            <div id="hymn-results" class="sermon-list hymn-results" role="listbox" aria-label="Hinos">
-              <div class="empty">Carregando hinos...</div>
+            <div class="segmented" role="radiogroup" aria-label="Mostrar">
+              <label><input type="radio" name="hymn-view" value="search" checked><span>Buscar</span></label>
+              <label><input type="radio" name="hymn-view" value="list"><span>Lista do culto <b id="hymn-list-count" class="count-pill" hidden></b></span></label>
+            </div>
+            <div id="hymn-search-view" class="hymn-view">
+              <label class="search search-lg">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                <input type="search" id="hymn-search" placeholder="Digite o que estão cantando, o número ou o título..." autocomplete="off" spellcheck="false">
+              </label>
+              <label class="category-select" id="hymn-category-wrap" hidden>
+                <span>Categoria</span>
+                <select id="hymn-category"></select>
+              </label>
+              <p id="hymn-search-hint" class="muted small">Ex.: <em>"quando a aurora"</em>. <kbd>↑</kbd> <kbd>↓</kbd> escolhem e <kbd>Enter</kbd> deixa pronto. O <strong>+</strong> põe na lista do culto.</p>
+              <div id="hymn-results" class="sermon-list hymn-results" role="listbox" aria-label="Hinos">
+                <div class="empty">Carregando hinos...</div>
+              </div>
+            </div>
+            <div id="hymn-list-view" class="hymn-view" hidden>
+              <div id="hymn-playlist" class="sermon-list hymn-playlist" aria-label="Lista do culto"></div>
+              <button id="btn-hymn-list-clear" class="btn btn-text btn-sm" hidden>Limpar a lista</button>
             </div>
           </aside>
 
@@ -280,6 +299,8 @@
                   <p id="hymn-meta" class="muted">Busque um hino pelo trecho da letra.</p>
                 </div>
                 <div class="head-actions">
+                  <button id="btn-hymn-list-next" class="btn btn-primary btn-sm" hidden title="Abrir o próximo hino da lista do culto">Próximo da lista</button>
+                  <button id="btn-hymn-list-add" class="btn btn-secondary btn-sm" hidden title="Colocar este hino na lista do culto">+ Lista</button>
                   <button id="btn-hymn-edit" class="btn btn-secondary btn-sm" hidden>
                     <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
                     Editar
@@ -333,6 +354,10 @@
                 <label><input type="radio" name="hymn-position" value="center" checked><span>Texto no centro</span></label>
                 <label><input type="radio" name="hymn-position" value="bottom"><span>Texto embaixo</span></label>
               </div>
+              <div class="field" id="hymn-band-field">
+                <div class="field-row"><label for="hymn-band-transp">Transparência da faixa</label><output id="hymn-band-transp-val">0%</output></div>
+                <input type="range" id="hymn-band-transp" min="0" max="100" step="5" value="0">
+              </div>
               <div class="field">
                 <div class="field-row"><label for="hymn-lines">Linhas por tela</label><output id="hymn-lines-val">4</output></div>
                 <input type="range" id="hymn-lines" min="1" max="8" step="1" value="4">
@@ -368,17 +393,24 @@
                   <option value="slide-up">Deslizar para cima</option>
                   <option value="zoom-in">Zoom suave</option>
                   <option value="blur">Desfoque</option>
+                  <option value="none">Sem transição</option>
                 </select>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="hymn-speed">Duração da transição</label><output id="hymn-speed-val">0.4 s</output></div>
+                <input type="range" id="hymn-speed" min="0.1" max="2" step="0.1" value="0.4">
               </div>
             </fieldset>
 
             <fieldset>
               <legend>Cores</legend>
-              <div class="color-grid color-grid-3">
+              <div class="color-grid">
                 <label class="color-field"><input type="color" id="hymn-text-color" value="#ffffff"><span>Letra</span></label>
+                <label class="color-field"><input type="color" id="hymn-chorus-color" value="#fde68a"><span>Coro</span></label>
                 <label class="color-field"><input type="color" id="hymn-accent-color" value="#93c5fd"><span>Destaque</span></label>
                 <label class="color-field"><input type="color" id="hymn-outline-color" value="#000000"><span>Contorno</span></label>
               </div>
+              <label class="switch"><input type="checkbox" id="hymn-chorus-on"><span class="switch-ui"></span>Coro com cor diferente</label>
             </fieldset>
 
             <fieldset>
@@ -450,6 +482,20 @@
                 </div>
               </div>
 
+              <div id="bible-announce" class="announce-bar" hidden>
+                <div class="announce-ref">
+                  <span class="muted small">Leitura</span>
+                  <strong id="bible-announce-ref">—</strong>
+                </div>
+                <label class="announce-end muted small">até o versículo
+                  <select id="bible-announce-end"><option value="">—</option></select>
+                </label>
+                <button id="btn-bible-announce" class="btn btn-secondary btn-sm" title="Mostra no telão o anúncio da leitura com a passagem escolhida">
+                  <svg viewBox="0 0 24 24"><path d="M3 5.5C5.5 4.2 8.8 4.2 12 6.2c3.2-2 6.5-2 9-.7V19c-2.5-1.3-5.8-1.3-9 .7-3.2-2-6.5-2-9-.7Z"/><path d="M12 6.2V19.7"/></svg>
+                  <span id="btn-bible-announce-label">Anunciar leitura</span>
+                </button>
+              </div>
+
               <div id="bible-verses" class="paragraphs-list">
                 <div class="empty">Os versículos do capítulo aparecem aqui.</div>
               </div>
@@ -492,6 +538,10 @@
               <div class="segmented" role="radiogroup" aria-label="Posição do texto" id="bible-position-group">
                 <label><input type="radio" name="bible-position" value="center" checked><span>Texto no centro</span></label>
                 <label><input type="radio" name="bible-position" value="bottom"><span>Texto embaixo</span></label>
+              </div>
+              <div class="field" id="bible-band-field">
+                <div class="field-row"><label for="bible-band-transp">Transparência da faixa</label><output id="bible-band-transp-val">0%</output></div>
+                <input type="range" id="bible-band-transp" min="0" max="100" step="5" value="0">
               </div>
             </fieldset>
 
@@ -552,13 +602,81 @@
                   <option value="slide-up">Deslizar para cima</option>
                   <option value="zoom-in">Zoom suave</option>
                   <option value="blur">Desfoque</option>
+                  <option value="none">Sem transição</option>
                 </select>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="bible-speed">Duração da transição</label><output id="bible-speed-val">0.4 s</output></div>
+                <input type="range" id="bible-speed" min="0.1" max="2" step="0.1" value="0.4">
               </div>
             </fieldset>
 
             <fieldset>
               <legend>Fundo</legend>
               <div id="bible-bg-editor"></div>
+            </fieldset>
+            <fieldset>
+              <legend>Anúncio da leitura</legend>
+              <div class="field">
+                <label for="reading-look">Estilo</label>
+                <select id="reading-look">
+                  <option value="photo">Faixa com a Bíblia e a luz</option>
+                  <option value="full">Tela cheia com a Bíblia</option>
+                  <option value="bible3d">Bíblia 3D com faixa</option>
+                  <option value="card">Cartão escuro</option>
+                  <option value="light">Faixa clara</option>
+                  <option value="line">Só texto e linha</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="reading-anim">Animação</label>
+                <select id="reading-anim">
+                  <option value="normal">Com animação</option>
+                  <option value="none">Sem animação (aparece e some na hora)</option>
+                </select>
+              </div>
+              <button type="button" id="btn-reading-preview" class="btn btn-secondary btn-sm" title="Toca a entrada e a saída só nesta prévia; não vai para o OBS">Ver a animação (só na prévia)</button>
+              <div class="field" id="reading-label-field">
+                <label for="reading-label">Texto de cima</label>
+                <input type="text" id="reading-label" maxlength="40" placeholder="LEITURA BÍBLICA" autocomplete="off">
+              </div>
+              <div class="field" id="reading-presets" hidden>
+                <label>Cores prontas</label>
+                <div class="preset-row">
+                  <button type="button" class="btn btn-secondary btn-sm" data-reading-preset="dark">Faixa escura</button>
+                  <button type="button" class="btn btn-secondary btn-sm" data-reading-preset="gold">Faixa dourada</button>
+                </div>
+              </div>
+              <div class="field">
+                <label for="reading-font">Fonte da passagem</label>
+                <select id="reading-font">
+                  <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
+                  <option value="Outfit, sans-serif">Outfit (moderna)</option>
+                  <option value="'Crimson Pro', serif">Crimson Pro (com serifa)</option>
+                  <option value="'Lora', serif">Lora (elegante, com serifa)</option>
+                  <option value="'Playfair Display', serif">Playfair Display (tradicional)</option>
+                </select>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="reading-scale">Tamanho</label><output id="reading-scale-val">100%</output></div>
+                <input type="range" id="reading-scale" min="0.6" max="1.6" step="0.05" value="1">
+              </div>
+              <div class="color-grid">
+                <label class="color-field"><input type="color" id="reading-text-color" value="#ffffff"><span>Passagem</span></label>
+                <label class="color-field"><input type="color" id="reading-band-color" value="#11151c"><span>Fundo</span></label>
+                <label class="color-field"><input type="color" id="reading-border-color" value="#9cc7ff"><span id="reading-border-name">Detalhes</span></label>
+              </div>
+              <div class="field">
+                <label for="reading-autohide">Esconder sozinho depois de</label>
+                <select id="reading-autohide">
+                  <option value="0">Não esconder sozinho</option>
+                  <option value="8">8 segundos</option>
+                  <option value="12">12 segundos</option>
+                  <option value="20">20 segundos</option>
+                  <option value="30">30 segundos</option>
+                </select>
+              </div>
+              <button id="btn-reading-reset" class="btn btn-text btn-sm">Restaurar padrão do anúncio</button>
             </fieldset>
           </aside>
         </div>
@@ -589,10 +707,16 @@
               <strong>Enviar fotos e vídeos</strong>
               <span class="muted small">ou arraste para cá (também funciona pelo celular)</span>
             </label>
+            <form id="media-yt-form" class="folder-row yt-form">
+              <svg viewBox="0 0 24 24" class="yt-icon"><path d="M2.5 17a24 24 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.6 49.6 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24 24 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.6 49.6 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>
+              <input type="url" id="media-yt-url" placeholder="Link do YouTube" autocomplete="off">
+              <button type="submit" class="btn btn-secondary btn-sm">Adicionar</button>
+            </form>
             <div id="media-uploads" class="media-uploads"></div>
             <div id="media-grid" class="media-grid">
               <div class="empty">Nenhuma mídia nesta pasta ainda.</div>
             </div>
+            <p class="muted small media-grid-hint">Arraste as mídias para mudar a ordem.</p>
           </aside>
 
           <!-- Centro: prévia + controles -->
@@ -625,50 +749,62 @@
                 </button>
               </div>
 
+              <div class="media-scroll">
               <div class="media-preview-wrap">
                 <div class="media-preview-area">
                   <div id="media-preview" class="media-preview" title="Rodinha do mouse: zoom no ponto · arrastar: mover · dois cliques: exibir">
                     <div class="empty">Selecione uma mídia na lista.</div>
                   </div>
                 </div>
-                <div class="zoom-bar">
-                  <button id="btn-zoom-out" class="btn btn-secondary btn-sm btn-icon" title="Afastar">−</button>
-                  <input type="range" id="media-zoom" min="1" max="6" step="0.05" value="1" aria-label="Zoom">
-                  <button id="btn-zoom-in" class="btn btn-secondary btn-sm btn-icon" title="Aproximar">+</button>
-                  <output id="media-zoom-val">1.0x</output>
-                  <button id="btn-zoom-reset" class="btn btn-text btn-sm" title="Mostrar a mídia inteira">Sem zoom</button>
+
+                <!-- Vídeo escolhido (ainda não no ar): achar o ponto onde ele vai começar -->
+                <div id="media-cue" class="media-cue" hidden>
+                  <div class="video-progress">
+                    <button id="btn-cue-play" class="btn btn-secondary btn-sm btn-icon" title="Tocar / pausar a prévia">
+                      <svg viewBox="0 0 24 24" id="cue-play-icon"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                    </button>
+                    <span id="cue-time">0:00</span>
+                    <input type="range" id="cue-seek" class="seek" min="0" max="0" step="0.1" value="0" aria-label="Posição na prévia">
+                    <span id="cue-duration">0:00</span>
+                    <label class="switch switch-sm" title="Ouvir a prévia neste computador"><input type="checkbox" id="cue-sound"><span class="switch-ui"></span>Ouvir</label>
+                  </div>
+                  <div class="cue-row">
+                    <span class="cue-start">Começa em <strong id="cue-start">0:00</strong></span>
+                    <button id="btn-cue-mark" class="btn btn-secondary btn-sm" title="O vídeo vai começar neste ponto quando for ao ar">Começar daqui</button>
+                    <button id="btn-cue-reset" class="btn btn-text btn-sm">Do começo</button>
+                  </div>
                 </div>
-                <p class="muted small">Zoom: <strong>rodinha do mouse</strong> no ponto, <strong>arraste</strong> para mover. No ar, muda na hora no telão.</p>
+
+                <p class="muted small zoom-hint" id="media-zoom-hint">Zoom: gire a <strong>rodinha do mouse</strong> em cima da prévia, no ponto que quer aproximar, e <strong>arraste</strong> para mover. No ar, muda na hora no telão. <button id="btn-zoom-reset" class="btn btn-text btn-sm" hidden title="Mostrar a mídia inteira">Tirar o zoom</button></p>
               </div>
 
+              <!-- Vídeo no ar -->
               <div id="media-video-controls" class="video-controls" hidden>
                 <div class="video-buttons">
-                  <button id="btn-media-play" class="btn btn-secondary" title="Tocar / pausar">
+                  <button id="btn-media-play" class="btn btn-secondary btn-sm" title="Tocar / pausar">
                     <svg viewBox="0 0 24 24" id="media-play-icon"><polygon points="6 3 20 12 6 21 6 3"/></svg>
                     <span id="media-play-label">Pausar</span>
                   </button>
-                  <button id="btn-media-restart" class="btn btn-secondary" title="Voltar ao começo">
+                  <button id="btn-media-restart" class="btn btn-secondary btn-sm" title="Voltar ao ponto de início">
                     <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
                     Recomeçar
                   </button>
-                  <button id="btn-media-mute" class="btn btn-secondary" title="Ligar/desligar o som">
+                  <button id="btn-media-mute" class="btn btn-secondary btn-sm" title="Ligar/desligar o som">
                     <svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>
                     <span id="media-mute-label">Som ligado</span>
                   </button>
-                  <label class="switch"><input type="checkbox" id="media-loop"><span class="switch-ui"></span>Repetir</label>
-                </div>
-                <div class="field">
-                  <div class="field-row"><label for="media-volume">Volume</label><output id="media-volume-val">100%</output></div>
-                  <input type="range" id="media-volume" min="0" max="100" value="100">
+                  <input type="range" id="media-volume" class="volume" min="0" max="100" value="100" aria-label="Volume" title="Volume">
+                  <output id="media-volume-val">100%</output>
+                  <label class="switch switch-sm"><input type="checkbox" id="media-loop"><span class="switch-ui"></span>Repetir</label>
                 </div>
                 <div class="video-progress">
                   <span id="media-time">0:00</span>
-                  <div class="progress-track"><div id="media-progress-bar" class="progress-bar"></div></div>
+                  <input type="range" id="media-seek" class="seek" min="0" max="0" step="0.1" value="0" aria-label="Posição do vídeo no ar" title="Arraste para pular para outra parte do vídeo no ar">
                   <span id="media-duration">0:00</span>
                 </div>
-                <p class="muted small">O som do vídeo sai pelo OBS: marque <strong>"Controlar áudio via OBS"</strong> na fonte Navegador.</p>
+                <p class="muted small" id="media-sound-note"></p>
               </div>
-
+              </div>
 
               <div class="transport">
                 <button id="btn-media-prev" class="btn btn-transport" disabled title="Mídia anterior (← ou PageUp)">
@@ -687,15 +823,84 @@
             </div>
           </section>
 
-          <!-- Direita: pregador + aparência -->
+          <!-- Direita: som e aparência da mídia -->
           <aside class="card appearance" id="media-side">
+            <div class="card-head">
+              <h2>Aparência</h2>
+              <button id="btn-media-reset" class="btn btn-text btn-sm">Restaurar padrão</button>
+            </div>
+
+            <fieldset>
+              <legend>Som dos vídeos</legend>
+              <div class="segmented" role="radiogroup" aria-label="Onde o som sai">
+                <label title="O som sai no computador que tem o link do overlay aberto (OBS)"><input type="radio" name="media-audio" value="obs" checked><span>No OBS</span></label>
+                <label title="O som sai neste computador (onde o app está aberto)"><input type="radio" name="media-audio" value="app"><span>Neste computador</span></label>
+              </div>
+              <p class="muted small" id="media-audio-help"></p>
+            </fieldset>
+
+            <fieldset>
+              <legend>Transição</legend>
+              <div class="field">
+                <label for="media-transition">Efeito</label>
+                <select id="media-transition">
+                  <option value="crossfade">Dissolver (uma na outra)</option>
+                  <option value="fade-black">Passar pelo preto</option>
+                  <option value="cut">Corte seco (sem transição)</option>
+                  <option value="slide">Deslizar</option>
+                  <option value="zoom">Zoom suave</option>
+                </select>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="media-duration-range">Duração da transição</label><output id="media-duration-val">0.6 s</output></div>
+                <input type="range" id="media-duration-range" min="0.2" max="2" step="0.1" value="0.6">
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Ajuste na tela</legend>
+              <div class="field">
+                <label>Fotos e vídeos que não são da largura da tela</label>
+                <div class="segmented segmented-3" role="radiogroup" aria-label="Ajuste">
+                  <label title="A foto inteira, com as laterais preenchidas pela própria foto desfocada"><input type="radio" name="media-fit" value="blur" checked><span>Inteira + desfoque</span></label>
+                  <label title="A foto inteira, com bordas de uma cor"><input type="radio" name="media-fit" value="contain"><span>Inteira + bordas</span></label>
+                  <label title="Preenche a tela toda, cortando o que sobrar"><input type="radio" name="media-fit" value="cover"><span>Preencher</span></label>
+                </div>
+              </div>
+              <div class="field" id="media-focus-field">
+                <label>Ao preencher, mostrar a parte</label>
+                <div class="segmented segmented-3" role="radiogroup" aria-label="Parte da foto">
+                  <label><input type="radio" name="media-focus" value="top"><span>De cima</span></label>
+                  <label><input type="radio" name="media-focus" value="center" checked><span>Do meio</span></label>
+                  <label><input type="radio" name="media-focus" value="bottom"><span>De baixo</span></label>
+                </div>
+              </div>
+              <div class="color-row">
+                <label class="color-field" id="media-bg-field"><input type="color" id="media-bg" value="#000000"><span>Bordas</span></label>
+                <div class="field grow">
+                  <label for="media-end">Quando o vídeo terminar</label>
+                  <select id="media-end">
+                    <option value="clear">Tirar da tela</option>
+                    <option value="hold">Ficar no último quadro</option>
+                  </select>
+                </div>
+              </div>
+            </fieldset>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ============ ABA CULTO ============ -->
+      <section class="panel" data-panel="culto">
+        <div class="workspace">
+          <!-- Pregador do dia + leitura do culto -->
+          <aside class="card library culto-side">
             <div class="card-head">
               <h2>Pregador do dia</h2>
               <button id="btn-lt-add" class="btn btn-secondary btn-sm">+ Pregador</button>
             </div>
             <form id="lt-form" class="lt-form" hidden>
               <input type="text" id="lt-form-name" placeholder="Nome (ex: Pr. João Silva)" maxlength="80" required>
-              <input type="text" id="lt-form-subtitle" placeholder="Abaixo do nome (ex: Tabernáculo da Fé · Luziânia)" maxlength="100">
               <div class="modal-actions">
                 <button type="button" class="btn btn-text btn-sm" id="btn-lt-cancel">Cancelar</button>
                 <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
@@ -713,9 +918,79 @@
                 <option value="20">20 segundos</option>
               </select>
             </div>
+            <p class="muted small">A tecla <kbd>N</kbd> mostra e esconde o nome em qualquer aba.</p>
+
+            <!-- Louvor especial: alguém canta um louvor fora do hinário (solo, dupla, trio ou grupo) -->
+            <div class="culto-reading culto-special">
+              <h3>Louvor especial</h3>
+              <p class="muted small">Um louvor fora do hinário. Aparece na faixa de baixo, com o visual do grupo "Louvor especial" em Aparência.</p>
+              <div class="field">
+                <label for="special-title">Nome do louvor</label>
+                <input type="text" id="special-title" placeholder="Ex: Grandioso És Tu" maxlength="80" autocomplete="off">
+              </div>
+              <div class="field">
+                <div class="field-row"><label>Quem canta</label><button type="button" id="btn-special-add-singer" class="btn btn-text btn-sm">+ Cantor</button></div>
+                <div id="special-singers" class="singer-list"></div>
+              </div>
+              <div class="special-sample" id="special-sample" hidden>
+                <span class="muted small">Vai aparecer assim:</span>
+                <strong id="special-sample-name"></strong>
+                <span id="special-sample-sub" class="muted"></span>
+              </div>
+              <button id="btn-special-toggle" class="btn btn-primary btn-lt-toggle" disabled>Mostrar no telão</button>
+              <div class="special-recent-wrap" id="special-recent-wrap" hidden>
+                <span class="muted small">Recentes (clique para usar de novo)</span>
+                <div id="special-recent" class="special-recent"></div>
+              </div>
+            </div>
+          </aside>
+
+          <!-- Centro: prévia + pedidos de oração -->
+          <section class="center">
+            <div class="card monitor-card">
+              <div class="card-head">
+                <h3>Prévia do OBS</h3>
+                <span class="badge badge-off" data-monitor-badge>Tela limpa</span>
+              </div>
+              <div class="monitor-body">
+                <div class="stage" data-stage>
+                  <iframe src="overlay.html?preview=1" title="Prévia do overlay" tabindex="-1"></iframe>
+                </div>
+                <div class="next-preview">
+                  <span class="next-label">Pedidos de oração</span>
+                  <p id="prayer-summary">Nenhum nome ainda.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="card reader prayer-card">
+              <div class="reader-head">
+                <div class="reader-title-wrap">
+                  <h2>Pedidos de oração</h2>
+                  <p class="muted">Escreva um nome por linha. A tela é montada sozinha.</p>
+                </div>
+                <button id="btn-prayer-clear" class="btn btn-text btn-sm" title="Apagar todos os nomes">Limpar nomes</button>
+              </div>
+              <div class="field">
+                <label for="prayer-title">Título</label>
+                <input type="text" id="prayer-title" maxlength="40" value="Pedidos de oração">
+              </div>
+              <div class="field grow">
+                <div class="field-row"><label for="prayer-names">Nomes</label><span id="prayer-count" class="muted small"></span></div>
+                <textarea id="prayer-names" spellcheck="false" placeholder="Exemplo:&#10;Maria da Silva&#10;João Pereira&#10;Família Santos"></textarea>
+              </div>
+              <button id="btn-prayer-toggle" class="btn btn-primary btn-prayer-toggle">Exibir pedidos de oração</button>
+            </div>
+          </section>
+
+          <!-- Aparência do nome e dos pedidos -->
+          <aside class="card appearance" id="culto-appearance">
+            <div class="card-head">
+              <h2>Aparência</h2>
+            </div>
 
             <fieldset>
-              <legend>Aparência do nome</legend>
+              <legend>Nome do pregador</legend>
               <div class="segmented segmented-3" role="radiogroup" aria-label="Estilo">
                 <label><input type="radio" name="lt-look" value="modern" checked><span>Moderno</span></label>
                 <label><input type="radio" name="lt-look" value="minimal"><span>Minimalista</span></label>
@@ -744,6 +1019,7 @@
                   <option value="expand">Abrir do centro</option>
                   <option value="flip">Girar (placa)</option>
                   <option value="stagger">Em etapas (caixa, nome, subtítulo)</option>
+                  <option value="none">Sem transição (aparece e some na hora)</option>
                 </select>
               </div>
               <div class="field">
@@ -754,7 +1030,7 @@
                   <label><input type="radio" name="lt-speed" value="1.7"><span>Lenta</span></label>
                 </div>
               </div>
-              <button type="button" id="btn-lt-preview" class="btn btn-secondary btn-sm" title="Mostra e esconde o nome para ver o efeito">Ver o efeito</button>
+              <button type="button" id="btn-lt-preview" class="btn btn-secondary btn-sm" title="Mostra o efeito só nesta prévia; não vai para o OBS">Ver o efeito (só na prévia)</button>
               <div class="field">
                 <label for="lt-font">Fonte</label>
                 <select id="lt-font">
@@ -771,7 +1047,7 @@
               </div>
               <div class="color-grid">
                 <label class="color-field"><input type="color" id="lt-name-color" value="#ffffff"><span>Nome</span></label>
-                <label class="color-field"><input type="color" id="lt-subtitle-color" value="#cbd5e1"><span>Abaixo</span></label>
+                <label class="color-field"><input type="color" id="lt-subtitle-color" value="#cbd5e1"><span>Subtítulo</span></label>
                 <label class="color-field"><input type="color" id="lt-accent-color" value="#3b82f6"><span>Destaque</span></label>
                 <label class="color-field"><input type="color" id="lt-bg-color" value="#0a0f1e"><span>Fundo</span></label>
               </div>
@@ -783,54 +1059,301 @@
             </fieldset>
 
             <fieldset>
-              <legend>Aparência da mídia</legend>
+              <legend>Louvor especial</legend>
+              <div class="segmented segmented-3" role="radiogroup" aria-label="Estilo">
+                <label><input type="radio" name="sp-look" value="modern" checked><span>Moderno</span></label>
+                <label><input type="radio" name="sp-look" value="minimal"><span>Minimalista</span></label>
+                <label><input type="radio" name="sp-look" value="solid"><span>Faixa</span></label>
+              </div>
               <div class="field">
-                <label for="media-transition">Transição</label>
-                <select id="media-transition">
-                  <option value="crossfade">Dissolver (uma na outra)</option>
-                  <option value="fade-black">Passar pelo preto</option>
-                  <option value="cut">Corte seco</option>
-                  <option value="slide">Deslizar</option>
-                  <option value="zoom">Zoom suave</option>
+                <label for="sp-position">Posição</label>
+                <select id="sp-position">
+                  <option value="bottom-left">Embaixo, à esquerda</option>
+                  <option value="bottom-center">Embaixo, no centro</option>
+                  <option value="bottom-right">Embaixo, à direita</option>
+                  <option value="top-left">Em cima, à esquerda</option>
+                  <option value="top-right">Em cima, à direita</option>
                 </select>
               </div>
               <div class="field">
-                <div class="field-row"><label for="media-duration-range">Duração da transição</label><output id="media-duration-val">0.6 s</output></div>
-                <input type="range" id="media-duration-range" min="0.2" max="2" step="0.1" value="0.6">
+                <label for="sp-animation">Efeito de entrada e saída</label>
+                <select id="sp-animation">
+                  <option value="slide">Deslizar do lado</option>
+                  <option value="rise">Subir</option>
+                  <option value="drop">Descer</option>
+                  <option value="fade">Esvanecer</option>
+                  <option value="zoom">Zoom</option>
+                  <option value="blur">Desfoque</option>
+                  <option value="reveal">Cortina</option>
+                  <option value="expand">Abrir do centro</option>
+                  <option value="flip">Girar (placa)</option>
+                  <option value="stagger">Em etapas (caixa, nome, subtítulo)</option>
+                  <option value="none">Sem transição (aparece e some na hora)</option>
+                </select>
               </div>
               <div class="field">
-                <label>Fotos e vídeos que não são da largura da tela</label>
-                <div class="segmented segmented-3" role="radiogroup" aria-label="Ajuste">
-                  <label title="A foto inteira, com as laterais preenchidas pela própria foto desfocada"><input type="radio" name="media-fit" value="blur" checked><span>Inteira + desfoque</span></label>
-                  <label title="A foto inteira, com bordas de uma cor"><input type="radio" name="media-fit" value="contain"><span>Inteira + bordas</span></label>
-                  <label title="Preenche a tela toda, cortando o que sobrar"><input type="radio" name="media-fit" value="cover"><span>Preencher</span></label>
+                <label>Velocidade</label>
+                <div class="segmented segmented-3" role="radiogroup" aria-label="Velocidade">
+                  <label><input type="radio" name="sp-speed" value="0.6"><span>Rápida</span></label>
+                  <label><input type="radio" name="sp-speed" value="1" checked><span>Normal</span></label>
+                  <label><input type="radio" name="sp-speed" value="1.7"><span>Lenta</span></label>
                 </div>
               </div>
-              <div class="field" id="media-focus-field">
-                <label>Ao preencher, mostrar a parte</label>
-                <div class="segmented segmented-3" role="radiogroup" aria-label="Parte da foto">
-                  <label><input type="radio" name="media-focus" value="top"><span>De cima</span></label>
-                  <label><input type="radio" name="media-focus" value="center" checked><span>Do meio</span></label>
-                  <label><input type="radio" name="media-focus" value="bottom"><span>De baixo</span></label>
-                </div>
+              <button type="button" id="btn-sp-preview" class="btn btn-secondary btn-sm" title="Mostra o efeito só nesta prévia; não vai para o OBS">Ver o efeito (só na prévia)</button>
+              <div class="field">
+                <label for="sp-font">Fonte</label>
+                <select id="sp-font">
+                  <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
+                  <option value="Outfit, sans-serif">Outfit (moderna)</option>
+                  <option value="'Lora', serif">Lora (elegante, com serifa)</option>
+                  <option value="'Playfair Display', serif">Playfair Display (tradicional)</option>
+                  <option value="'Crimson Pro', serif">Crimson Pro (com serifa)</option>
+                </select>
               </div>
-              <div class="color-row">
-                <label class="color-field" id="media-bg-field"><input type="color" id="media-bg" value="#000000"><span>Bordas</span></label>
-                <div class="field grow">
-                  <label for="media-end">Quando o vídeo terminar</label>
-                  <select id="media-end">
-                    <option value="clear">Tirar da tela</option>
-                    <option value="hold">Ficar no último quadro</option>
-                  </select>
-                </div>
+              <div class="field">
+                <div class="field-row"><label for="sp-scale">Tamanho</label><output id="sp-scale-val">100%</output></div>
+                <input type="range" id="sp-scale" min="0.6" max="1.8" step="0.05" value="1">
               </div>
-              <button id="btn-media-reset" class="btn btn-text btn-sm">Restaurar padrão da mídia</button>
+              <div class="color-grid">
+                <label class="color-field"><input type="color" id="sp-name-color" value="#ffffff"><span>Louvor</span></label>
+                <label class="color-field"><input type="color" id="sp-subtitle-color" value="#cbd5e1"><span>Cantores</span></label>
+                <label class="color-field"><input type="color" id="sp-accent-color" value="#f2b632"><span>Destaque</span></label>
+                <label class="color-field"><input type="color" id="sp-bg-color" value="#0a0f1e"><span>Fundo</span></label>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="sp-bg-opacity">Opacidade do fundo</label><output id="sp-opacity-val">85%</output></div>
+                <input type="range" id="sp-bg-opacity" min="0" max="100" value="85">
+              </div>
+              <div class="field">
+                <label for="sp-autohide">Esconder sozinho depois de</label>
+                <select id="sp-autohide">
+                  <option value="0">Não esconder sozinho</option>
+                  <option value="5">5 segundos</option>
+                  <option value="8">8 segundos</option>
+                  <option value="10">10 segundos</option>
+                  <option value="15">15 segundos</option>
+                  <option value="20">20 segundos</option>
+                </select>
+              </div>
+              <button id="btn-sp-reset" class="btn btn-text btn-sm">Restaurar padrão do louvor</button>
+            </fieldset>
+
+
+            <fieldset>
+              <legend>Pedidos de oração</legend>
+              <div class="field">
+                <label for="prayer-font">Fonte dos nomes</label>
+                <select id="prayer-font">
+                  <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
+                  <option value="Outfit, sans-serif">Outfit (moderna)</option>
+                  <option value="'Lora', serif">Lora (elegante, com serifa)</option>
+                  <option value="'Playfair Display', serif">Playfair Display (tradicional)</option>
+                  <option value="Arial, sans-serif">Arial (clássica)</option>
+                </select>
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="prayer-size">Tamanho dos nomes</label><output id="prayer-size-val">100%</output></div>
+                <input type="range" id="prayer-size" min="0.6" max="1.4" step="0.05" value="1">
+              </div>
+              <div class="color-grid">
+                <label class="color-field"><input type="color" id="prayer-name-color" value="#ffffff"><span>Nomes</span></label>
+                <label class="color-field"><input type="color" id="prayer-title-color" value="#f2b632"><span>Título</span></label>
+                <label class="color-field"><input type="color" id="prayer-accent-color" value="#f2b632"><span>Linhas</span></label>
+                <label class="color-field"><input type="color" id="prayer-bg-color" value="#333333"><span>Fundo</span></label>
+              </div>
+              <label class="switch"><input type="checkbox" id="prayer-decor" checked><span class="switch-ui"></span>Linhas de enfeite</label>
+              <label class="switch"><input type="checkbox" id="prayer-noanim"><span class="switch-ui"></span>Sem transição (aparece e some na hora)</label>
+              <div class="field">
+                <label>Imagem de fundo</label>
+                <div id="prayer-bg-picker" class="bg-picker"></div>
+              </div>
+              <button id="btn-prayer-reset" class="btn btn-text btn-sm">Restaurar padrão dos pedidos</button>
             </fieldset>
           </aside>
         </div>
       </section>
 
       <!-- ============ ABA CONFIGURAÇÕES ============ -->
+      <!-- ============ ABA AGENDAMENTOS (sons, vídeos e playlists) ============ -->
+      <section class="panel" data-panel="sons">
+        <div class="workspace">
+          <!-- Arquivos enviados -->
+          <aside class="card library sounds-library">
+            <div class="card-head">
+              <h2>Arquivos</h2>
+            </div>
+            <label class="dropzone dropzone-small" id="sound-dropzone">
+              <input type="file" id="sound-files" accept="audio/*,video/mp4,video/webm,video/quicktime,.mp3,.wav,.ogg,.m4a,.mp4,.webm,.mov,.m4v" multiple>
+              <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+              <strong>Enviar sons ou vídeos</strong>
+              <span class="muted small">.mp3, .wav, .m4a, .mp4, .webm ou .mov</span>
+            </label>
+            <div id="sound-uploads" class="uploads"></div>
+            <div id="sound-list" class="sound-list"></div>
+            <p class="muted small sound-image-hint">Clique no quadrinho <b>ao lado do som</b> para escolher uma imagem: ela aparece no OBS enquanto o som toca. Os vídeos aparecem no OBS sozinhos.</p>
+          </aside>
+
+          <!-- Agendamentos e playlists -->
+          <section class="center">
+            <div class="card reader schedules-card">
+              <div class="segmented sched-views" role="radiogroup" aria-label="Mostrar">
+                <label><input type="radio" name="sched-view" value="schedules" checked><span>Agendamentos</span></label>
+                <label><input type="radio" name="sched-view" value="playlists"><span>Playlists</span></label>
+              </div>
+
+              <div id="sched-view-schedules" class="sched-view">
+                <div class="reader-head">
+                  <div class="reader-title-wrap">
+                    <h2 id="schedule-form-title">Novo agendamento</h2>
+                    <p class="muted">Na hora marcada o som, o vídeo ou a playlist começa sozinho.</p>
+                  </div>
+                </div>
+                <form id="schedule-form" class="schedule-form">
+                  <div class="schedule-grid">
+                    <div class="field">
+                      <label for="sch-sound">O que tocar</label>
+                      <select id="sch-sound" required></select>
+                    </div>
+                    <div class="field">
+                      <label for="sch-hour">Horário</label>
+                      <input type="hidden" id="sch-time" value="19:00">
+                      <div class="time-pick" id="sch-time-pick" title="Clique nas setas, role a rodinha do mouse ou digite">
+                        <div class="time-part">
+                          <button type="button" class="time-step" data-part="h" data-step="1" aria-label="Mais uma hora"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
+                          <input type="text" id="sch-hour" inputmode="numeric" maxlength="2" value="19" aria-label="Hora" autocomplete="off">
+                          <button type="button" class="time-step" data-part="h" data-step="-1" aria-label="Menos uma hora"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+                        </div>
+                        <span class="time-colon">:</span>
+                        <div class="time-part">
+                          <button type="button" class="time-step" data-part="m" data-step="5" aria-label="Mais 5 minutos"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
+                          <input type="text" id="sch-minute" inputmode="numeric" maxlength="2" value="00" aria-label="Minutos" autocomplete="off">
+                          <button type="button" class="time-step" data-part="m" data-step="-5" aria-label="Menos 5 minutos"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label for="sch-label">Nome (opcional)</label>
+                      <input type="text" id="sch-label" maxlength="60" placeholder="Ex: Sino 30 minutos antes" autocomplete="off">
+                    </div>
+                    <div class="field">
+                      <label for="sch-mode">Repetir</label>
+                      <select id="sch-mode">
+                        <option value="weekly">Em dias da semana</option>
+                        <option value="daily">Todos os dias</option>
+                        <option value="once">Só uma vez</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="field" id="sch-days-field">
+                    <label>Dias</label>
+                    <div class="day-chips" id="sch-days">
+                      <label><input type="checkbox" value="0" checked><span>Dom</span></label>
+                      <label><input type="checkbox" value="1"><span>Seg</span></label>
+                      <label><input type="checkbox" value="2"><span>Ter</span></label>
+                      <label><input type="checkbox" value="3"><span>Qua</span></label>
+                      <label><input type="checkbox" value="4"><span>Qui</span></label>
+                      <label><input type="checkbox" value="5"><span>Sex</span></label>
+                      <label><input type="checkbox" value="6"><span>Sáb</span></label>
+                    </div>
+                  </div>
+                  <div class="field" id="sch-date-field" hidden>
+                    <label for="sch-date">Dia</label>
+                    <input type="date" id="sch-date" class="date-input">
+                  </div>
+                  <div class="field">
+                    <div class="field-row"><label for="sch-volume">Volume</label><output id="sch-volume-val">100%</output></div>
+                    <input type="range" id="sch-volume" min="0" max="100" step="5" value="100">
+                  </div>
+                  <div class="modal-actions">
+                    <button type="button" id="btn-sch-cancel" class="btn btn-text btn-sm" hidden>Cancelar edição</button>
+                    <button type="submit" id="btn-sch-save" class="btn btn-primary">Adicionar agendamento</button>
+                  </div>
+                </form>
+                <div class="schedule-list-head">
+                  <h3>Agendamentos</h3>
+                  <span id="schedule-count" class="muted small"></span>
+                </div>
+                <div id="schedule-list" class="schedule-list"></div>
+              </div>
+
+              <div id="sched-view-playlists" class="sched-view" hidden>
+                <div class="reader-head">
+                  <div class="reader-title-wrap">
+                    <h2>Playlists</h2>
+                    <p class="muted">Vários itens tocando um atrás do outro (ex.: vídeo, sino com imagem, outro vídeo). Depois é só agendar a playlist.</p>
+                  </div>
+                  <button type="button" id="btn-pl-new" class="btn btn-primary btn-sm">+ Nova playlist</button>
+                </div>
+                <form id="pl-editor" class="schedule-form pl-editor" hidden>
+                  <div class="schedule-grid">
+                    <div class="field">
+                      <label for="pl-name">Nome da playlist</label>
+                      <input type="text" id="pl-name" maxlength="60" placeholder="Ex: Antes do culto" autocomplete="off">
+                    </div>
+                    <div class="field">
+                      <label for="pl-transition">Transição</label>
+                      <select id="pl-transition">
+                        <option value="fade">Esmaecer</option>
+                        <option value="black">Passar pelo preto</option>
+                        <option value="slide">Deslizar</option>
+                        <option value="zoom">Aproximar</option>
+                        <option value="none">Corte seco (sem transição)</option>
+                      </select>
+                    </div>
+                    <div class="field" id="pl-time-field">
+                      <div class="field-row"><label for="pl-time">Tempo da transição</label><output id="pl-time-val">1,0 s</output></div>
+                      <input type="range" id="pl-time" min="0.2" max="5" step="0.1" value="1">
+                    </div>
+                  </div>
+                  <div class="field">
+                    <div class="field-row"><label>Itens (arraste para mudar a ordem)</label><span id="pl-count" class="muted small"></span></div>
+                    <div id="pl-items" class="pl-items"></div>
+                    <div class="pl-add">
+                      <select id="pl-add-select" aria-label="Arquivo para colocar na playlist"></select>
+                      <button type="button" id="btn-pl-add" class="btn btn-secondary btn-sm">+ Colocar</button>
+                    </div>
+                    <p class="muted small">Também dá para clicar no <b>+</b> ao lado de cada arquivo, na lista da esquerda.</p>
+                  </div>
+                  <div class="modal-actions">
+                    <button type="button" id="btn-pl-cancel" class="btn btn-text btn-sm">Cancelar</button>
+                    <button type="submit" id="btn-pl-save" class="btn btn-primary">Salvar playlist</button>
+                  </div>
+                </form>
+                <div id="pl-list" class="schedule-list"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Tocando agora e próximos -->
+          <aside class="card appearance sounds-side">
+            <div class="card-head">
+              <h2>Agora</h2>
+            </div>
+            <div class="field">
+              <label>Onde o som sai</label>
+              <div class="segmented" role="radiogroup" aria-label="Onde o som sai">
+                <label title="O som sai neste computador (onde o programa está aberto)"><input type="radio" name="sound-output" value="app" checked><span>Neste computador</span></label>
+                <label title="O som sai no OBS, junto com o overlay (link do overlay aberto)"><input type="radio" name="sound-output" value="obs"><span>No OBS</span></label>
+              </div>
+            </div>
+            <div class="now-playing" id="now-playing">
+              <span class="muted small">Tocando agora</span>
+              <strong id="now-playing-name">Nada tocando</strong>
+              <span class="muted small" id="now-playing-list" hidden></span>
+              <div class="now-playing-actions">
+                <button type="button" id="btn-sound-next" class="btn btn-secondary btn-sm" hidden>Pular para o próximo</button>
+                <button type="button" id="btn-sound-stop" class="btn btn-danger btn-sm" disabled>Parar</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>Próximos</label>
+              <div id="upcoming-list" class="upcoming-list"></div>
+            </div>
+            <p class="muted small" id="sound-device-note"></p>
+          </aside>
+        </div>
+      </section>
+
       <section class="panel" data-panel="config">
         <div class="config-grid">
           <div class="card">
@@ -866,7 +1389,7 @@
 
             <form id="cloud-signup-form" class="cloud-login" hidden>
               <p class="muted small">Crie o login da sua igreja. O responsável pela biblioteca vai aprovar o pedido e, depois disso, as mensagens e os hinos chegam sozinhos.</p>
-              <input type="text" id="cloud-signup-church" placeholder="Nome da igreja (ex: Tabernáculo da Fé - Goiânia)" maxlength="80" required>
+              <input type="text" id="cloud-signup-church" placeholder="Tabernáculo da Fé - (cidade / localização)" maxlength="80" required>
               <input type="email" id="cloud-signup-email" placeholder="E-mail" autocomplete="username" required>
               <input type="password" id="cloud-signup-password" placeholder="Senha (pelo menos 6 caracteres)" autocomplete="new-password" minlength="6" required>
               <button type="submit" class="btn btn-primary btn-sm">Pedir acesso</button>
@@ -910,6 +1433,17 @@
           </div>
 
           <div class="card">
+            <h2>Mensagens do site</h2>
+            <p class="muted">Baixa todas as mensagens do site de busca do Tabernáculo da Fé (<strong>busca.tabernaculodafe.org.br</strong>) e troca as mensagens do app por elas.</p>
+            <button type="button" id="btn-site-import" class="btn btn-secondary btn-sm">Baixar todas as mensagens do site</button>
+            <div id="site-import-progress" class="site-import" hidden>
+              <div class="progress-track"><div id="site-import-bar" class="progress-bar"></div></div>
+              <p class="muted small" id="site-import-text"></p>
+            </div>
+            <p class="muted small">Leva alguns minutos. O que já está no ar não sai da tela. Neste computador de editor, as mensagens novas também vão para o banco online das igrejas.</p>
+          </div>
+
+          <div class="card">
             <h2>Bíblia ACF</h2>
             <p class="muted" id="bible-status">Verificando...</p>
             <label class="btn btn-secondary btn-sm file-button">
@@ -933,8 +1467,8 @@
 
           <div class="card">
             <h2>Sobre</h2>
-            <p class="muted">A Mensagem Control <strong id="about-version">v2.0.2</strong></p>
-            <p class="muted small">Feito para a equipe de mídia do Tabernáculo da Fé · Luziânia.</p>
+            <p class="muted">A Mensagem Control <strong id="about-version">v2.1.0</strong></p>
+            <p class="muted small">Feito para as equipes de mídia das igrejas do Tabernáculo da Fé.</p>
             <button id="btn-check-update" class="btn btn-secondary btn-sm">Verificar atualizações</button>
             <p id="update-status" class="muted small"></p>
             <label class="switch"><input type="checkbox" id="beta-updates"><span class="switch-ui"></span>Receber versões de teste</label>
@@ -1039,10 +1573,14 @@
           <input type="file" id="hymn-files" accept=".txt,.json" multiple>
           <svg viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
           <strong>Escolher arquivos</strong>
-          <span class="muted small">.txt soltos</span>
+          <span class="muted small">um ou vários .txt (segure Ctrl para marcar vários; dá para somar de outras pastas)</span>
         </label>
       </div>
       <div id="hymn-import-summary" class="import-summary" hidden></div>
+      <div class="field" id="hymn-import-category-field" hidden>
+        <label for="hymn-import-category">Categoria dos arquivos soltos</label>
+        <input type="text" id="hymn-import-category" placeholder="Ex: Harpa Cristã (vazio = sem categoria)" list="hymn-category-options" autocomplete="off">
+      </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-secondary" data-close>Cancelar</button>
         <button type="button" id="btn-hymn-import-confirm" class="btn btn-primary" disabled>Importar</button>
@@ -1073,6 +1611,6 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script type="module" src="js/admin/main.js?v=1.5.0"></script>
+  <script type="module" src="js/admin/main.js?v=2.1.13"></script>
 </body>
 </html>

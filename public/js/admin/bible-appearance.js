@@ -56,7 +56,9 @@ const input = {
   refSize: $('bible-ref-size'),
   textColor: $('bible-text-color'),
   refColor: $('bible-ref-color'),
-  animation: $('bible-animation')
+  animation: $('bible-animation'),
+  speed: $('bible-speed'),
+  bandTransp: $('bible-band-transp')
 };
 const radios = (name) => [...document.querySelectorAll(`input[name="${name}"]`)];
 const groups = {
@@ -73,8 +75,12 @@ let editor = null;
 function updateLabels() {
   $('bible-size-val').textContent = input.size.value;
   $('bible-ref-size-val').textContent = input.refSize.value;
+  $('bible-speed-val').textContent = `${Number(input.speed.value).toFixed(1)} s`;
   // "Texto embaixo" só faz sentido na tela cheia
   $('bible-position-group').classList.toggle('disabled', checkedValue(groups.layout) !== 'fullscreen');
+  // Transparência só vale para a faixa embaixo
+  $('bible-band-field').hidden = checkedValue(groups.layout) !== 'lower-third';
+  $('bible-band-transp-val').textContent = `${input.bandTransp.value}%`;
 }
 
 function gatherStyles() {
@@ -92,7 +98,9 @@ function gatherStyles() {
     refSize: `${input.refSize.value}rem`,
     textColor: input.textColor.value,
     refColor: input.refColor.value,
-    animationType: input.animation.value
+    animationType: input.animation.value,
+    transitionTime: Number(input.speed.value),
+    bandTransparency: Number(input.bandTransp.value)
   };
 }
 
@@ -112,6 +120,8 @@ function fillInputs(styles) {
   input.textColor.value = styles.textColor || '#ffffff';
   input.refColor.value = styles.refColor || '#ffeb07';
   input.animation.value = styles.animationType || 'fade';
+  input.speed.value = styles.transitionTime ?? 0.4;
+  input.bandTransp.value = styles.bandTransparency ?? 0;
   updateLabels();
   editor.fill(styles);
 }

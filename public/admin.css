@@ -162,6 +162,13 @@ kbd {
   transition: background 0.15s, color 0.15s;
 }
 .tab svg { width: 17px; height: 17px; }
+/* Com a aba Sons, o topo aperta: em telas até ~1600px as abas ficam mais justas e o nome do app some */
+@media (max-width: 1600px) {
+  .tab { padding: 9px 10px; gap: 6px; }
+}
+@media (max-width: 1480px) {
+  .brand-text { display: none; }
+}
 .tab:hover { background: var(--field-hover); color: var(--text); }
 .tab.active { background: var(--accent-soft); color: var(--text); }
 .tab.active svg { color: var(--accent); }
@@ -286,9 +293,37 @@ textarea { resize: vertical; min-height: 220px; line-height: 1.5; }
 
 input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; }
 
-fieldset { border: none; display: flex; flex-direction: column; gap: 12px; padding-top: 14px; border-top: 1px solid var(--border); }
-legend { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-3); padding-bottom: 10px; float: left; width: 100%; }
+/* Cada grupo de ajustes é uma caixa separada, com título claro; clicar no título fecha/abre */
+fieldset {
+  display: flex; flex-direction: column; gap: 12px;
+  margin: 0; padding: 0 14px 14px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  flex-shrink: 0;
+}
+legend {
+  float: left; width: 100%;
+  display: flex; align-items: center; gap: 9px;
+  padding: 12px 0 11px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.95rem; font-weight: 600; color: var(--text);
+  cursor: pointer; user-select: none;
+}
+legend::before { content: ''; width: 4px; height: 17px; border-radius: 2px; background: var(--accent); flex-shrink: 0; }
+legend::after {
+  content: ''; margin-left: auto; margin-right: 3px;
+  width: 7px; height: 7px; border-right: 2px solid var(--text-2); border-bottom: 2px solid var(--text-2);
+  transform: rotate(45deg) translateY(-2px); transition: transform 0.2s var(--ease);
+}
+legend:hover { color: #ffffff; }
+legend:hover::after { border-color: var(--text); }
+legend:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 fieldset > legend + * { clear: both; }
+fieldset.collapsed { padding-bottom: 0; }
+fieldset.collapsed > legend { border-bottom-color: transparent; }
+fieldset.collapsed > legend::after { transform: rotate(-45deg); }
+fieldset.collapsed > :not(legend) { display: none !important; }
 
 .color-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .color-field { display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 0.72rem; color: var(--text-2); cursor: pointer; transition: opacity 0.15s; }
@@ -809,7 +844,10 @@ fieldset > legend + * { clear: both; }
 .dropzone input { display: none; }
 .dropzone svg { width: 28px; height: 28px; color: var(--accent); }
 .import-summary { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: var(--radius-sm); background: var(--field); font-size: 0.88rem; }
-.import-summary ul { padding-left: 18px; color: var(--text-2); line-height: 1.6; }
+.import-summary ul { padding-left: 18px; color: var(--text-2); line-height: 1.6; max-height: 220px; overflow-y: auto; }
+.import-summary-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.import-summary .import-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.import-summary .import-item .btn-x { font-size: 1.1rem; line-height: 1; padding: 0 4px; }
 
 /* ---------- Bíblia ---------- */
 
@@ -936,6 +974,8 @@ fieldset > legend + * { clear: both; }
 .bg-tile:hover .bg-remove { opacity: 1; }
 
 .segmented-3 { grid-template-columns: repeat(3, 1fr); }
+.segmented-4 { grid-template-columns: repeat(4, 1fr); }
+.segmented-4 span, .segmented-3 span { padding-left: 2px; padding-right: 2px; }
 .segmented.disabled { opacity: 0.4; pointer-events: none; }
 .color-grid-3 { grid-template-columns: repeat(3, 1fr); }
 .file-button { position: relative; align-self: flex-start; }
@@ -1069,9 +1109,7 @@ fieldset > legend + * { clear: both; }
   pointer-events: none;
 }
 .media-preview .preview-tag.is-live { background: var(--live); }
-.zoom-bar { display: flex; align-items: center; gap: 8px; }
-.zoom-bar input[type="range"] { flex: 1; min-width: 80px; }
-.zoom-bar output { min-width: 3.2em; font-variant-numeric: tabular-nums; color: var(--text-2); font-size: 0.85rem; }
+.zoom-hint .btn { padding: 0 4px; vertical-align: baseline; }
 .btn-icon { width: 32px; padding: 6px 0; justify-content: center; font-size: 1.05rem; line-height: 1; }
 
 /* ---------- Pregador do dia ---------- */
@@ -1190,6 +1228,7 @@ fieldset > legend + * { clear: both; }
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     column-gap: 20px;
+    align-items: start;
     overflow: visible;
   }
   .appearance > .card-head, .appearance > p { grid-column: 1 / -1; }
@@ -1238,3 +1277,213 @@ fieldset > legend + * { clear: both; }
   }
   .btn-transport { padding: 16px 8px; font-size: 1rem; }
 }
+
+/* ---------- Lista do culto (hinos) ---------- */
+.hymn-view { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.count-pill { display: inline-block; min-width: 1.5em; margin-left: 4px; padding: 0 6px; border-radius: 99px; background: rgba(255, 255, 255, 0.18); font-size: 0.72rem; line-height: 1.5; }
+.segmented input:not(:checked) + span .count-pill { background: var(--accent-strong); color: #fff; }
+.hymn-item { position: relative; }
+.hymn-add {
+  flex-shrink: 0;
+  margin-left: auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  opacity: 0.55;
+}
+.hymn-item:hover .hymn-add, .hymn-item.focused .hymn-add { opacity: 1; }
+.hymn-add:hover { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+.hymn-add.added { opacity: 1; color: var(--accent); border-color: rgba(59, 130, 246, 0.45); }
+.hymn-add.added::before { content: '✓'; }
+.hymn-add.added { font-size: 0; }
+.hymn-add.added::before { font-size: 0.85rem; }
+.playlist-row { align-items: center; cursor: grab; }
+.playlist-row .btn-x { margin-left: auto; }
+.playlist-order { flex-shrink: 0; width: 18px; text-align: center; font-size: 0.78rem; font-weight: 700; color: var(--text-3); }
+.playlist-row.dragging, .media-tile.dragging { opacity: 0.4; }
+.drop-before { box-shadow: 0 -3px 0 var(--accent) !important; }
+.drop-after { box-shadow: 0 3px 0 var(--accent) !important; }
+.media-tile.drop-before { box-shadow: -4px 0 0 var(--accent) !important; }
+.media-tile.drop-after { box-shadow: 4px 0 0 var(--accent) !important; }
+
+/* ---------- Mídia: YouTube, ponto de início e vídeo no ar ---------- */
+.yt-form { position: relative; }
+.yt-form input { padding-left: 34px; }
+.yt-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: #f87171; pointer-events: none; }
+.media-badge.is-youtube { background: #dc2626; }
+.media-grid-hint { flex-shrink: 0; margin: -4px 0 0; text-align: center; }
+.media-tile { cursor: pointer; }
+.media-tile[draggable="true"]:active { cursor: grabbing; }
+
+/* Janela baixa: a parte do meio do cartão rola (título e botões Anterior/Exibir/Próximo ficam sempre à vista),
+   e a prévia nunca fica menor que 170px */
+.media-controls-card { min-height: 0; }
+.media-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; margin: 0 -6px; padding: 0 6px; }
+.media-scroll .media-preview-wrap { flex: 1 0 auto; }
+.media-scroll .media-preview-area { flex: 1 0 170px; min-height: 170px; }
+.media-preview .yt-wrap { position: relative; width: 100%; height: 100%; pointer-events: none; }
+.media-preview .yt-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+.media-cue { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: var(--radius); background: var(--field); border: 1px solid var(--border); }
+.cue-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.84rem; color: var(--text-2); }
+.cue-start { margin-right: auto; }
+.cue-start strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.video-progress .seek { flex: 1; min-width: 80px; }
+.video-progress .btn-icon { flex-shrink: 0; }
+.video-progress .btn-icon svg { width: 14px; height: 14px; }
+.switch-sm { gap: 6px; font-size: 0.78rem; flex-shrink: 0; }
+.switch-sm .switch-ui { width: 30px; height: 17px; }
+.switch-sm .switch-ui::after { width: 11px; height: 11px; }
+.switch-sm input:checked + .switch-ui::after { transform: translateX(13px); }
+.video-controls { gap: 10px; padding: 10px 12px; }
+.video-buttons .volume { width: 90px; flex: 0 1 90px; }
+.video-buttons output { font-size: 0.78rem; color: var(--text-2); min-width: 3em; font-variant-numeric: tabular-nums; }
+.video-buttons .switch { margin-left: auto; }
+.video-controls p { margin: 0; }
+
+/* Tocador escondido que faz o som sair neste computador (fora da tela, mas tocando) */
+.local-audio-host { position: fixed; left: -10000px; top: 0; width: 320px; height: 180px; overflow: hidden; pointer-events: none; }
+.local-audio-host video, .local-audio-host .yt-wrap, .local-audio-host iframe { width: 320px; height: 180px; }
+
+/* ---------- Aba Culto ---------- */
+.culto-side { overflow-y: auto; }
+.culto-side .lt-list { flex-shrink: 0; }
+.culto-reading { display: flex; flex-direction: column; gap: 12px; padding-top: 14px; border-top: 1px solid var(--border); flex-shrink: 0; }
+.culto-reading h3 {
+  margin: 0; display: flex; align-items: center; gap: 9px;
+  font-size: 0.95rem; font-weight: 600; color: var(--text); text-transform: none; letter-spacing: 0;
+}
+.culto-reading h3::before { content: ''; width: 4px; height: 17px; border-radius: 2px; background: var(--accent); }
+.preset-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Aba Bíblia: anunciar a leitura com a passagem escolhida */
+.announce-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; flex-shrink: 0;
+  padding: 10px 12px; margin-bottom: 10px;
+  background: var(--accent-soft); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: var(--radius);
+}
+.announce-ref { display: flex; flex-direction: column; line-height: 1.2; margin-right: auto; }
+.announce-ref strong { font-size: 1rem; }
+.announce-end { display: flex; align-items: center; gap: 6px; }
+.announce-end select { width: auto; padding: 4px 8px; }
+#btn-bible-announce svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+#btn-bible-announce.is-live { background: var(--live-soft); color: #fecaca; border-color: rgba(239, 68, 68, 0.4); }
+
+/* Aba Culto: louvor especial (fora do hinário) */
+.singer-list { display: flex; flex-direction: column; gap: 6px; }
+.singer-row { display: flex; align-items: center; gap: 6px; }
+.singer-row input { flex: 1; min-width: 0; }
+
+.special-sample { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--radius); background: var(--field); border-left: 3px solid var(--accent); }
+.special-sample strong { font-size: 1rem; }
+.special-recent { display: flex; flex-direction: column; gap: 6px; }
+.special-item { display: flex; align-items: center; gap: 6px; }
+.special-item .special-use { flex: 1; min-width: 0; text-align: left; display: flex; flex-direction: column; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--field); border: 1px solid var(--border); color: var(--text); cursor: pointer; }
+.special-item .special-use:hover { background: var(--field-hover); border-color: var(--border-strong); }
+.special-item .special-use span { font-size: 0.78rem; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.special-item .special-use strong { font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.special-item.on-air .special-use { border-color: rgba(239, 68, 68, 0.5); background: var(--live-soft); }
+.prayer-card { min-height: 0; }
+.prayer-card .field.grow { min-height: 0; }
+.prayer-card textarea { flex: 1; min-height: 90px; resize: none; font-size: 0.95rem; }
+.btn-prayer-toggle { width: 100%; padding: 13px; font-size: 0.98rem; }
+#prayer-summary { -webkit-line-clamp: 4; }
+
+/* ---------- Aba Sons (agendados) ---------- */
+.sounds-library { overflow-y: auto; }
+.sound-list { display: flex; flex-direction: column; gap: 6px; }
+.sound-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--field); border: 1px solid var(--border); }
+.sound-row.playing { border-color: rgba(16, 185, 129, 0.5); background: rgba(16, 185, 129, 0.1); }
+.sound-row .sound-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sound-row .sound-name strong { font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sound-row .sound-name span { font-size: 0.74rem; color: var(--text-2); }
+.sound-thumb { position: relative; flex-shrink: 0; }
+.sound-thumb-pick { width: 52px; height: 32px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 6px; border: 1px dashed var(--border-strong); background: transparent; color: var(--text-2); cursor: pointer; overflow: hidden; }
+.sound-thumb-pick:hover { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+.sound-thumb-pick svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.sound-thumb.has-image .sound-thumb-pick { border-style: solid; background: #000; }
+.sound-thumb-pick img { width: 100%; height: 100%; object-fit: contain; }
+.sound-thumb-clear { position: absolute; top: -6px; right: -6px; width: 17px; height: 17px; padding: 0; display: none; align-items: center; justify-content: center; border-radius: 50%; border: none; background: var(--danger, #ef4444); color: #fff; font-size: 12px; line-height: 1; cursor: pointer; }
+.sound-thumb:hover .sound-thumb-clear { display: flex; }
+.icon-btn { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--field-hover); color: var(--text); cursor: pointer; flex-shrink: 0; }
+.icon-btn:hover { background: var(--accent-soft); border-color: var(--accent); }
+.icon-btn svg { width: 14px; height: 14px; fill: currentColor; stroke: none; }
+.schedules-card { overflow-y: auto; }
+.schedule-form { display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: var(--radius); background: var(--field); border: 1px solid var(--border-strong); flex-shrink: 0; }
+.schedule-form.editing { border-color: var(--accent); }
+.schedule-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.schedule-grid input, .schedule-grid select { width: 100%; }
+/* Horário do agendamento: mesma altura dos outros campos; setinhas ao lado de cada número (e rodinha do mouse) */
+.time-pick { display: flex; align-items: center; justify-content: center; gap: 2px; width: 100%; height: 40px; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--field); transition: border-color 0.15s, background 0.15s; }
+.time-pick:focus-within { border-color: var(--accent); background: var(--field-hover); }
+.time-part { display: grid; grid-template-columns: auto 18px; grid-template-rows: 1fr 1fr; align-items: center; height: 100%; }
+.time-part input[type="text"] { grid-column: 1; grid-row: 1 / 3; width: 2.1ch; padding: 0; border: none; background: transparent; color: var(--text); text-align: center; font: inherit; font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.time-part input[type="text"]:focus { background: transparent; color: var(--accent); }
+.time-step { grid-column: 2; width: 18px; height: 16px; padding: 0; display: flex; align-items: center; justify-content: center; border: none; border-radius: 4px; background: transparent; color: var(--text-2); cursor: pointer; }
+.time-step:first-child { grid-row: 1; align-self: end; }
+.time-step:last-child { grid-row: 2; align-self: start; }
+.time-step:hover { background: var(--accent-soft); color: var(--text); }
+.time-step svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.time-colon { font-size: 1.15rem; font-weight: 700; color: var(--text-2); padding: 0 4px; }
+.date-input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--field); color: var(--text); font: inherit; font-size: 0.9rem; color-scheme: dark; }
+.date-input::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.8; }
+.day-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.day-chips label { cursor: pointer; }
+.day-chips input { position: absolute; opacity: 0; pointer-events: none; }
+.day-chips span { display: inline-block; min-width: 46px; text-align: center; padding: 7px 10px; border-radius: 99px; border: 1px solid var(--border-strong); font-size: 0.84rem; color: var(--text-2); }
+.day-chips input:checked + span { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+.day-chips input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+.schedule-list-head { display: flex; align-items: baseline; justify-content: space-between; margin-top: 6px; flex-shrink: 0; }
+.schedule-list-head h3 { margin: 0; font-size: 1rem; }
+.schedule-list { display: flex; flex-direction: column; gap: 8px; }
+.schedule-row { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border-radius: var(--radius); background: var(--field); border: 1px solid var(--border); }
+.schedule-row.off { opacity: 0.55; }
+.schedule-time { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 72px; }
+.schedule-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.schedule-info strong { font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-info span { font-size: 0.8rem; color: var(--text-2); }
+.schedule-info .next { color: #86efac; }
+.schedule-actions { display: flex; align-items: center; gap: 4px; }
+.now-playing { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: var(--radius); background: var(--field); border: 1px solid var(--border-strong); flex-shrink: 0; }
+.now-playing.on { border-color: rgba(16, 185, 129, 0.55); background: rgba(16, 185, 129, 0.1); }
+.now-playing strong { font-size: 1rem; }
+.upcoming-list { display: flex; flex-direction: column; gap: 6px; }
+.upcoming-row { display: flex; flex-direction: column; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--field); border-left: 3px solid var(--accent); }
+.upcoming-row strong { font-size: 0.88rem; }
+.upcoming-row span { font-size: 0.78rem; color: var(--text-2); }
+
+/* ---------- Aba Agendamentos: vídeos e playlists ---------- */
+.sched-views { flex-shrink: 0; max-width: 360px; }
+.sched-view { display: flex; flex-direction: column; gap: 12px; }
+.sched-view[hidden] { display: none; }
+.sound-thumb.video .sound-thumb-pick { border-style: solid; background: #000; cursor: default; }
+.sound-thumb.video video { width: 100%; height: 100%; object-fit: cover; }
+.sound-kind { position: absolute; left: 3px; bottom: 2px; font-size: 9px; font-weight: 700; color: #fff; background: rgba(0,0,0,0.6); border-radius: 3px; padding: 0 3px; pointer-events: none; }
+.pl-plus { display: none; }
+.sounds-library.pl-editing .pl-plus { display: inline-flex; }
+.pl-items { display: flex; flex-direction: column; gap: 6px; min-height: 44px; padding: 6px; border-radius: var(--radius-sm); border: 1px dashed var(--border-strong); }
+.pl-items .empty { padding: 6px; }
+.pl-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--radius-sm); background: var(--field-hover); border: 1px solid var(--border); cursor: grab; }
+.pl-item.dragging { opacity: 0.4; }
+.pl-item.drop-before { box-shadow: 0 -2px 0 var(--accent); }
+.pl-item.drop-after { box-shadow: 0 2px 0 var(--accent); }
+.pl-item .pl-num { font-weight: 700; color: var(--text-2); min-width: 18px; font-variant-numeric: tabular-nums; }
+.pl-item .pl-kind { font-size: 0.7rem; font-weight: 600; padding: 2px 6px; border-radius: 4px; background: var(--accent-soft); color: var(--text); flex-shrink: 0; }
+.pl-item .pl-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.88rem; }
+.pl-item .pl-name.missing { color: var(--danger, #ef4444); }
+.pl-item .pl-vol { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-2); }
+.pl-item .pl-vol input { width: 90px; }
+.pl-add { display: flex; gap: 8px; margin-top: 8px; }
+.pl-add select { flex: 1; min-width: 0; }
+.pl-row .schedule-time { font-size: 1rem; min-width: 0; }
+.pl-row .pl-badge { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 56px; height: 44px; border-radius: var(--radius-sm); background: var(--accent-soft); font-weight: 700; }
+.pl-row .pl-badge small { font-size: 0.66rem; font-weight: 500; color: var(--text-2); }
+.now-playing-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.now-playing-actions .btn { flex: 1; }
+.sound-row .pl-plus { width: 26px; height: 26px; }

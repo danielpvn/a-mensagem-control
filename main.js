@@ -32,7 +32,11 @@ function createWindow() {
     icon: path.join(__dirname, 'build', 'icon.ico'),
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      // O som dos vídeos pode sair por este computador (ver aba Mídia): toca sem clique
+      // e continua sincronizado mesmo com a janela minimizada
+      autoplayPolicy: 'no-user-gesture-required',
+      backgroundThrottling: false
     }
   });
 

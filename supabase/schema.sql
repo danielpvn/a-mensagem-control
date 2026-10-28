@@ -173,6 +173,6 @@ create policy "editores trocam fundos" on storage.objects
 -- e um editor aprova no app dele. Só o PRIMEIRO editor precisa ser definido aqui
 -- (troque o e-mail):
 --
---   update public.profiles set role = 'editor', church = 'Tabernáculo da Fé - Luziânia'
+--   update public.profiles set role = 'editor', church = 'Tabernáculo da Fé - (cidade)'
 --   where user_id = (select id from auth.users where email = 'seu-email@exemplo.com');
 -- =====================================================================
