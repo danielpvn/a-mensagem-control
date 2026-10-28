@@ -372,12 +372,14 @@ function stopSound() {
   soundAudio = null;
 }
 
+// Com "Neste computador" o OBS toca mudo só para saber quando o som acaba (e tirar a imagem dele)
 function playSound(p) {
   stopSound();
-  if (PREVIEW || p.output !== 'obs') return;
+  if (PREVIEW || (p.output !== 'obs' && !p.image)) return;
   const audio = new Audio(p.url);
   soundAudio = audio;
   audio.volume = p.volume;
+  audio.muted = p.output !== 'obs';
   const done = () => {
     if (soundAudio !== audio) return;
     stopSound();
@@ -386,6 +388,19 @@ function playSound(p) {
   audio.onended = done;
   audio.onerror = done;
   audio.play().catch(done);
+}
+
+const soundImageLayer = document.getElementById('sound-image-layer');
+const soundImage = document.getElementById('sound-image');
+
+function updateSoundImage(state) {
+  const shown = state.soundImage;
+  if (shown && shown.url) {
+    if (soundImage.getAttribute('src') !== shown.url) soundImage.src = shown.url;
+    soundImageLayer.classList.remove('hidden');
+  } else {
+    soundImageLayer.classList.add('hidden');
+  }
 }
 
 // Andamento do vídeo no ar, para o painel (barra de tempo e som sincronizado)
@@ -948,6 +963,7 @@ function onAir(content) {
 }
 
 function applyState(state, useTransition) {
+  updateSoundImage(state);
   // Mostra só o que foi para o ar (o operador pode estar navegando por outra mensagem/hino/capítulo)
   const air = state.messageAir;
   activeSermonTitle = air ? air.title : state.activeSermonTitle;

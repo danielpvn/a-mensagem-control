@@ -1,5 +1,6 @@
 // Sons agendados (aba Sons): o sino antes do culto, um hino para começar, etc.
 // Os arquivos ficam em Documentos/A Mensagem Control/data/sounds e são servidos em /sounds/.
+// Cada som pode ter uma imagem (data/sounds/_imagens/<som>.<ext>) que aparece no OBS enquanto ele toca.
 // Agendamentos: { id, name (arquivo), label, time "HH:MM", mode, date, days, volume, enabled }
 //   mode 'once'   -> só no dia `date` ("2026-11-01"); depois de tocar, desliga sozinho
 //   mode 'daily'  -> todo dia
@@ -12,8 +13,11 @@ const db = require('./db');
 const DIR = path.join(db.DATA_DIR, 'sounds');
 const AUDIO = /\.(mp3|wav|ogg|m4a|aac|flac|webm)$/i;
 const MAX_BYTES = 200 * 1024 * 1024; // 200 MB por som
+const IMG_DIR = path.join(DIR, '_imagens');
+const IMAGE = /\.(png|jpe?g|webp|gif)$/i;
+const MAX_IMAGE_BYTES = 30 * 1024 * 1024;
 
-fs.mkdirSync(DIR, { recursive: true });
+fs.mkdirSync(IMG_DIR, { recursive: true });
 
 function safe(name) {
   const clean = path.basename(String(name || ''))
@@ -34,28 +38,60 @@ function freeName(name) {
   }
 }
 
+// Imagens do som: "<nome do som>.png" etc.
+function imageFiles(name) {
+  const prefix = `${name}.`;
+  return fs.readdirSync(IMG_DIR).filter(f => f.startsWith(prefix) && IMAGE.test(f) && !f.slice(prefix.length).includes('.'));
+}
+
+function imageUrl(name) {
+  const file = imageFiles(name)[0];
+  if (!file) return null;
+  const stat = fs.statSync(path.join(IMG_DIR, file));
+  return `/sounds/_imagens/${encodeURIComponent(file)}?v=${Math.round(stat.mtimeMs)}`;
+}
+
 function listSounds() {
   return fs.readdirSync(DIR)
     .filter(name => AUDIO.test(name))
     .map(name => {
       const stat = fs.statSync(path.join(DIR, name));
-      return { name, size: stat.size, url: `/sounds/${encodeURIComponent(name)}`, addedAt: stat.mtimeMs };
+      return { name, size: stat.size, url: `/sounds/${encodeURIComponent(name)}`, image: imageUrl(name), addedAt: stat.mtimeMs };
     })
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 }
 
 // Recebe o arquivo em streaming (igual às mídias)
 function saveUpload(req, name) {
+  let target;
+  try {
+    const fileName = safe(name);
+    if (!AUDIO.test(fileName)) throw new Error('Envie um arquivo de som (.mp3, .wav, .ogg, .m4a).');
+    target = path.join(DIR, freeName(fileName));
+  } catch (err) {
+    return Promise.reject(err);
+  }
+  return streamTo(req, target, MAX_BYTES, '200 MB');
+}
+
+// Imagem do som (troca a anterior)
+async function saveImage(req, soundName, fileName) {
+  const name = safe(soundName);
+  if (!fs.existsSync(path.join(DIR, name))) throw new Error('Som não encontrado.');
+  const ext = path.extname(safe(fileName)).toLowerCase();
+  if (!IMAGE.test(ext)) throw new Error('Envie uma imagem (.png, .jpg, .webp ou .gif).');
+  const old = imageFiles(name);
+  const saved = await streamTo(req, path.join(IMG_DIR, `${name}${ext}`), MAX_IMAGE_BYTES, '30 MB');
+  old.filter(f => f !== saved.name).forEach(f => fs.rmSync(path.join(IMG_DIR, f), { force: true }));
+  return { image: imageUrl(name) };
+}
+
+function removeImage(name) {
+  imageFiles(safe(name)).forEach(f => fs.rmSync(path.join(IMG_DIR, f), { force: true }));
+}
+
+function streamTo(req, target, maxBytes, maxText) {
   return new Promise((resolve, reject) => {
-    let target;
-    try {
-      const fileName = safe(name);
-      if (!AUDIO.test(fileName)) throw new Error('Envie um arquivo de som (.mp3, .wav, .ogg, .m4a).');
-      target = path.join(DIR, freeName(fileName));
-    } catch (err) {
-      reject(err);
-      return;
-    }
     const partial = `${target}.part`;
     const out = fs.createWriteStream(partial);
     let bytes = 0;
@@ -69,9 +105,9 @@ function saveUpload(req, name) {
     };
     req.on('data', chunk => {
       bytes += chunk.length;
-      if (bytes > MAX_BYTES) {
+      if (bytes > maxBytes) {
         req.destroy();
-        fail(new Error('Arquivo grande demais (máximo 200 MB).'));
+        fail(new Error(`Arquivo grande demais (máximo ${maxText}).`));
       }
     });
     req.on('aborted', () => fail(new Error('Envio interrompido.')));
@@ -84,6 +120,7 @@ function saveUpload(req, name) {
         reject(new Error('Arquivo vazio.'));
         return;
       }
+      fs.rmSync(target, { force: true });
       fs.renameSync(partial, target);
       resolve({ name: path.basename(target), size: bytes });
     });
@@ -95,6 +132,7 @@ function removeSound(name) {
   const file = path.join(DIR, safe(name));
   if (!fs.existsSync(file)) return false;
   fs.unlinkSync(file);
+  removeImage(name);
   return true;
 }
 
@@ -172,4 +210,4 @@ function startScheduler({ getSchedules, onFire, onChange }) {
   return setInterval(tick, 5000);
 }
 
-module.exports = { DIR, listSounds, saveUpload, removeSound, loadSchedules, saveSchedules, startScheduler };
+module.exports = { DIR, listSounds, imageUrl, saveUpload, saveImage, removeImage, removeSound, loadSchedules, saveSchedules, startScheduler };

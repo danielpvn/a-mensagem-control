@@ -21,7 +21,7 @@ const tfSermons = require('./src/tf-sermons');
 const sounds = require('./src/sounds');
 const { createDesktopShortcut } = require('./src/shortcut');
 
-const CURRENT_VERSION = '2.1.0-beta.3';
+const CURRENT_VERSION = '2.1.0-beta.4';
 const PORT = process.env.PORT || 3000;
 
 const app = express();
@@ -274,7 +274,9 @@ let globalState = {
 
   // Sons agendados (sino antes do culto etc.): tocam neste computador (janela do programa) ou no OBS
   soundSchedules: sounds.loadSchedules(),
-  soundOutput: db.getSetting('soundOutput', 'app') === 'obs' ? 'obs' : 'app'
+  soundOutput: db.getSetting('soundOutput', 'app') === 'obs' ? 'obs' : 'app',
+  // Imagem do som que está tocando (aparece no OBS até o som acabar): { id, url } ou null
+  soundImage: null
 };
 
 let activeSermonParagraphs = [];
@@ -447,6 +449,7 @@ function clearScreenOnServer() {
   hidePrayer();
   hideLowerThird(false);
   hideReading(false);
+  globalState.soundImage = null;
   broadcastContent();
 }
 
@@ -1041,14 +1044,29 @@ let soundToken = 0;
 function playSound({ name, volume, label }) {
   const file = sounds.listSounds().find(x => x.name === name);
   if (!file) return;
+  const id = ++soundToken;
   broadcast('sound-play', {
-    id: ++soundToken,
+    id,
     name: file.name,
     url: file.url,
+    image: file.image,
     label: String(label || file.name),
     volume: Math.min(1, Math.max(0, Number(volume ?? 1))),
     output: globalState.soundOutput
   });
+  // Som com imagem: a imagem entra no OBS e sai quando o som acaba
+  if (file.image || globalState.soundImage) {
+    globalState.soundImage = file.image ? { id, url: file.image } : null;
+    broadcastContent();
+  }
+}
+
+function soundFinished(id) {
+  broadcast('sound-ended', { id });
+  if (globalState.soundImage && (id === undefined || globalState.soundImage.id === id)) {
+    globalState.soundImage = null;
+    broadcastContent();
+  }
 }
 
 function setSoundOutput(output) {
@@ -1193,7 +1211,7 @@ wss.on('connection', (ws, req) => {
       }
       // Fim do som que tocou no OBS (o painel volta para "Nada tocando")
       if (data.type === 'sound-ended') {
-        broadcast('sound-ended', { id: payload.id });
+        soundFinished(Number(payload.id));
         return;
       }
       if (!ws.canControl) return;
@@ -1331,6 +1349,7 @@ wss.on('connection', (ws, req) => {
           break;
         case 'sound-stop':
           broadcast('sound-stop', {});
+          soundFinished();
           break;
         case 'prayer-set':
           setPrayer(payload);
@@ -1615,6 +1634,24 @@ app.post('/api/sounds/upload', async (req, res) => {
   try {
     const saved = await sounds.saveUpload(req, req.query.name);
     res.json({ success: true, ...saved });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Imagem que aparece no OBS enquanto o som toca
+app.post('/api/sounds/:name/image', async (req, res) => {
+  try {
+    res.json({ success: true, ...(await sounds.saveImage(req, req.params.name, req.query.file)) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/sounds/:name/image', (req, res) => {
+  try {
+    sounds.removeImage(req.params.name);
+    res.json({ success: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

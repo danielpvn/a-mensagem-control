@@ -1403,6 +1403,14 @@ fieldset.collapsed > :not(legend) { display: none !important; }
 .sound-row .sound-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .sound-row .sound-name strong { font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sound-row .sound-name span { font-size: 0.74rem; color: var(--text-2); }
+.sound-thumb { position: relative; flex-shrink: 0; }
+.sound-thumb-pick { width: 52px; height: 32px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 6px; border: 1px dashed var(--border-strong); background: transparent; color: var(--text-2); cursor: pointer; overflow: hidden; }
+.sound-thumb-pick:hover { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+.sound-thumb-pick svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.sound-thumb.has-image .sound-thumb-pick { border-style: solid; background: #000; }
+.sound-thumb-pick img { width: 100%; height: 100%; object-fit: contain; }
+.sound-thumb-clear { position: absolute; top: -6px; right: -6px; width: 17px; height: 17px; padding: 0; display: none; align-items: center; justify-content: center; border-radius: 50%; border: none; background: var(--danger, #ef4444); color: #fff; font-size: 12px; line-height: 1; cursor: pointer; }
+.sound-thumb:hover .sound-thumb-clear { display: flex; }
 .icon-btn { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--field-hover); color: var(--text); cursor: pointer; flex-shrink: 0; }
 .icon-btn:hover { background: var(--accent-soft); border-color: var(--accent); }
 .icon-btn svg { width: 14px; height: 14px; fill: currentColor; stroke: none; }

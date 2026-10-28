@@ -112,6 +112,7 @@ function renderSounds() {
     meta.textContent = `${sizeText(file.size)}${uses ? ` · ${uses} agendamento${uses > 1 ? 's' : ''}` : ''}`;
     name.append(strong, meta);
     const remove = document.createElement('button');
+    const thumb = imageThumb(file);
     remove.type = 'button';
     remove.className = 'btn-x';
     remove.title = 'Apagar este som';
@@ -127,9 +128,71 @@ function renderSounds() {
       await fetch(`/api/sounds/${encodeURIComponent(file.name)}`, { method: 'DELETE' });
       loadSounds();
     };
-    row.append(play, name, remove);
+    row.append(play, thumb, name, remove);
     list.appendChild(row);
   });
+}
+
+// ---------- Imagem do som (aparece no OBS enquanto ele toca) ----------
+
+const imageIcon = '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>';
+
+function imageThumb(file) {
+  const box = document.createElement('div');
+  box.className = 'sound-thumb';
+  box.classList.toggle('has-image', !!file.image);
+  const pick = document.createElement('button');
+  pick.type = 'button';
+  pick.className = 'sound-thumb-pick';
+  pick.title = file.image ? 'Trocar a imagem que aparece no OBS enquanto este som toca' : 'Escolher uma imagem para aparecer no OBS enquanto este som toca';
+  if (file.image) {
+    const img = document.createElement('img');
+    img.src = file.image;
+    img.alt = '';
+    pick.appendChild(img);
+  } else {
+    pick.innerHTML = imageIcon;
+  }
+  pick.onclick = () => chooseImage(file.name);
+  box.appendChild(pick);
+  if (file.image) {
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'sound-thumb-clear';
+    clear.title = 'Tirar a imagem';
+    clear.textContent = '×';
+    clear.onclick = async () => {
+      await fetch(`/api/sounds/${encodeURIComponent(file.name)}/image`, { method: 'DELETE' });
+      toast('Imagem tirada.', 'success');
+      loadSounds();
+    };
+    box.appendChild(clear);
+  }
+  return box;
+}
+
+function chooseImage(soundName) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/png,image/jpeg,image/webp,image/gif';
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    try {
+      const res = await fetch(`/api/sounds/${encodeURIComponent(soundName)}/image?file=${encodeURIComponent(file.name)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        body: file
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'falhou');
+      toast(`Imagem colocada em "${soundTitle(soundName)}": aparece no OBS enquanto ele toca.`, 'success');
+    } catch (err) {
+      toast(`Não consegui enviar a imagem: ${err.message}`, 'error');
+    }
+    loadSounds();
+  };
+  input.click();
 }
 
 function renderSoundSelect() {
@@ -466,7 +529,8 @@ function onPlay(p) {
   } else if (CAN_PLAY) {
     audio = new Audio(p.url);
     audio.volume = p.volume;
-    audio.onended = stopLocal;
+    // Avisa o fim (a imagem do som sai do OBS)
+    audio.onended = () => { ws.send('sound-ended', { id: p.id }); stopLocal(); };
     audio.onerror = () => { toast(`Não consegui tocar "${p.label}".`, 'error'); stopLocal(); };
     audio.play().catch(() => { toast('O som não pôde tocar.', 'error'); stopLocal(); });
   } else {
