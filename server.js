@@ -18,9 +18,10 @@ bible.autoImport();
 backgrounds.autoImport();
 const updater = require('./src/updater');
 const tfSermons = require('./src/tf-sermons');
+const sounds = require('./src/sounds');
 const { createDesktopShortcut } = require('./src/shortcut');
 
-const CURRENT_VERSION = '2.1.0-beta.2';
+const CURRENT_VERSION = '2.1.0-beta.3';
 const PORT = process.env.PORT || 3000;
 
 const app = express();
@@ -41,6 +42,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/backgrounds', express.static(backgrounds.DIR));
 app.use('/media', express.static(media.DIR));
+app.use('/sounds', express.static(sounds.DIR));
 
 const DEFAULT_MESSAGE_STYLES = {
   fontFamily: 'Outfit, sans-serif',
@@ -142,6 +144,15 @@ const DEFAULT_LT_STYLES = {
   animation: 'slide',            // 'slide', 'rise', 'drop', 'fade', 'zoom', 'blur', 'reveal', 'expand', 'flip', 'stagger'
   speed: 1,                      // multiplicador da duração (0.6 rápida, 1 normal, 1.7 lenta)
   autoHide: 8                    // segundos; 0 = só esconde quando o operador mandar
+};
+
+// Louvor especial (fora do hinário): mesma faixa do pregador, com o seu próprio visual
+const DEFAULT_SPECIAL_STYLES = {
+  ...DEFAULT_LT_STYLES,
+  position: 'bottom-left',
+  accentColor: '#f2b632',
+  subtitleColor: '#fde68a',
+  autoHide: 10
 };
 
 // Anúncio da leitura bíblica (Bíblia aberta com a faixa da passagem, embaixo no meio)
@@ -247,8 +258,10 @@ let globalState = {
   mediaStyles: { ...DEFAULT_MEDIA_STYLES, ...db.getSetting('styles.media', {}) },
 
   // Nome do pregador: camada independente, pode aparecer junto com qualquer conteúdo
-  lowerThird: { visible: false, name: '', subtitle: '', token: 0 },
+  // kind: 'preacher' (nome do pregador) ou 'special' (louvor especial, com o visual de specialStyles)
+  lowerThird: { visible: false, name: '', subtitle: '', kind: 'preacher', token: 0 },
   lowerThirdStyles: { ...DEFAULT_LT_STYLES, ...db.getSetting('styles.lowerThird', {}) },
+  specialStyles: { ...DEFAULT_SPECIAL_STYLES, ...db.getSetting('styles.special', {}) },
   // Leitura bíblica do culto (vai embaixo do nome do pregador)
   serviceReading: db.getSetting('serviceReading', ''),
   // Anúncio da leitura no telão (usa o texto de serviceReading)
@@ -257,7 +270,11 @@ let globalState = {
 
   // Pedidos de oração: os nomes ficam guardados até alguém limpar
   prayer: { visible: false, title: 'Pedidos de oração', names: [], ...db.getSetting('prayer', {}), visible: false },
-  prayerStyles: { ...DEFAULT_PRAYER_STYLES, ...db.getSetting('styles.prayer', {}) }
+  prayerStyles: { ...DEFAULT_PRAYER_STYLES, ...db.getSetting('styles.prayer', {}) },
+
+  // Sons agendados (sino antes do culto etc.): tocam neste computador (janela do programa) ou no OBS
+  soundSchedules: sounds.loadSchedules(),
+  soundOutput: db.getSetting('soundOutput', 'app') === 'obs' ? 'obs' : 'app'
 };
 
 let activeSermonParagraphs = [];
@@ -933,7 +950,7 @@ function hideLowerThird(broadcastNow = true) {
   if (broadcastNow) broadcastContent();
 }
 
-function showLowerThird({ name, subtitle }) {
+function showLowerThird({ name, subtitle, kind }) {
   const cleanName = String(name || '').trim();
   if (!cleanName) return;
   clearTimeout(lowerThirdTimer);
@@ -943,11 +960,13 @@ function showLowerThird({ name, subtitle }) {
     visible: true,
     name: cleanName,
     subtitle: String(subtitle || '').trim(),
+    kind: kind === 'special' ? 'special' : 'preacher',
     token: globalState.lowerThird.token + 1
   };
   broadcastContent();
-  // Some sozinho depois de alguns segundos (se configurado)
-  const seconds = Number(globalState.lowerThirdStyles.autoHide) || 0;
+  // Some sozinho depois de alguns segundos (se configurado; cada um tem o seu tempo)
+  const styles = globalState.lowerThird.kind === 'special' ? globalState.specialStyles : globalState.lowerThirdStyles;
+  const seconds = Number(styles.autoHide) || 0;
   if (seconds > 0) lowerThirdTimer = setTimeout(() => hideLowerThird(), seconds * 1000);
 }
 
@@ -963,6 +982,14 @@ function updateLowerThirdStyles(partial) {
   broadcast('update-lt-style', globalState.lowerThirdStyles);
   clearTimeout(saveLtStylesTimer);
   saveLtStylesTimer = setTimeout(() => db.setSetting('styles.lowerThird', globalState.lowerThirdStyles), 400);
+}
+
+let saveSpecialStylesTimer = null;
+function updateSpecialStyles(partial) {
+  globalState.specialStyles = { ...globalState.specialStyles, ...partial };
+  broadcast('update-special-style', globalState.specialStyles);
+  clearTimeout(saveSpecialStylesTimer);
+  saveSpecialStylesTimer = setTimeout(() => db.setSetting('styles.special', globalState.specialStyles), 400);
 }
 
 function setServiceReading(text) {
@@ -1005,6 +1032,48 @@ function updateReadingStyles(partial) {
   clearTimeout(saveReadingStylesTimer);
   saveReadingStylesTimer = setTimeout(() => db.setSetting('styles.reading', globalState.readingStyles), 400);
 }
+
+// ---------- Sons agendados ----------
+
+let soundToken = 0;
+
+// Manda tocar: quem toca é a janela do programa (output 'app') ou o overlay do OBS ('obs')
+function playSound({ name, volume, label }) {
+  const file = sounds.listSounds().find(x => x.name === name);
+  if (!file) return;
+  broadcast('sound-play', {
+    id: ++soundToken,
+    name: file.name,
+    url: file.url,
+    label: String(label || file.name),
+    volume: Math.min(1, Math.max(0, Number(volume ?? 1))),
+    output: globalState.soundOutput
+  });
+}
+
+function setSoundOutput(output) {
+  globalState.soundOutput = output === 'obs' ? 'obs' : 'app';
+  db.setSetting('soundOutput', globalState.soundOutput);
+  broadcast('sound-stop', {});
+  broadcastContent();
+}
+
+function setSoundSchedules(items) {
+  globalState.soundSchedules = sounds.saveSchedules(items);
+  broadcastContent();
+}
+
+sounds.startScheduler({
+  getSchedules: () => globalState.soundSchedules,
+  onFire: (s) => {
+    console.log(`Som agendado: ${s.label || s.name} (${s.time})`);
+    playSound({ name: s.name, volume: s.volume, label: s.label || s.name });
+  },
+  onChange: (list) => {
+    globalState.soundSchedules = list;
+    broadcastContent();
+  }
+});
 
 // ---------- Pedidos de oração ----------
 
@@ -1122,6 +1191,11 @@ wss.on('connection', (ws, req) => {
         onMediaProgress(payload);
         return;
       }
+      // Fim do som que tocou no OBS (o painel volta para "Nada tocando")
+      if (data.type === 'sound-ended') {
+        broadcast('sound-ended', { id: payload.id });
+        return;
+      }
       if (!ws.canControl) return;
 
       switch (data.type) {
@@ -1225,6 +1299,12 @@ wss.on('connection', (ws, req) => {
         case 'reset-lt-styles':
           updateLowerThirdStyles(DEFAULT_LT_STYLES);
           break;
+        case 'update-special-styles':
+          updateSpecialStyles(payload);
+          break;
+        case 'reset-special-styles':
+          updateSpecialStyles(DEFAULT_SPECIAL_STYLES);
+          break;
         case 'service-reading':
           setServiceReading(payload.text);
           break;
@@ -1239,6 +1319,18 @@ wss.on('connection', (ws, req) => {
           break;
         case 'reset-reading-styles':
           updateReadingStyles(DEFAULT_READING_STYLES);
+          break;
+        case 'sound-schedules':
+          setSoundSchedules(payload.items);
+          break;
+        case 'sound-play':
+          playSound(payload);
+          break;
+        case 'sound-output':
+          setSoundOutput(payload.output);
+          break;
+        case 'sound-stop':
+          broadcast('sound-stop', {});
           break;
         case 'prayer-set':
           setPrayer(payload);
@@ -1508,6 +1600,33 @@ app.post('/api/media/upload', async (req, res) => {
     const saved = await media.saveUpload(req, req.query.folder || media.todayFolder(), req.query.name);
     refreshMediaItems(req.query.folder || media.todayFolder());
     res.json({ success: true, ...saved });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ---------- API de sons agendados ----------
+
+app.get('/api/sounds', (req, res) => {
+  res.json(sounds.listSounds());
+});
+
+app.post('/api/sounds/upload', async (req, res) => {
+  try {
+    const saved = await sounds.saveUpload(req, req.query.name);
+    res.json({ success: true, ...saved });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Apagar o som também tira os agendamentos dele
+app.delete('/api/sounds/:name', (req, res) => {
+  try {
+    if (!sounds.removeSound(req.params.name)) return res.status(404).json({ error: 'Som não encontrado.' });
+    const left = globalState.soundSchedules.filter(s => s.name !== req.params.name);
+    if (left.length !== globalState.soundSchedules.length) setSoundSchedules(left);
+    res.json({ success: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

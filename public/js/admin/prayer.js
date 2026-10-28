@@ -57,7 +57,7 @@ function render() {
 
 // ---------- Aparência ----------
 
-const styleInputs = ['prayer-font', 'prayer-size', 'prayer-name-color', 'prayer-title-color', 'prayer-accent-color', 'prayer-bg-color', 'prayer-decor'].map($);
+const styleInputs = ['prayer-font', 'prayer-size', 'prayer-name-color', 'prayer-title-color', 'prayer-accent-color', 'prayer-bg-color', 'prayer-decor', 'prayer-noanim'].map($);
 let picker = null;
 
 function fillStyles(s) {
@@ -72,6 +72,7 @@ function fillStyles(s) {
   $('prayer-accent-color').value = styles.accentColor || '#f2b632';
   $('prayer-bg-color').value = styles.bgColor || '#333333';
   $('prayer-decor').checked = styles.decor !== false;
+  $('prayer-noanim').checked = styles.noAnim === true;
 }
 
 function sendStyles() {
@@ -83,7 +84,8 @@ function sendStyles() {
     titleColor: $('prayer-title-color').value,
     accentColor: $('prayer-accent-color').value,
     bgColor: $('prayer-bg-color').value,
-    decor: $('prayer-decor').checked
+    decor: $('prayer-decor').checked,
+    noAnim: $('prayer-noanim').checked
   });
 }
 

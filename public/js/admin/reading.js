@@ -92,6 +92,7 @@ const styleInputs = ['reading-font', 'reading-scale', 'reading-text-color', 'rea
 function fillStyles(s) {
   styles = { ...styles, ...s };
   $('reading-autohide').value = String(styles.autoHide ?? 0);
+  $('reading-anim').value = styles.animation === 'none' ? 'none' : 'normal';
   const look = styles.look || 'photo';
   $('reading-look').value = look;
   $('reading-label-field').hidden = look === 'bible3d';
@@ -146,6 +147,10 @@ export function setupReading() {
   };
 
   $('reading-autohide').onchange = (e) => ws.send('update-reading-styles', { autoHide: Number(e.target.value) });
+  $('reading-anim').onchange = (e) => {
+    ws.send('update-reading-styles', { animation: e.target.value });
+    setTimeout(previewAnimation, 300);
+  };
   $('reading-look').onchange = (e) => {
     ws.send('update-reading-styles', { look: e.target.value, ...LOOKS[e.target.value] });
     setTimeout(previewAnimation, 300);

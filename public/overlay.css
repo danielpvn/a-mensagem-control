@@ -680,3 +680,13 @@ body, html {
 @keyframes rd-bg-zoom { from { transform: scale(1.08); } to { transform: scale(1); } }
 @keyframes rd-line-in { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes rd-fade-out { from { opacity: 1; } to { opacity: 0; } }
+
+
+/* --- Sem transição (opção em cada conteúdo): aparece e some na hora --- */
+.anim-none, .anim-none.hidden { transition: none !important; }
+.anim-none.hidden { opacity: 0; }
+.screen-layer.no-anim, .screen-layer.no-anim .screen-box { transition: none !important; }
+.lt-anim-none .lt-box, .lt-anim-none .lt-name, .lt-anim-none .lt-subtitle { transition: none !important; }
+.lt-anim-none.hidden .lt-box { opacity: 0; }
+.reading-layer.no-anim *, .reading-layer.no-anim { animation: none !important; transition: none !important; }
+.prayer-layer.no-anim, .prayer-layer.no-anim .prayer-frame { transition: none !important; }

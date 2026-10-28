@@ -14,10 +14,11 @@ const overlayBox = document.getElementById('overlay-box');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayText = document.getElementById('overlay-text');
 
-const ANIMATION_CLASSES = ['anim-slide-up', 'anim-slide-side', 'anim-slide-down', 'anim-fade', 'anim-fade-slow', 'anim-clip-reveal', 'anim-zoom-in', 'anim-blur'];
+const ANIMATION_CLASSES = ['anim-slide-up', 'anim-slide-side', 'anim-slide-down', 'anim-fade', 'anim-fade-slow', 'anim-clip-reveal', 'anim-zoom-in', 'anim-blur', 'anim-none'];
 
 // Tempo de saída de cada transição antes de trocar o texto
 function transitionTimeout(animationType) {
+  if (animationType === 'none') return 0;
   if (animationType === 'fade-slow') return 600;
   if (animationType === 'blur') return 350;
   return 300;
@@ -257,6 +258,8 @@ function createScreenLayer(prefix, { content, look }) {
 
     box.classList.remove(...ANIMATION_CLASSES);
     box.classList.add(`anim-${l.animationType || 'fade'}`);
+    // Sem transição: o fundo da tela cheia também aparece e some na hora
+    layer.classList.toggle('no-anim', l.animationType === 'none');
 
     const slide = currentSlide();
     if (slide) render(slide);
@@ -354,6 +357,35 @@ const itemKey = (item) => `${item.type}:${item.url}`;
 function sendProgress(payload) {
   if (PREVIEW || !socket || socket.readyState !== WebSocket.OPEN) return;
   socket.send(JSON.stringify({ type: 'media-progress', payload }));
+}
+
+// ---------- Sons agendados (quando o operador escolhe "No OBS") ----------
+let soundAudio = null;
+
+function stopSound() {
+  if (!soundAudio) return;
+  soundAudio.onended = null;
+  soundAudio.onerror = null;
+  soundAudio.pause();
+  soundAudio.removeAttribute('src');
+  soundAudio.load();
+  soundAudio = null;
+}
+
+function playSound(p) {
+  stopSound();
+  if (PREVIEW || p.output !== 'obs') return;
+  const audio = new Audio(p.url);
+  soundAudio = audio;
+  audio.volume = p.volume;
+  const done = () => {
+    if (soundAudio !== audio) return;
+    stopSound();
+    if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'sound-ended', payload: { id: p.id } }));
+  };
+  audio.onended = done;
+  audio.onerror = done;
+  audio.play().catch(done);
 }
 
 // Andamento do vídeo no ar, para o painel (barra de tempo e som sincronizado)
@@ -560,10 +592,12 @@ const ltLayer = document.getElementById('lt-layer');
 const ltName = document.getElementById('lt-name');
 const ltSubtitle = document.getElementById('lt-subtitle');
 let ltStyles = {};
+let specialStyles = {};  // louvor especial: mesma faixa, visual próprio
+let ltKind = 'preacher'; // qual visual está aplicado na faixa agora
 let ltState = null;
 
 function applyLowerThirdStyles() {
-  const s = ltStyles;
+  const s = ltKind === 'special' ? specialStyles : ltStyles;
   ltLayer.className = ltLayer.className
     .split(' ')
     .filter(c => !c.startsWith('pos-') && !c.startsWith('look-') && !c.startsWith('lt-anim-'))
@@ -587,7 +621,8 @@ function liftLowerThird() {
   if (!isCleared && !overlayContainer.classList.contains('telao-mode')) boxes.push(overlayBox);
   document.querySelectorAll('.screen-layer.layout-lower:not(.hidden) .screen-box').forEach(b => boxes.push(b));
   boxes.forEach(b => { lift = Math.max(lift, b.offsetHeight + 24); });
-  ltLayer.style.setProperty('--lt-lift', String(ltStyles.position || 'bottom-left').startsWith('bottom') ? `${lift}px` : '0px');
+  const activeStyles = ltKind === 'special' ? specialStyles : ltStyles;
+  ltLayer.style.setProperty('--lt-lift', String(activeStyles.position || 'bottom-left').startsWith('bottom') ? `${lift}px` : '0px');
   // O anúncio da leitura fica sempre embaixo
   readingLayer.style.setProperty('--rd-lift', `${lift}px`);
 }
@@ -596,8 +631,17 @@ let ltPreviewing = false;
 let ltPreviewTimer = null;
 
 // Só nas prévias do painel: mostra o nome com o efeito escolhido e esconde, sem ir para o OBS
-function previewLowerThird(name, subtitle) {
+// Troca o visual da faixa (pregador ou louvor especial) quando muda quem vai aparecer
+function useLtKind(kind) {
+  const next = kind === 'special' ? 'special' : 'preacher';
+  if (next === ltKind) return;
+  ltKind = next;
+  applyLowerThirdStyles();
+}
+
+function previewLowerThird(name, subtitle, kind) {
   if (ltState && ltState.visible) return; // já está no ar
+  useLtKind(kind);
   ltPreviewing = true;
   clearTimeout(ltPreviewTimer);
   ltName.textContent = name || 'Nome do pregador';
@@ -622,6 +666,7 @@ function updateLowerThird(lt) {
     clearTimeout(ltPreviewTimer);
   }
   if (ltPreviewing) return;
+  if (ltState && ltState.visible) useLtKind(ltState.kind);
   if (!ltState || !ltState.visible) {
     ltLayer.classList.add('hidden');
     return;
@@ -688,13 +733,41 @@ let readingHideTimer = null;
 })();
 
 // Passagem comprida: a letra diminui para caber na faixa
+// Diminui a letra de `el` até ela caber em `available` pixels de largura
+function shrinkToWidth(el, available) {
+  el.style.fontSize = '';
+  if (!el.offsetParent || available <= 0) return;
+  const width = el.scrollWidth;
+  if (width <= available) return;
+  const size = parseFloat(getComputedStyle(el).fontSize);
+  el.style.fontSize = `${Math.max(10, size * (available / width) * 0.98)}px`;
+}
+
+// Passagem comprida ("2 Tessalonicenses 2:1") ou tamanho grande: a letra diminui para caber,
+// em qualquer estilo (nunca sai da tela)
 function fitReadingText() {
-  readingText.style.fontSize = '';
-  const band = readingText.parentElement;
-  let size = 4.2;
-  for (let i = 0; i < 20 && band.scrollWidth > band.clientWidth + 1; i++) {
-    size *= 0.93;
-    readingText.style.fontSize = `${size}em`;
+  const look = readingStyles.look || 'photo';
+  if (look === 'bible3d') {
+    readingText.style.fontSize = '';
+    const band = readingText.parentElement;
+    let size = 4.2;
+    for (let i = 0; i < 20 && band.scrollWidth > band.clientWidth + 1; i++) {
+      size *= 0.93;
+      readingText.style.fontSize = `${size}em`;
+    }
+  } else if (look === 'photo') {
+    const ref = document.querySelector('.rd-photo-ref');
+    shrinkToWidth(ref, ref.parentElement.clientWidth * 0.94);
+  } else if (look === 'full') {
+    const ref = document.querySelector('.rd-full-ref');
+    shrinkToWidth(ref, ref.parentElement.clientWidth * 0.96);
+  } else {
+    // Cartão, faixa clara e só linha: a caixa inteira cabe em 92% da tela
+    const flat = document.querySelector('.rd-flat');
+    readingRef.style.fontSize = '';
+    if (!flat.offsetParent) return;
+    const others = flat.scrollWidth - readingRef.scrollWidth;
+    shrinkToWidth(readingRef, window.innerWidth * 0.92 - others);
   }
 }
 
@@ -720,6 +793,7 @@ function applyReadingStyles() {
   document.querySelectorAll('.rd-label-any').forEach(el => { el.textContent = label; });
   readingLayer.className = readingLayer.className.split(' ').filter(c => !c.startsWith('look-')).join(' ');
   readingLayer.classList.add(`look-${s.look || 'photo'}`);
+  readingLayer.classList.toggle('no-anim', s.animation === 'none');
   fitReadingText();
 }
 
@@ -729,6 +803,7 @@ let readingPreviewTimer = null;
 
 function playReadingIn() {
   clearTimeout(readingHideTimer);
+  fitReadingText();
   readingLayer.classList.remove('hidden', 'leaving', 'show');
   void readingLayer.offsetWidth;
   readingLayer.classList.add('show');
@@ -738,11 +813,13 @@ function playReadingOut(after) {
   readingLayer.classList.remove('show');
   readingLayer.classList.add('leaving');
   clearTimeout(readingHideTimer);
+  // Sem animação: some na hora
+  const wait = readingStyles.animation === 'none' ? 0 : 1850;
   readingHideTimer = setTimeout(() => {
     readingLayer.classList.remove('leaving');
     readingLayer.classList.add('hidden');
     if (after) after();
-  }, 1850);
+  }, wait);
 }
 
 function updateReading(state) {
@@ -787,6 +864,8 @@ function previewReading(text) {
 }
 
 window.addEventListener('resize', fitReadingText);
+// A fonte escolhida pode terminar de carregar depois: mede de novo
+if (document.fonts) document.fonts.ready.then(fitReadingText);
 
 // ================= Pedidos de oração =================
 // Tela cheia: título com enfeite e os nomes em colunas (1, 2 ou 3, conforme a quantidade).
@@ -856,6 +935,7 @@ function applyPrayerStyles() {
     ? `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)), url("${s.bgImage}") center / cover no-repeat, ${s.bgColor || '#333333'}`
     : (s.bgColor || '#333333');
   prayerLayer.classList.toggle('no-decor', s.decor === false);
+  prayerLayer.classList.toggle('no-anim', s.noAnim === true);
   if (prayerState && prayerState.names.length) fitPrayerNames();
 }
 
@@ -907,6 +987,7 @@ function connect() {
           mediaStyles = data.payload.mediaStyles || {};
           applyMediaStyles();
           ltStyles = data.payload.lowerThirdStyles || {};
+          specialStyles = data.payload.specialStyles || {};
           applyLowerThirdStyles();
           prayerStyles = data.payload.prayerStyles || {};
           applyPrayerStyles();
@@ -949,7 +1030,21 @@ function connect() {
 
         case 'update-lt-style':
           ltStyles = { ...ltStyles, ...data.payload };
+          if (ltKind !== 'preacher') break;
           applyLowerThirdStyles();
+          break;
+
+        case 'update-special-style':
+          specialStyles = { ...specialStyles, ...data.payload };
+          if (ltKind === 'special') applyLowerThirdStyles();
+          break;
+
+        case 'sound-play':
+          playSound(data.payload);
+          break;
+
+        case 'sound-stop':
+          stopSound();
           break;
       }
     } catch (err) {
@@ -963,7 +1058,7 @@ if (PREVIEW) {
   window.addEventListener('message', (event) => {
     if (event.origin !== window.location.origin || !event.data) return;
     if (event.data.type === 'preview-reading') previewReading(event.data.text);
-    if (event.data.type === 'preview-lt') previewLowerThird(event.data.name, event.data.subtitle);
+    if (event.data.type === 'preview-lt') previewLowerThird(event.data.name, event.data.subtitle, event.data.kind);
   });
 }
 

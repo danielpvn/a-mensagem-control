@@ -162,6 +162,13 @@ kbd {
   transition: background 0.15s, color 0.15s;
 }
 .tab svg { width: 17px; height: 17px; }
+/* Com a aba Sons, o topo aperta: em telas até ~1600px as abas ficam mais justas e o nome do app some */
+@media (max-width: 1600px) {
+  .tab { padding: 9px 10px; gap: 6px; }
+}
+@media (max-width: 1480px) {
+  .brand-text { display: none; }
+}
 .tab:hover { background: var(--field-hover); color: var(--text); }
 .tab.active { background: var(--accent-soft); color: var(--text); }
 .tab.active svg { color: var(--accent); }
@@ -1368,10 +1375,10 @@ fieldset.collapsed > :not(legend) { display: none !important; }
 #btn-bible-announce svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; }
 #btn-bible-announce.is-live { background: var(--live-soft); color: #fecaca; border-color: rgba(239, 68, 68, 0.4); }
 
-/* Aba Hinos: louvor especial (fora do hinário) */
-.special-view { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; min-height: 0; }
-.special-view .field input[type="text"] { width: 100%; }
-.special-kinds { margin-bottom: 8px; }
+/* Aba Culto: louvor especial (fora do hinário) */
+.singer-list { display: flex; flex-direction: column; gap: 6px; }
+.singer-row { display: flex; align-items: center; gap: 6px; }
+.singer-row input { flex: 1; min-width: 0; }
 
 .special-sample { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--radius); background: var(--field); border-left: 3px solid var(--accent); }
 .special-sample strong { font-size: 1rem; }
@@ -1387,3 +1394,58 @@ fieldset.collapsed > :not(legend) { display: none !important; }
 .prayer-card textarea { flex: 1; min-height: 90px; resize: none; font-size: 0.95rem; }
 .btn-prayer-toggle { width: 100%; padding: 13px; font-size: 0.98rem; }
 #prayer-summary { -webkit-line-clamp: 4; }
+
+/* ---------- Aba Sons (agendados) ---------- */
+.sounds-library { overflow-y: auto; }
+.sound-list { display: flex; flex-direction: column; gap: 6px; }
+.sound-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--field); border: 1px solid var(--border); }
+.sound-row.playing { border-color: rgba(16, 185, 129, 0.5); background: rgba(16, 185, 129, 0.1); }
+.sound-row .sound-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sound-row .sound-name strong { font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sound-row .sound-name span { font-size: 0.74rem; color: var(--text-2); }
+.icon-btn { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--field-hover); color: var(--text); cursor: pointer; flex-shrink: 0; }
+.icon-btn:hover { background: var(--accent-soft); border-color: var(--accent); }
+.icon-btn svg { width: 14px; height: 14px; fill: currentColor; stroke: none; }
+.schedules-card { overflow-y: auto; }
+.schedule-form { display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: var(--radius); background: var(--field); border: 1px solid var(--border-strong); flex-shrink: 0; }
+.schedule-form.editing { border-color: var(--accent); }
+.schedule-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.schedule-grid input, .schedule-grid select { width: 100%; }
+/* Horário do agendamento: mesma altura dos outros campos; setinhas ao lado de cada número (e rodinha do mouse) */
+.time-pick { display: flex; align-items: center; justify-content: center; gap: 2px; width: 100%; height: 40px; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--field); transition: border-color 0.15s, background 0.15s; }
+.time-pick:focus-within { border-color: var(--accent); background: var(--field-hover); }
+.time-part { display: grid; grid-template-columns: auto 18px; grid-template-rows: 1fr 1fr; align-items: center; height: 100%; }
+.time-part input[type="text"] { grid-column: 1; grid-row: 1 / 3; width: 2.1ch; padding: 0; border: none; background: transparent; color: var(--text); text-align: center; font: inherit; font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.time-part input[type="text"]:focus { background: transparent; color: var(--accent); }
+.time-step { grid-column: 2; width: 18px; height: 16px; padding: 0; display: flex; align-items: center; justify-content: center; border: none; border-radius: 4px; background: transparent; color: var(--text-2); cursor: pointer; }
+.time-step:first-child { grid-row: 1; align-self: end; }
+.time-step:last-child { grid-row: 2; align-self: start; }
+.time-step:hover { background: var(--accent-soft); color: var(--text); }
+.time-step svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.time-colon { font-size: 1.15rem; font-weight: 700; color: var(--text-2); padding: 0 4px; }
+.date-input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--field); color: var(--text); font: inherit; font-size: 0.9rem; color-scheme: dark; }
+.date-input::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.8; }
+.day-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.day-chips label { cursor: pointer; }
+.day-chips input { position: absolute; opacity: 0; pointer-events: none; }
+.day-chips span { display: inline-block; min-width: 46px; text-align: center; padding: 7px 10px; border-radius: 99px; border: 1px solid var(--border-strong); font-size: 0.84rem; color: var(--text-2); }
+.day-chips input:checked + span { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+.day-chips input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+.schedule-list-head { display: flex; align-items: baseline; justify-content: space-between; margin-top: 6px; flex-shrink: 0; }
+.schedule-list-head h3 { margin: 0; font-size: 1rem; }
+.schedule-list { display: flex; flex-direction: column; gap: 8px; }
+.schedule-row { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border-radius: var(--radius); background: var(--field); border: 1px solid var(--border); }
+.schedule-row.off { opacity: 0.55; }
+.schedule-time { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 72px; }
+.schedule-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.schedule-info strong { font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-info span { font-size: 0.8rem; color: var(--text-2); }
+.schedule-info .next { color: #86efac; }
+.schedule-actions { display: flex; align-items: center; gap: 4px; }
+.now-playing { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: var(--radius); background: var(--field); border: 1px solid var(--border-strong); flex-shrink: 0; }
+.now-playing.on { border-color: rgba(16, 185, 129, 0.55); background: rgba(16, 185, 129, 0.1); }
+.now-playing strong { font-size: 1rem; }
+.upcoming-list { display: flex; flex-direction: column; gap: 6px; }
+.upcoming-row { display: flex; flex-direction: column; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--field); border-left: 3px solid var(--accent); }
+.upcoming-row strong { font-size: 0.88rem; }
+.upcoming-row span { font-size: 0.78rem; color: var(--text-2); }

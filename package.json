@@ -1,6 +1,6 @@
 {
   "name": "a-mensagem-control",
-  "version": "2.1.0-beta.2",
+  "version": "2.1.0-beta.3",
   "description": "Controle de overlay para transmissão de sermões de William Branham",
   "main": "main.js",
   "scripts": {

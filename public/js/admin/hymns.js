@@ -61,7 +61,6 @@ function setView(view) {
   document.querySelectorAll('input[name="hymn-view"]').forEach(r => { r.checked = r.value === view; });
   $('hymn-search-view').hidden = view !== 'search';
   $('hymn-list-view').hidden = view !== 'list';
-  $('hymn-special-view').hidden = view !== 'special';
   try { localStorage.setItem('amc.hymnView', view); } catch (e) { /* sem armazenamento */ }
 }
 
@@ -143,6 +142,7 @@ function setupPlaylist() {
   document.querySelectorAll('input[name="hymn-view"]').forEach(r => r.addEventListener('change', () => setView(r.value)));
   let saved = 'search';
   try { saved = localStorage.getItem('amc.hymnView') || 'search'; } catch (e) { /* sem armazenamento */ }
+  if (saved !== 'list') saved = 'search';
   setView(saved);
 
   makeSortable($('hymn-playlist'), '.playlist-row', (from, to) => savePlaylist(moveItem(playlist(), from, to)));
@@ -369,128 +369,7 @@ function chooseResult(hymn) {
 
 // ---------- Estrofes ----------
 
-// ---------- Louvor especial (fora do hinário) ----------
-// Alguém canta solo, em dupla, trio ou grupo um louvor que não está no hinário. Aparece na mesma
-// faixa do nome do pregador: o nome do louvor em cima e quem canta embaixo ("Dupla · Maria e João").
-// Os recentes ficam guardados neste aparelho para usar de novo com um clique.
-
-const readJson = (key, fallback) => {
-  try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch (e) { return fallback; }
-};
-const writeJson = (key, value) => {
-  try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* sem armazenamento */ }
-};
-const kindRadios = [...document.querySelectorAll('input[name="special-kind"]')];
-
-function specialFromForm() {
-  const checked = kindRadios.find(r => r.checked);
-  return { title: $('special-title').value.trim(), kind: checked ? checked.value : '', singers: $('special-singers').value.trim() };
-}
-
-// O que vai na faixa: sem nome do louvor, os nomes de quem canta vão em cima
-function specialLines({ title, kind, singers }) {
-  if (title) return { name: title, subtitle: [kind, singers].filter(Boolean).join(' · ') };
-  return { name: singers, subtitle: singers ? kind : '' };
-}
-
-const sameLines = (a, b) => a.name === b.name && (a.subtitle || '') === (b.subtitle || '');
-const ltLines = () => {
-  const lt = (state && state.lowerThird) || {};
-  return lt.visible ? { name: lt.name, subtitle: lt.subtitle || '' } : null;
-};
-
-function renderSpecial() {
-  const lines = specialLines(specialFromForm());
-  const live = ltLines();
-  const isLive = !!(live && lines.name && sameLines(live, lines));
-  $('special-sample').hidden = !lines.name;
-  $('special-sample-name').textContent = lines.name;
-  $('special-sample-sub').textContent = lines.subtitle;
-  $('special-sample-sub').hidden = !lines.subtitle;
-  const btn = $('btn-special-toggle');
-  btn.disabled = !lines.name && !isLive;
-  btn.textContent = isLive ? 'Esconder do telão' : 'Mostrar no telão';
-  btn.classList.toggle('btn-danger', isLive);
-  btn.classList.toggle('btn-primary', !isLive);
-
-  const recent = readJson('amc.specials', []);
-  $('special-recent-wrap').hidden = recent.length === 0;
-  const list = $('special-recent');
-  list.innerHTML = '';
-  recent.forEach((item, i) => {
-    const row = document.createElement('div');
-    row.className = 'special-item';
-    row.classList.toggle('on-air', !!(live && sameLines(live, specialLines(item))));
-    const use = document.createElement('button');
-    use.type = 'button';
-    use.className = 'special-use';
-    use.title = 'Usar de novo';
-    const name = document.createElement('strong');
-    const l = specialLines(item);
-    name.textContent = l.name;
-    const sub = document.createElement('span');
-    sub.textContent = l.subtitle || ' ';
-    use.append(name, sub);
-    use.onclick = () => fillSpecial(item);
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'btn-x';
-    remove.title = 'Tirar dos recentes';
-    remove.textContent = '×';
-    remove.onclick = () => {
-      writeJson('amc.specials', readJson('amc.specials', []).filter((_, j) => j !== i));
-      renderSpecial();
-    };
-    row.append(use, remove);
-    list.appendChild(row);
-  });
-}
-
-function fillSpecial({ title, kind, singers }) {
-  $('special-title').value = title || '';
-  $('special-singers').value = singers || '';
-  kindRadios.forEach(r => { r.checked = r.value === kind; });
-  renderSpecial();
-}
-
-function rememberSpecial(item) {
-  const key = (x) => `${x.title}|${x.kind}|${x.singers}`.toLowerCase();
-  writeJson('amc.specials', [item, ...readJson('amc.specials', []).filter(x => key(x) !== key(item))].slice(0, 12));
-}
-
-function setupSpecial() {
-  ['special-title', 'special-singers'].forEach(id => {
-    $(id).addEventListener('input', renderSpecial);
-    // Enter mostra no telão
-    $(id).addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); if (!$('btn-special-toggle').disabled) $('btn-special-toggle').click(); }
-    });
-  });
-  // Clicar de novo na opção marcada desmarca (quem canta pode ficar sem "Solo/Dupla...")
-  kindRadios.forEach(r => {
-    r.addEventListener('mousedown', () => { r.dataset.was = String(r.checked); });
-    r.addEventListener('click', () => {
-      if (r.dataset.was === 'true') r.checked = false;
-      renderSpecial();
-    });
-  });
-  $('btn-special-toggle').onclick = () => {
-    const item = specialFromForm();
-    const lines = specialLines(item);
-    const live = ltLines();
-    if (live && sameLines(live, lines)) {
-      ws.send('lt-hide');
-      return;
-    }
-    if (!lines.name) return;
-    rememberSpecial(item);
-    ws.send('lt-show', lines);
-  };
-  renderSpecial();
-}
-
 function renderHymn() {
-  renderSpecial();
   const hymn = state && state.hymn;
   const has = !!(hymn && hymn.id);
   const key = has ? `${hymn.id}|${hymn.slides.map(s => s.text).join('¦')}` : '';
@@ -961,7 +840,6 @@ export const hymnControls = {
 };
 
 export function setupHymns() {
-  setupSpecial();
   ws.on('init', onServerState);
   ws.on('update-content', onServerState);
 
