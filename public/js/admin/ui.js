@@ -88,6 +88,42 @@ export function setupTabs() {
   if (saved && document.querySelector(`.tab[data-tab="${saved}"]`)) selectTab(saved);
 }
 
+// Toca uma animação só nas prévias do painel (o overlay dentro do iframe); nunca chega no OBS
+export function previewInPanel(message) {
+  document.querySelectorAll('[data-stage] iframe').forEach(frame => {
+    if (frame.contentWindow) frame.contentWindow.postMessage(message, window.location.origin);
+  });
+}
+
+// Grupos de ajustes (fieldset): clicar no título fecha/abre; lembra o que ficou fechado
+export function setupSections() {
+  let closed = [];
+  try { closed = JSON.parse(localStorage.getItem('amc.closedSections') || '[]'); } catch (e) { /* sem armazenamento */ }
+  document.querySelectorAll('fieldset > legend').forEach(legend => {
+    const fieldset = legend.parentElement;
+    const panel = fieldset.closest('[data-panel]');
+    const key = `${panel ? panel.dataset.panel : ''}/${legend.textContent.trim()}`;
+    const apply = (isClosed) => {
+      fieldset.classList.toggle('collapsed', isClosed);
+      legend.setAttribute('aria-expanded', String(!isClosed));
+    };
+    legend.tabIndex = 0;
+    legend.setAttribute('role', 'button');
+    legend.title = 'Clique para fechar ou abrir';
+    apply(closed.includes(key));
+    const toggle = () => {
+      const isClosed = !fieldset.classList.contains('collapsed');
+      apply(isClosed);
+      closed = isClosed ? [...closed.filter(k => k !== key), key] : closed.filter(k => k !== key);
+      try { localStorage.setItem('amc.closedSections', JSON.stringify(closed)); } catch (e) { /* sem armazenamento */ }
+    };
+    legend.onclick = toggle;
+    legend.onkeydown = (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); toggle(); }
+    };
+  });
+}
+
 export function setupModalClose(modal, onClose) {
   modal.querySelectorAll('[data-close]').forEach(btn => btn.onclick = onClose);
   modal.addEventListener('mousedown', (e) => { if (e.target === modal) onClose(); });

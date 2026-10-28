@@ -2,6 +2,7 @@
 import { $, toast, confirmDialog, normalize, setupModalClose } from './ui.js';
 import * as ws from './ws.js';
 import { parseLyrics, buildSequence, slideName } from '../shared/hymn-text.js';
+import { makeSortable, moveItem } from './sortable.js';
 
 let hymnList = [];        // todos os hinos (para quando a busca está vazia)
 let results = [];         // o que está listado agora
@@ -33,6 +34,128 @@ const el = {
 };
 
 const hymnName = (h) => (h.number ? `${h.number} · ${h.title}` : h.title);
+
+// ---------- Lista do culto ----------
+
+const playlist = () => (state && state.hymnPlaylist) || [];
+const inPlaylist = (id) => playlist().some(h => h.id === id);
+const savePlaylist = (items) => ws.send('hymn-playlist', { items });
+
+function addToPlaylist(hymn) {
+  if (inPlaylist(hymn.id)) {
+    toast('Esse hino já está na lista do culto.');
+    return;
+  }
+  savePlaylist([...playlist(), { id: hymn.id, number: hymn.number, title: hymn.title, collection: hymn.collection }]);
+  toast(`"${hymnName(hymn)}" entrou na lista do culto.`, 'success');
+}
+
+// Próximo hino da lista depois do que está aberto (ou o primeiro, se o aberto não está na lista)
+function nextInPlaylist() {
+  const list = playlist();
+  const index = state && state.hymn.id ? list.findIndex(h => h.id === state.hymn.id) : -1;
+  return list[index + 1] || null;
+}
+
+function setView(view) {
+  document.querySelectorAll('input[name="hymn-view"]').forEach(r => { r.checked = r.value === view; });
+  $('hymn-search-view').hidden = view !== 'search';
+  $('hymn-list-view').hidden = view !== 'list';
+  try { localStorage.setItem('amc.hymnView', view); } catch (e) { /* sem armazenamento */ }
+}
+
+let playlistKey = '';
+function renderPlaylist() {
+  const list = playlist();
+  const count = $('hymn-list-count');
+  count.hidden = list.length === 0;
+  count.textContent = list.length;
+  $('btn-hymn-list-clear').hidden = list.length === 0;
+
+  const activeId = state.hymn.id;
+  const key = `${activeId}|${list.map(h => `${h.id}:${h.number}:${h.title}`).join('|')}`;
+  if (key === playlistKey) return;
+  playlistKey = key;
+
+  const box = $('hymn-playlist');
+  box.innerHTML = '';
+  if (list.length === 0) {
+    box.innerHTML = '<div class="empty">A lista do culto está vazia.<br>Na busca, clique no <strong>+</strong> de cada hino que vai ser cantado.</div>';
+    return;
+  }
+  list.forEach((hymn, i) => {
+    const row = document.createElement('div');
+    row.className = 'hymn-item playlist-row';
+    row.classList.toggle('active', hymn.id === activeId);
+    row.draggable = true;
+    row.title = 'Clique para abrir. Arraste para mudar a ordem.';
+    row.onclick = () => ws.send('hymn-select', { id: hymn.id });
+
+    const order = document.createElement('span');
+    order.className = 'playlist-order';
+    order.textContent = i + 1;
+    const num = document.createElement('span');
+    num.className = 'hymn-num';
+    num.textContent = hymn.number || '—';
+    const body = document.createElement('span');
+    body.className = 'hymn-item-body';
+    if (hymn.collection) {
+      const tag = document.createElement('span');
+      tag.className = 'hymn-category';
+      tag.textContent = hymn.collection;
+      body.appendChild(tag);
+    }
+    const title = document.createElement('span');
+    title.className = 'hymn-item-title';
+    title.textContent = hymn.title;
+    body.appendChild(title);
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn-x small';
+    remove.title = 'Tirar da lista';
+    remove.textContent = '×';
+    remove.onclick = (e) => {
+      e.stopPropagation();
+      savePlaylist(list.filter(h => h.id !== hymn.id));
+    };
+
+    row.append(order, num, body, remove);
+    box.appendChild(row);
+  });
+}
+
+function renderPlaylistButtons() {
+  const has = !!(state && state.hymn.id);
+  const add = $('btn-hymn-list-add');
+  add.hidden = !has || inPlaylist(state.hymn.id);
+  const next = nextInPlaylist();
+  const btnNext = $('btn-hymn-list-next');
+  btnNext.hidden = !next;
+  if (next) {
+    btnNext.textContent = `Próximo da lista: ${next.number || next.title}`;
+    btnNext.title = `Abrir "${hymnName(next)}"`;
+  }
+}
+
+function setupPlaylist() {
+  document.querySelectorAll('input[name="hymn-view"]').forEach(r => r.addEventListener('change', () => setView(r.value)));
+  let saved = 'search';
+  try { saved = localStorage.getItem('amc.hymnView') || 'search'; } catch (e) { /* sem armazenamento */ }
+  if (saved !== 'list') saved = 'search';
+  setView(saved);
+
+  makeSortable($('hymn-playlist'), '.playlist-row', (from, to) => savePlaylist(moveItem(playlist(), from, to)));
+  $('btn-hymn-list-add').onclick = () => state.hymn.id && addToPlaylist(state.hymn);
+  $('btn-hymn-list-next').onclick = () => {
+    const next = nextInPlaylist();
+    if (next) ws.send('hymn-select', { id: next.id });
+  };
+  $('btn-hymn-list-clear').onclick = async () => {
+    const ok = await confirmDialog({ title: 'Limpar a lista do culto?', text: 'Os hinos saem só da lista (continuam cadastrados).', okLabel: 'Limpar' });
+    if (ok) savePlaylist([]);
+  };
+}
 
 // ---------- Busca ----------
 
@@ -212,7 +335,19 @@ function renderResults(query) {
       body.appendChild(snippet);
     }
 
-    item.append(num, body);
+    // "+": põe na lista do culto sem abrir o hino
+    const add = document.createElement('span');
+    add.className = 'hymn-add';
+    add.setAttribute('role', 'button');
+    add.title = 'Colocar na lista do culto';
+    add.textContent = '+';
+    add.classList.toggle('added', inPlaylist(hymn.id));
+    add.onclick = (e) => {
+      e.stopPropagation();
+      addToPlaylist(hymn);
+    };
+
+    item.append(num, body, add);
     el.results.appendChild(item);
   });
   appendSearchEverywhere(query);
@@ -256,7 +391,8 @@ function renderHymn() {
         card.type = 'button';
         card.className = `slide-card ${slide.kind === 'chorus' ? 'is-chorus' : ''}`;
         card.dataset.index = index;
-        card.onclick = () => ws.send('hymn-show', { index });
+        // Clicar só prepara; quem põe no ar é o Exibir (ou o Próximo)
+        card.onclick = () => ws.send('hymn-cue', { index });
 
         const label = document.createElement('span');
         label.className = 'slide-label';
@@ -278,13 +414,15 @@ function renderHymn() {
 
 function highlightSlide() {
   const hymn = state.hymn;
+  const cue = hymn.cue ?? -1;
   let current = null;
   el.slides.querySelectorAll('.slide-card').forEach(card => {
-    const isCurrent = Number(card.dataset.index) === hymn.slideIndex;
+    const index = Number(card.dataset.index);
+    const isCurrent = index === hymn.slideIndex;
     card.classList.toggle('live', isCurrent && !hymn.isCleared);
-    card.classList.toggle('armed', isCurrent && hymn.isCleared && hymn.armed);
+    card.classList.toggle('armed', (isCurrent && hymn.isCleared && hymn.armed) || index === cue);
     card.classList.toggle('held', isCurrent && hymn.isCleared && !hymn.armed);
-    if (isCurrent) current = card;
+    if (index === (cue !== -1 ? cue : hymn.slideIndex)) current = card;
   });
   if (current) current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -292,25 +430,38 @@ function highlightSlide() {
 function renderTransport() {
   const hymn = state.hymn;
   const has = !!hymn.id && hymn.slides.length > 0;
-  const isLive = has && !hymn.isCleared && hymn.slideIndex !== -1;
+  const cue = hymn.cue ?? -1;
+  const onAir = !hymn.isCleared;  // algum hino na tela (pode ser outro, que estava no ar antes)
   const atStart = hymn.slideIndex === -1;
+  // Com algo preparado, o botão põe no ar; sem, alterna o que está na tela
+  const willHide = onAir && cue === -1;
 
   el.btnPrev.disabled = !has || hymn.slideIndex <= 0;
-  el.btnNext.disabled = !has || (!hymn.armed && !atStart && hymn.slideIndex >= hymn.slides.length - 1);
-  el.btnToggle.disabled = !has || atStart;
-  el.btnToggleLabel.textContent = isLive ? 'Ocultar' : 'Exibir';
-  el.btnToggle.classList.toggle('is-live', isLive);
+  el.btnNext.disabled = !has || (cue === -1 && !hymn.armed && !atStart && hymn.slideIndex >= hymn.slides.length - 1);
+  el.btnToggle.disabled = !onAir && cue === -1 && (!has || atStart);
+  el.btnToggleLabel.textContent = willHide ? 'Ocultar' : 'Exibir';
+  el.btnToggle.classList.toggle('is-live', willHide);
 
   let next = null;
-  if (has) next = hymn.armed || atStart ? hymn.slides[Math.max(0, hymn.slideIndex)] : hymn.slides[hymn.slideIndex + 1];
+  if (has) next = cue !== -1 ? hymn.slides[cue] : hymn.armed || atStart ? hymn.slides[Math.max(0, hymn.slideIndex)] : hymn.slides[hymn.slideIndex + 1];
   el.nextLabel.textContent = next ? `Próximo · ${slideName(next)}` : 'Próximo';
   el.nextText.textContent = next ? next.text : (has ? 'Fim do hino.' : '—');
 }
 
 function onServerState(newState) {
   const previousId = state && state.hymn ? state.hymn.id : null;
+  const previousList = state ? state.hymnPlaylist : null;
   state = newState;
   renderHymn();
+  renderPlaylist();
+  renderPlaylistButtons();
+  if (state.hymnPlaylist !== previousList) {
+    const ids = new Set(playlist().map(h => h.id));
+    el.results.querySelectorAll('.hymn-item').forEach((item, i) => {
+      const add = item.querySelector('.hymn-add');
+      if (add && results[i]) add.classList.toggle('added', ids.has(results[i].id));
+    });
+  }
   if (state.hymn.id !== previousId) {
     el.results.querySelectorAll('.hymn-item').forEach((item, i) => {
       item.classList.toggle('active', results[i] && results[i].id === state.hymn.id);
@@ -531,11 +682,18 @@ function setupImport() {
   const dropzone = $('hymn-dropzone');
   let pending = [];
 
+  const categoryField = $('hymn-import-category-field');
+  const categoryInput = $('hymn-import-category');
+  const problems = [];
+
   const close = () => {
     modal.hidden = true;
     folderInput.value = '';
     filesInput.value = '';
     pending = [];
+    problems.length = 0;
+    categoryInput.value = '';
+    categoryField.hidden = true;
     summary.hidden = true;
     confirm.disabled = true;
     confirm.textContent = 'Importar';
@@ -543,41 +701,53 @@ function setupImport() {
   setupModalClose(modal, close);
   $('btn-hymn-import').onclick = () => { modal.hidden = false; };
 
-  // Recebe [{ file, path }]; o path define a categoria
-  const handleFiles = async (items) => {
-    let hymnFiles = items.filter(({ file }) => /\.(txt|json)$/i.test(file.name));
-    // Escolheu só uma pasta de categoria (ex: "Harpa Cristã", com os .txt direto nela):
-    // a própria pasta é a categoria
-    if (hymnFiles.some(({ path }) => path.split('/').length === 2)) {
-      hymnFiles = hymnFiles.map(({ file, path }) => ({ file, path: `_/${path}` }));
-    }
-    summary.hidden = false;
-    summary.textContent = `Lendo ${hymnFiles.length} arquivos...`;
-    pending = [];
-    const problems = [];
-    for (const { file, path } of hymnFiles) {
-      try {
-        pending.push(...await readHymnFile(file, path));
-      } catch (err) {
-        problems.push(path || file.name);
-      }
-    }
-    pending = pending.filter(h => h.title && h.lyrics.trim());
+  const hymnKey = (h) => `${h.collection}|${h.number}|${h.title}`.toLowerCase();
+  const hymnLabel = (h) => [h.number, h.title].filter(Boolean).join(' - ');
 
-    // Resumo por categoria
-    const byCategory = new Map();
-    pending.forEach(h => byCategory.set(h.collection || 'Sem categoria', (byCategory.get(h.collection || 'Sem categoria') || 0) + 1));
-
+  // Mostra o que já foi escolhido. Poucos hinos: lista com × para tirar; muitos: resumo por categoria
+  const renderSummary = () => {
+    summary.hidden = pending.length === 0 && problems.length === 0;
+    categoryField.hidden = !pending.some(h => h.loose);
     summary.innerHTML = '';
-    const head = document.createElement('strong');
-    head.textContent = `${pending.length} hinos prontos para importar`;
+    const head = document.createElement('div');
+    head.className = 'import-summary-head';
+    const title = document.createElement('strong');
+    title.textContent = pending.length === 1 ? '1 hino pronto para importar' : `${pending.length} hinos prontos para importar`;
+    head.appendChild(title);
+    if (pending.length) {
+      const clear = document.createElement('button');
+      clear.type = 'button';
+      clear.className = 'btn btn-text btn-sm';
+      clear.textContent = 'Limpar seleção';
+      clear.onclick = () => { pending = []; problems.length = 0; renderSummary(); };
+      head.appendChild(clear);
+    }
     summary.appendChild(head);
     const list = document.createElement('ul');
-    [...byCategory.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR')).forEach(([name, count]) => {
-      const li = document.createElement('li');
-      li.textContent = `${name}: ${count}`;
-      list.appendChild(li);
-    });
+    if (pending.length <= 30) {
+      pending.forEach((h, i) => {
+        const li = document.createElement('li');
+        li.className = 'import-item';
+        const name = document.createElement('span');
+        name.textContent = hymnLabel(h) + (h.collection ? ` · ${h.collection}` : '');
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'btn-x';
+        remove.title = 'Tirar da importação';
+        remove.textContent = '×';
+        remove.onclick = () => { pending.splice(i, 1); renderSummary(); };
+        li.append(name, remove);
+        list.appendChild(li);
+      });
+    } else {
+      const byCategory = new Map();
+      pending.forEach(h => byCategory.set(h.collection || 'Sem categoria', (byCategory.get(h.collection || 'Sem categoria') || 0) + 1));
+      [...byCategory.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR')).forEach(([name, count]) => {
+        const li = document.createElement('li');
+        li.textContent = `${name}: ${count}`;
+        list.appendChild(li);
+      });
+    }
     summary.appendChild(list);
     const note = document.createElement('p');
     note.className = 'muted small';
@@ -590,7 +760,36 @@ function setupImport() {
       summary.appendChild(warn);
     }
     confirm.disabled = pending.length === 0;
-    confirm.textContent = pending.length ? `Importar ${pending.length} hinos` : 'Importar';
+    confirm.textContent = pending.length ? (pending.length === 1 ? 'Importar 1 hino' : `Importar ${pending.length} hinos`) : 'Importar';
+  };
+
+  // Recebe [{ file, path }]; o path define a categoria. Cada escolha SOMA à anterior
+  // (dá para juntar arquivos de pastas diferentes)
+  const handleFiles = async (items) => {
+    let hymnFiles = items.filter(({ file }) => /\.(txt|json)$/i.test(file.name));
+    // Escolheu só uma pasta de categoria (ex: "Harpa Cristã", com os .txt direto nela):
+    // a própria pasta é a categoria
+    if (hymnFiles.some(({ path }) => path.split('/').length === 2)) {
+      hymnFiles = hymnFiles.map(({ file, path }) => ({ file, path: `_/${path}` }));
+    }
+    summary.hidden = false;
+    summary.textContent = `Lendo ${hymnFiles.length} arquivos...`;
+    const seen = new Set(pending.map(hymnKey));
+    for (const { file, path } of hymnFiles) {
+      try {
+        const loose = !path.includes('/');
+        for (const h of await readHymnFile(file, path)) {
+          if (!h.title || !h.lyrics.trim() || seen.has(hymnKey(h))) continue;
+          seen.add(hymnKey(h));
+          pending.push({ ...h, loose: loose && !h.collection });
+        }
+      } catch (err) {
+        problems.push(path || file.name);
+      }
+    }
+    folderInput.value = '';
+    filesInput.value = '';
+    renderSummary();
   };
 
   folderInput.onchange = () => handleFiles([...folderInput.files].map(file => ({ file, path: file.webkitRelativePath })));
@@ -612,7 +811,8 @@ function setupImport() {
       const res = await fetch('/api/hymns/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hymns: pending })
+        // Arquivos soltos (sem pasta) ficam na categoria escrita no campo
+        body: JSON.stringify({ hymns: pending.map(({ loose, ...h }) => (loose ? { ...h, collection: categoryInput.value.trim() } : h)) })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -636,7 +836,7 @@ export const hymnControls = {
   next: () => ws.send('next', { mode: 'hymn' }),
   prev: () => ws.send('prev', { mode: 'hymn' }),
   toggle: () => ws.send('toggle-clear', { mode: 'hymn' }),
-  focusSearch: () => { el.search.focus(); el.search.select(); }
+  focusSearch: () => { setView('search'); el.search.focus(); el.search.select(); }
 };
 
 export function setupHymns() {
@@ -669,5 +869,6 @@ export function setupHymns() {
 
   setupEditor();
   setupImport();
+  setupPlaylist();
   refreshLibrary();
 }

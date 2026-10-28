@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <!-- Ícone do programa (atalho e barra de tarefas): o livro da logo sem o fundo azul, ocupando o quadrado todo.
+       O build/icon.ico (16 a 256 px) é gerado a partir deste desenho. -->
+  <defs>
+    <linearGradient id="pagina-esq" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0" stop-color="#D9D1BC"/>
+      <stop offset="0.35" stop-color="#ECE6D6"/>
+      <stop offset="1" stop-color="#F3EFE3"/>
+    </linearGradient>
+    <linearGradient id="pagina-dir" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#E3DCC8"/>
+      <stop offset="0.35" stop-color="#F7F3E9"/>
+      <stop offset="1" stop-color="#FBF8F1"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(60 60) scale(1.15) translate(-60 -68)">
+
+  <!-- Fitas (saem de trás das páginas, abertas em leque) -->
+  <path d="M47.5 76 L55 76 L55 108 L51.25 104 L47.5 108 Z" fill="#3B82F6" transform="rotate(7 51.25 76)"/>
+  <path d="M56.25 76 L63.75 76 L63.75 114 L60 110 L56.25 114 Z" fill="#E3B04B"/>
+  <path d="M65 76 L72.5 76 L72.5 108 L68.75 104 L65 108 Z" fill="#D64B45" transform="rotate(-7 68.75 76)"/>
+
+  <!-- Capa -->
+  <path d="M9 33 L9 85.5 C 28 81, 45 83, 60 91.5 C 75 83, 92 81, 111 85.5 L111 33 Z" fill="#E3B04B"/>
+  <path d="M9 85.5 C 28 81, 45 83, 60 91.5 C 75 83, 92 81, 111 85.5" fill="none" stroke="#B8862E" stroke-width="1.2"/>
+
+  <!-- Espessura das folhas -->
+  <path d="M60 36 C 48 28, 31 26, 14 30 L14 82.5 C 31 78.5, 48 80.5, 60 88.5 Z" fill="#C9C0A8"/>
+  <path d="M60 36 C 72 28, 89 26, 106 30 L106 82.5 C 89 78.5, 72 80.5, 60 88.5 Z" fill="#D4CCB6"/>
+
+  <!-- Páginas -->
+  <path d="M60 32 C 48 24, 32 22, 17 26 L17 79 C 32 75, 48 77, 60 85 Z" fill="url(#pagina-esq)"/>
+  <path d="M60 32 C 72 24, 88 22, 103 26 L103 79 C 88 75, 72 77, 60 85 Z" fill="url(#pagina-dir)"/>
+  <path d="M60 32 L60 85" stroke="#B9AF96" stroke-width="1.2"/>
+
+  <!-- Linhas de texto -->
+  <g stroke="#C4BBA3" stroke-width="1.8" stroke-linecap="round" fill="none">
+    <path d="M25 38 C 34 36, 43 37, 51 40.5"/>
+    <path d="M25 47 C 34 45, 43 46, 51 49.5"/>
+    <path d="M25 56 C 34 54, 43 55, 51 58.5"/>
+    <path d="M25 65 C 33 63.2, 40 64, 45 66"/>
+    <path d="M69 40.5 C 77 37, 86 36, 95 38"/>
+    <path d="M69 49.5 C 77 46, 86 45, 95 47"/>
+    <path d="M69 58.5 C 77 55, 86 54, 95 56"/>
+    <path d="M75 66 C 80 64, 87 63.2, 95 65"/>
+  </g>
+  </g>
+</svg>

@@ -1,6 +1,9 @@
-// Aba Mídia: pastas por culto, envio de fotos e vídeos, controles de vídeo e aparência da mídia.
+// Aba Mídia: pastas por culto, envio de fotos e vídeos, links do YouTube, ordem das mídias,
+// prévia com zoom e ponto de início, controles do vídeo no ar e onde o som sai.
 import { $, toast, confirmDialog } from './ui.js';
 import * as ws from './ws.js';
+import { makeSortable, moveItem } from './sortable.js';
+import { playerFor, youtubeErrorText } from '../shared/players.js';
 
 let state = null;
 let folders = [];
@@ -13,6 +16,7 @@ let lastLive = null;       // para a seleção acompanhar quando o passador troc
 let previewStyle = {};     // ajuste (fit/focus) igual ao do OBS
 let zoom = { scale: 1, x: 50, y: 50 };
 let interacting = false;   // enquanto arrasta/gira a rodinha, o servidor não sobrescreve a prévia
+let previewPlayer = null;  // tocador da prévia (vídeo ou YouTube)
 
 const el = {
   folder: $('media-folder'),
@@ -25,6 +29,7 @@ const el = {
   muteLabel: $('media-mute-label'),
   loop: $('media-loop'),
   volume: $('media-volume'),
+  seek: $('media-seek'),
   btnPrev: $('btn-media-prev'),
   btnNext: $('btn-media-next'),
   btnToggle: $('btn-media-toggle'),
@@ -33,16 +38,23 @@ const el = {
   nextText: $('media-next-text'),
   preview: $('media-preview'),
   btnShow: $('btn-media-show'),
-  zoom: $('media-zoom'),
-  zoomVal: $('media-zoom-val')
+  cue: $('media-cue'),
+  cueSeek: $('cue-seek')
 };
 
 const formatTime = (seconds) => {
   const s = Math.max(0, Math.floor(seconds || 0));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const h = Math.floor(s / 3600);
+  const mm = String(Math.floor((s % 3600) / 60));
+  const ss = String(s % 60).padStart(2, '0');
+  return h ? `${h}:${mm.padStart(2, '0')}:${ss}` : `${mm}:${ss}`;
 };
 
-const formatSize = (bytes) => (bytes > 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+const isPlayable = (item) => !!item && (item.type === 'video' || item.type === 'youtube');
+const displayName = (item) => item.title || item.name;
+const kindName = (item) => (item.type === 'youtube' ? 'YouTube' : item.type === 'video' ? 'Vídeo' : 'Imagem');
+const startOf = (name) => (state && state.media.starts && state.media.starts[name]) || 0;
+const audioOutput = () => previewStyle.audioOutput || 'obs';
 
 // "2026-10-25" -> "Hoje · sábado, 25/10"
 function folderLabel(name) {
@@ -126,7 +138,7 @@ function setupFolders() {
   };
 }
 
-// ---------- Envio ----------
+// ---------- Envio e YouTube ----------
 
 function uploadFile(file, folder) {
   return new Promise((resolve) => {
@@ -193,13 +205,45 @@ function setupUpload() {
   };
   const area = $('media-library');
   const drop = $('media-drop');
-  area.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('dragging'); });
+  // Só reage a arquivos vindos do computador (arrastar as mídias da lista é para mudar a ordem)
+  const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+  area.addEventListener('dragover', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    drop.classList.add('dragging');
+  });
   area.addEventListener('dragleave', (e) => { if (!area.contains(e.relatedTarget)) drop.classList.remove('dragging'); });
   area.addEventListener('drop', (e) => {
+    if (!hasFiles(e)) return;
     e.preventDefault();
     drop.classList.remove('dragging');
     uploadFiles(e.dataTransfer.files);
   });
+
+  const ytForm = $('media-yt-form');
+  ytForm.onsubmit = async (e) => {
+    e.preventDefault();
+    const url = $('media-yt-url').value.trim();
+    if (!url) return;
+    const button = ytForm.querySelector('button');
+    button.disabled = true;
+    try {
+      const res = await fetch('/api/media/youtube', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder: currentFolder(), url })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      $('media-yt-url').value = '';
+      toast(`"${data.title}" adicionado.`, 'success');
+      loadFolders();
+    } catch (err) {
+      toast(err.message || 'Não foi possível adicionar o vídeo.', 'error');
+    } finally {
+      button.disabled = false;
+    }
+  };
 }
 
 // ---------- Grade de mídias ----------
@@ -218,7 +262,8 @@ function renderGrid() {
       tile.type = 'button';
       tile.className = 'media-tile';
       tile.dataset.index = index;
-      tile.title = item.name;
+      tile.title = `${displayName(item)}\nArraste para mudar a ordem.`;
+      tile.draggable = true;
       // Um clique: vê na prévia. Dois cliques (ou Enter): vai para o telão.
       tile.onclick = () => selectItem(item.name);
       tile.ondblclick = () => showItem(item.name);
@@ -231,6 +276,9 @@ function renderGrid() {
 
       const thumb = document.createElement('span');
       thumb.className = 'media-thumb';
+      const badge = document.createElement('span');
+      badge.className = 'media-badge';
+      badge.textContent = kindName(item);
       if (item.type === 'video') {
         const video = document.createElement('video');
         video.muted = true;
@@ -243,26 +291,25 @@ function renderGrid() {
       } else {
         const img = document.createElement('img');
         img.loading = 'lazy';
-        img.src = item.url;
+        img.src = item.type === 'youtube' ? item.thumb : item.url;
         img.alt = '';
+        img.draggable = false;
         thumb.appendChild(img);
       }
-      const badge = document.createElement('span');
-      badge.className = 'media-badge';
-      badge.textContent = item.type === 'video' ? 'Vídeo' : 'Imagem';
+      if (item.type === 'youtube') badge.classList.add('is-youtube');
       thumb.appendChild(badge);
 
       const name = document.createElement('span');
       name.className = 'media-name';
-      name.textContent = item.name;
+      name.textContent = displayName(item);
 
       const remove = document.createElement('span');
       remove.className = 'bg-remove';
       remove.textContent = '×';
-      remove.title = 'Apagar este arquivo';
+      remove.title = 'Apagar da pasta';
       remove.onclick = async (e) => {
         e.stopPropagation();
-        const ok = await confirmDialog({ title: 'Apagar arquivo?', text: `"${item.name}" será apagado deste computador.`, okLabel: 'Apagar', danger: true });
+        const ok = await confirmDialog({ title: 'Apagar?', text: `"${displayName(item)}" será apagado desta pasta.`, okLabel: 'Apagar', danger: true });
         if (!ok) return;
         await fetch(`/api/media/items/${encodeURIComponent(m.folder)}/${encodeURIComponent(item.name)}`, { method: 'DELETE' });
         loadFolders();
@@ -274,15 +321,17 @@ function renderGrid() {
   }
 
   el.grid.querySelectorAll('.media-tile').forEach(tile => {
-    const isCurrent = Number(tile.dataset.index) === m.index;
+    const index = Number(tile.dataset.index);
+    const isCurrent = index === m.index;
     tile.classList.toggle('live', isCurrent && !m.isCleared);
     tile.classList.toggle('armed', isCurrent && m.isCleared && m.armed);
     tile.classList.toggle('held', isCurrent && m.isCleared && !m.armed);
-    tile.classList.toggle('selected', m.items[Number(tile.dataset.index)]?.name === selectedName);
+    tile.classList.toggle('selected', m.items[index]?.name === selectedName);
+    tile.classList.toggle('has-start', startOf(m.items[index]?.name) > 0);
   });
 }
 
-// ---------- Controles ----------
+// ---------- Controles do vídeo no ar ----------
 
 function renderControls() {
   const m = state.media;
@@ -293,14 +342,20 @@ function renderControls() {
   const selIndex = selectedIndex();
   const sel = m.items[selIndex];
   const selLive = isLive && selIndex === m.index;
-  el.title.textContent = sel ? sel.name : 'Nada selecionado';
+  el.title.textContent = sel ? displayName(sel) : 'Nada selecionado';
+  const start = sel ? startOf(sel.name) : 0;
   el.meta.textContent = sel
-    ? `${sel.type === 'video' ? 'Vídeo' : 'Imagem'} · ${selIndex + 1} de ${m.items.length} · ${selLive ? 'no ar' : 'não está no ar'}`
+    ? `${kindName(sel)} · ${selIndex + 1} de ${m.items.length} · ${selLive ? 'no ar' : 'não está no ar'}${start ? ` · começa em ${formatTime(start)}` : ''}`
     : 'Clique numa mídia para ver aqui antes de exibir.';
   el.btnShow.disabled = !sel || selLive;
 
+  // Achar o ponto de início: só para o vídeo escolhido que ainda não está no ar
+  el.cue.hidden = !isPlayable(sel) || selLive;
+  $('cue-start').textContent = formatTime(start);
+  $('btn-cue-reset').disabled = !start;
+
   const p = m.playback;
-  el.video.hidden = !(item && item.type === 'video');
+  el.video.hidden = !(isLive && isPlayable(item));
   el.playLabel.textContent = p.playing ? 'Pausar' : 'Tocar';
   $('media-play-icon').innerHTML = p.playing
     ? '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>'
@@ -313,9 +368,12 @@ function renderControls() {
     $('media-volume-val').textContent = `${el.volume.value}%`;
   }
   if (progress.token !== p.token) {
-    progress = { token: p.token, currentTime: 0, duration: 0 };
+    progress = { token: p.token, currentTime: p.start || 0, duration: 0 };
     renderProgress();
   }
+  $('media-sound-note').innerHTML = audioOutput() === 'app'
+    ? 'O som está saindo <strong>neste computador</strong> (troque em Aparência → Som dos vídeos).'
+    : 'O som sai pelo OBS: marque <strong>"Controlar áudio via OBS"</strong> na fonte Navegador.';
 
   el.btnPrev.disabled = !has || m.index <= 0;
   el.btnNext.disabled = !has || (!m.armed && m.index !== -1 && m.index >= m.items.length - 1);
@@ -324,14 +382,18 @@ function renderControls() {
   el.btnToggle.classList.toggle('is-live', isLive);
 
   const next = m.armed || m.index === -1 ? m.items[Math.max(0, m.index)] : m.items[m.index + 1];
-  el.nextLabel.textContent = next ? `Próximo · ${next.type === 'video' ? 'vídeo' : 'imagem'}` : 'Próximo';
-  el.nextText.textContent = next ? next.name : (has ? 'Fim da pasta.' : '—');
+  el.nextLabel.textContent = next ? `Próximo · ${kindName(next).toLowerCase()}` : 'Próximo';
+  el.nextText.textContent = next ? displayName(next) : (has ? 'Fim da pasta.' : '—');
 }
 
+let seeking = false; // operador arrastando a barra do vídeo no ar
 function renderProgress() {
-  $('media-time').textContent = formatTime(progress.currentTime);
   $('media-duration').textContent = formatTime(progress.duration);
-  $('media-progress-bar').style.width = progress.duration ? `${(progress.currentTime / progress.duration) * 100}%` : '0%';
+  el.seek.max = Math.max(0, progress.duration || 0);
+  if (!seeking) {
+    $('media-time').textContent = formatTime(progress.currentTime);
+    el.seek.value = progress.currentTime || 0;
+  }
 }
 
 function setupVideoControls() {
@@ -344,14 +406,30 @@ function setupVideoControls() {
     $('media-volume-val').textContent = `${el.volume.value}%`;
     control('volume', Number(el.volume.value) / 100);
   };
+  // Pular para outra parte do vídeo no ar: mostra o tempo enquanto arrasta, pula ao soltar
+  el.seek.addEventListener('input', () => {
+    seeking = true;
+    $('media-time').textContent = formatTime(Number(el.seek.value));
+  });
+  el.seek.addEventListener('change', () => {
+    control('seek', Number(el.seek.value));
+    progress.currentTime = Number(el.seek.value);
+    setTimeout(() => { seeking = false; }, 700);
+  });
   ws.on('media-progress', (p) => {
     if (!state || p.token !== state.media.playback.token) return;
+    if (p.error) {
+      toast(p.error, 'error');
+      return;
+    }
     progress = p;
     renderProgress();
+    followLive(p);
+    localAudio.follow(p);
   });
 }
 
-// ---------- Seleção, prévia e zoom ----------
+// ---------- Seleção, prévia, ponto de início e zoom ----------
 
 const selectedIndex = () => (state ? state.media.items.findIndex(i => i.name === selectedName) : -1);
 
@@ -368,6 +446,7 @@ function showItem(name) {
   const index = state.media.items.findIndex(i => i.name === name);
   if (index === -1) return;
   if (selectedName !== name) selectItem(name);
+  if (previewPlayer) previewPlayer.pause();
   ws.send('media-show', { index });
 }
 
@@ -391,6 +470,12 @@ function clampZoom(z) {
 
 const zoomTransform = (z) => (z.scale <= 1 ? 'none' : `scale(${z.scale}) translate(${50 - z.x}%, ${50 - z.y}%)`);
 
+const selectedIsLive = () => {
+  const m = state.media;
+  const live = m.items[m.index];
+  return !!live && !m.isCleared && live.name === selectedName;
+};
+
 let previewKey = '';
 function renderPreview() {
   const m = state.media;
@@ -404,37 +489,45 @@ function renderPreview() {
   const key = item ? `${m.folder}/${item.name}` : '';
   if (key !== previewKey) {
     previewKey = key;
+    if (previewPlayer) previewPlayer.destroy();
+    previewPlayer = null;
     el.preview.innerHTML = '';
+    $('cue-sound').checked = false;
     if (!item) {
       el.preview.innerHTML = '<div class="empty">Selecione uma mídia na lista.</div>';
     } else {
       const backdrop = document.createElement('div');
       backdrop.className = 'media-backdrop';
       let media;
-      if (item.type === 'video') {
-        media = document.createElement('video');
-        media.muted = true;
-        media.loop = true;
-        media.autoplay = true;
-        media.playsInline = true;
-        media.src = item.url;
-        media.addEventListener('loadeddata', () => {
-          try {
-            const canvas = document.createElement('canvas');
-            canvas.width = 96;
-            canvas.height = 54;
-            canvas.getContext('2d').drawImage(media, 0, 0, canvas.width, canvas.height);
-            backdrop.style.backgroundImage = `url("${canvas.toDataURL('image/jpeg', 0.7)}")`;
-          } catch (err) {
-            // sem fundo desfocado
-          }
-        }, { once: true });
-      } else {
+      if (item.type === 'image') {
         media = document.createElement('img');
         media.src = item.url;
         media.alt = '';
         media.draggable = false;
         backdrop.style.backgroundImage = `url("${item.url}")`;
+      } else {
+        // Vídeo parado no ponto de início, para o operador ver por onde ele vai entrar
+        previewPlayer = playerFor(item, { start: startOf(item.name), muted: true, autoplay: false });
+        media = previewPlayer.el;
+        if (item.type === 'youtube') {
+          backdrop.style.backgroundImage = `url("${item.thumb}")`;
+          previewPlayer.onError((code) => toast(youtubeErrorText(code), 'error'));
+        } else {
+          media.addEventListener('loadeddata', () => {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = 96;
+              canvas.height = 54;
+              canvas.getContext('2d').drawImage(media, 0, 0, canvas.width, canvas.height);
+              backdrop.style.backgroundImage = `url("${canvas.toDataURL('image/jpeg', 0.7)}")`;
+            } catch (err) {
+              // sem fundo desfocado
+            }
+          }, { once: true });
+        }
+        previewPlayer.ready.then(() => {
+          if (selectedIsLive() && previewPlayer) previewPlayer.play();
+        });
       }
       const tag = document.createElement('span');
       tag.className = 'preview-tag';
@@ -442,7 +535,7 @@ function renderPreview() {
     }
   }
 
-  const media = el.preview.querySelector('img, video');
+  const media = el.preview.querySelector('img, video, .yt-wrap');
   if (media) media.style.transform = zoomTransform(zoom);
   const tag = el.preview.querySelector('.preview-tag');
   if (tag) {
@@ -450,9 +543,62 @@ function renderPreview() {
     tag.textContent = live ? 'NO AR' : 'PRÉVIA';
     tag.classList.toggle('is-live', live);
   }
-  if (document.activeElement !== el.zoom) el.zoom.value = zoom.scale;
-  el.zoomVal.textContent = `${zoom.scale.toFixed(1)}x`;
-  [el.zoom, $('btn-zoom-in'), $('btn-zoom-out'), $('btn-zoom-reset')].forEach(b => { b.disabled = !item; });
+  // Só aparece quando tem zoom (para voltar à mídia inteira)
+  $('btn-zoom-reset').hidden = !item || zoom.scale <= 1;
+}
+
+// Com o vídeo escolhido no ar, a prévia acompanha o telão (sem som)
+function followLive(p) {
+  if (!previewPlayer || !selectedIsLive()) return;
+  previewPlayer.setMuted(true);
+  if (Math.abs(previewPlayer.time() - p.currentTime) > 1.2) previewPlayer.seek(p.currentTime);
+  if (p.paused && !previewPlayer.paused()) previewPlayer.pause();
+  if (!p.paused && previewPlayer.paused()) previewPlayer.play();
+}
+
+// Barra da prévia (achar o ponto de início): atualiza o tempo enquanto o vídeo da prévia anda
+let cueDragging = false;
+function tickCue() {
+  if (el.cue.hidden || !previewPlayer) return;
+  const duration = previewPlayer.duration();
+  el.cueSeek.max = Math.max(0, duration);
+  $('cue-duration').textContent = formatTime(duration);
+  if (!cueDragging) {
+    el.cueSeek.value = previewPlayer.time();
+    $('cue-time').textContent = formatTime(previewPlayer.time());
+  }
+  $('cue-play-icon').innerHTML = previewPlayer.paused()
+    ? '<polygon points="6 3 20 12 6 21 6 3"/>'
+    : '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+}
+
+function setupCue() {
+  setInterval(tickCue, 250);
+  $('btn-cue-play').onclick = () => {
+    if (!previewPlayer) return;
+    if (previewPlayer.paused()) previewPlayer.play();
+    else previewPlayer.pause();
+    setTimeout(tickCue, 80);
+  };
+  el.cueSeek.addEventListener('input', () => {
+    cueDragging = true;
+    $('cue-time').textContent = formatTime(Number(el.cueSeek.value));
+    if (previewPlayer) previewPlayer.seek(Number(el.cueSeek.value));
+  });
+  el.cueSeek.addEventListener('change', () => { cueDragging = false; });
+  // Ouvir a prévia: só neste computador e só quando o operador pede
+  $('cue-sound').onchange = () => { if (previewPlayer) previewPlayer.setMuted(!$('cue-sound').checked); };
+  $('btn-cue-mark').onclick = () => {
+    if (!previewPlayer || !selectedName) return;
+    const time = previewPlayer.time();
+    ws.send('media-start', { name: selectedName, start: time });
+    toast(`Vai começar em ${formatTime(time)}.`, 'success');
+  };
+  $('btn-cue-reset').onclick = () => {
+    if (!selectedName) return;
+    ws.send('media-start', { name: selectedName, start: 0 });
+    if (previewPlayer) previewPlayer.seek(0);
+  };
 }
 
 // Envia o zoom ao servidor sem inundar a rede enquanto arrasta
@@ -525,17 +671,86 @@ function setupPreview() {
   box.addEventListener('pointercancel', endDrag);
   box.addEventListener('dblclick', showSelected);
 
-  el.zoom.addEventListener('input', () => { markInteracting(); zoomAt(Number(el.zoom.value)); });
-  $('btn-zoom-in').onclick = () => zoomAt(zoom.scale * 1.25);
-  $('btn-zoom-out').onclick = () => zoomAt(zoom.scale / 1.25);
   $('btn-zoom-reset').onclick = () => setZoom({ scale: 1, x: 50, y: 50 });
   el.btnShow.onclick = showSelected;
 }
+
+// ---------- Som saindo neste computador ----------
+// Quando o operador escolhe "Neste computador", o OBS toca o vídeo mudo e o painel do app
+// (só a janela do programa, não o celular) toca o mesmo vídeo escondido, com som, acompanhando o telão.
+
+const isAudioHost = /Electron/i.test(navigator.userAgent);
+
+const localAudio = (() => {
+  let current = null; // { key, token, seekId, start, loop, player }
+  const host = document.createElement('div');
+  host.className = 'local-audio-host';
+  document.body.appendChild(host);
+
+  function stop() {
+    if (current) current.player.destroy();
+    current = null;
+    host.innerHTML = '';
+  }
+
+  function apply(playback, restart) {
+    const player = current.player;
+    current.start = playback.start || 0;
+    current.loop = !!playback.loop;
+    player.setMuted(!!playback.muted);
+    player.setVolume(playback.volume ?? 1);
+    if (restart) player.seek(current.start);
+    const seekId = playback.seek ? playback.seek.id : 0;
+    if (seekId !== current.seekId) {
+      current.seekId = seekId;
+      if (!restart) player.seek(playback.seek.time);
+    }
+    if (playback.playing) player.play();
+    else player.pause();
+  }
+
+  return {
+    sync() {
+      const m = state.media;
+      const item = m.items[m.index];
+      const wanted = isAudioHost && audioOutput() === 'app' && !!item && !m.isCleared && isPlayable(item);
+      if (!wanted) {
+        stop();
+        return;
+      }
+      const p = m.playback;
+      const key = `${item.type}:${item.url}`;
+      if (current && current.key === key) {
+        const restart = current.token !== p.token;
+        current.token = p.token;
+        apply(p, restart);
+        return;
+      }
+      stop();
+      const player = playerFor(item, { start: p.start || 0, muted: false });
+      current = { key, token: p.token, seekId: p.seek ? p.seek.id : 0, start: p.start || 0, loop: !!p.loop, player };
+      host.appendChild(player.el);
+      player.onEnded(() => {
+        if (current && current.player === player && current.loop) {
+          player.seek(current.start);
+          player.play();
+        }
+      });
+      player.ready.then(() => { if (current && current.player === player) apply(state.media.playback, false); });
+    },
+    // O telão manda o tempo do vídeo: se o som se afastar da imagem, acerta
+    follow(p) {
+      if (!current || p.ended) return;
+      if (Math.abs(current.player.time() - p.currentTime) > 0.4) current.player.seek(p.currentTime + 0.1);
+    }
+  };
+})();
 
 // ---------- Aparência da mídia ----------
 
 const fitRadios = [...document.querySelectorAll('input[name="media-fit"]')];
 const focusRadios = [...document.querySelectorAll('input[name="media-focus"]')];
+const audioRadios = [...document.querySelectorAll('input[name="media-audio"]')];
 const checkedValue = (list) => (list.find(r => r.checked) || list[0]).value;
 
 // Mostra só o que vale para o ajuste escolhido
@@ -543,20 +758,28 @@ function updateFitOptions() {
   const fit = checkedValue(fitRadios);
   $('media-focus-field').hidden = fit !== 'cover';
   $('media-bg-field').classList.toggle('disabled', fit !== 'contain');
+  $('media-audio-help').innerHTML = checkedValue(audioRadios) === 'app'
+    ? 'O som dos vídeos sai <strong>neste computador</strong> (ligue a saída dele na mesa de som). O OBS mostra o vídeo sem som.'
+    : 'O som sai no computador onde o <strong>link do OBS</strong> está aberto. Marque "Controlar áudio via OBS" na fonte Navegador.';
 }
 
 function fillMediaStyles(s) {
   if (!s) return;
-  previewStyle = s;
-  if (state) renderPreview();
-  $('media-transition').value = s.transition || 'crossfade';
-  $('media-duration-range').value = s.duration ?? 0.6;
-  $('media-duration-val').textContent = `${Number(s.duration ?? 0.6).toFixed(1)} s`;
-  fitRadios.forEach(r => { r.checked = r.value === (s.fit || 'blur'); });
-  focusRadios.forEach(r => { r.checked = r.value === (s.focus || 'center'); });
+  previewStyle = { ...previewStyle, ...s };
+  if (state) {
+    renderPreview();
+    renderControls();
+    localAudio.sync();
+  }
+  $('media-transition').value = previewStyle.transition || 'crossfade';
+  $('media-duration-range').value = previewStyle.duration ?? 0.6;
+  $('media-duration-val').textContent = `${Number(previewStyle.duration ?? 0.6).toFixed(1)} s`;
+  fitRadios.forEach(r => { r.checked = r.value === (previewStyle.fit || 'blur'); });
+  focusRadios.forEach(r => { r.checked = r.value === (previewStyle.focus || 'center'); });
+  audioRadios.forEach(r => { r.checked = r.value === audioOutput(); });
   updateFitOptions();
-  $('media-bg').value = s.bgColor || '#000000';
-  $('media-end').value = s.endAction || 'clear';
+  $('media-bg').value = previewStyle.bgColor || '#000000';
+  $('media-end').value = previewStyle.endAction || 'clear';
 }
 
 function setupMediaStyles() {
@@ -568,11 +791,12 @@ function setupMediaStyles() {
       fit: checkedValue(fitRadios),
       focus: checkedValue(focusRadios),
       bgColor: $('media-bg').value,
-      endAction: $('media-end').value
+      endAction: $('media-end').value,
+      audioOutput: checkedValue(audioRadios)
     });
   };
   ['media-transition', 'media-duration-range', 'media-bg', 'media-end'].forEach(id => $(id).addEventListener('input', send));
-  [...fitRadios, ...focusRadios].forEach(r => r.addEventListener('input', () => {
+  [...fitRadios, ...focusRadios, ...audioRadios].forEach(r => r.addEventListener('input', () => {
     updateFitOptions();
     send();
   }));
@@ -603,7 +827,23 @@ function onServerState(newState) {
   renderGrid();
   renderControls();
   renderPreview();
+  localAudio.sync();
+
+  // A prévia do vídeo escolhido: no ar, toca junto com o telão (sem som);
+  // fora do ar, fica parada no ponto de início
+  const nowLive = selectedIsLive();
+  if (previewPlayer) {
+    if (nowLive !== previewWasLive) {
+      $('cue-sound').checked = false;
+      previewPlayer.setMuted(true);
+      previewPlayer.seek(startOf(selectedName));
+    }
+    if (nowLive && m.playback.playing) previewPlayer.play();
+    else if (nowLive || nowLive !== previewWasLive) previewPlayer.pause();
+  }
+  previewWasLive = nowLive;
 }
+let previewWasLive = false;
 
 export const mediaControls = {
   next: () => ws.send('next', { mode: 'media' }),
@@ -619,10 +859,14 @@ export function setupMedia() {
   el.btnPrev.onclick = mediaControls.prev;
   el.btnNext.onclick = mediaControls.next;
   el.btnToggle.onclick = mediaControls.toggle;
+  makeSortable(el.grid, '.media-tile', (from, to) => {
+    ws.send('media-order', { names: moveItem(state.media.items.map(i => i.name), from, to) });
+  }, { axis: 'x' });
   setupFolders();
   setupUpload();
   setupVideoControls();
   setupMediaStyles();
   setupPreview();
+  setupCue();
   loadFolders();
 }

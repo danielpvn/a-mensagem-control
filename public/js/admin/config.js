@@ -1,5 +1,6 @@
 // Aba Configurações: link do OBS, acesso por outro aparelho e atualizações.
 import { $, toast, copyText, confirmDialog } from './ui.js';
+import * as ws from './ws.js';
 
 async function loadInfo() {
   try {
@@ -141,7 +142,43 @@ async function setupBetaChannel() {
   };
 }
 
+// Mensagens do site do Tabernáculo da Fé: baixa todas e troca as do app
+function setupSiteImport() {
+  const btn = $('btn-site-import');
+  const box = $('site-import-progress');
+  const render = (p) => {
+    box.hidden = false;
+    btn.disabled = p.status === 'running';
+    if (p.status === 'running') {
+      $('site-import-bar').style.width = `${p.total ? Math.round((p.done / p.total) * 100) : 0}%`;
+      $('site-import-text').textContent = p.total ? `Baixando ${p.done} de ${p.total}: ${p.title || ''}` : 'Buscando a lista de mensagens...';
+    } else if (p.status === 'done') {
+      $('site-import-bar').style.width = '100%';
+      const r = p.result;
+      $('site-import-text').textContent = `Pronto: ${r.imported} mensagens no app${r.removed ? `, ${r.removed} ${r.removed === 1 ? 'antiga retirada' : 'antigas retiradas'}` : ''}${r.failed.length ? `. Não vieram: ${r.failed.slice(0, 3).join(', ')}${r.failed.length > 3 ? '...' : ''}` : ''}.`;
+    } else if (p.status === 'error') {
+      $('site-import-text').textContent = p.message;
+    }
+  };
+  ws.on('site-import', render);
+  btn.onclick = async () => {
+    const ok = await confirmDialog({
+      title: 'Trocar as mensagens pelas do site?',
+      text: 'Todas as mensagens do app serão substituídas pelas do site do Tabernáculo da Fé. Neste computador de editor, a troca vale também para o banco online das igrejas.',
+      okLabel: 'Baixar e trocar'
+    });
+    if (!ok) return;
+    render({ status: 'running', done: 0, total: 0 });
+    const res = await fetch('/api/sermons/import-site', { method: 'POST' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      render({ status: 'error', message: data.error || 'Não foi possível começar.' });
+    }
+  };
+}
+
 export function setupConfig() {
+  setupSiteImport();
   setupSecurity();
   setupBetaChannel();
   document.querySelectorAll('[data-copy]').forEach(btn => {

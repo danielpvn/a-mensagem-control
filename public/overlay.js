@@ -1,5 +1,6 @@
 // Overlay do OBS / Telão: caixa da Mensagem (rodapé) e as camadas de Hinos e Bíblia.
 import { screenLabel } from './js/shared/hymn-text.js';
+import { playerFor, youtubeErrorText } from './js/shared/players.js';
 
 const wsUrl = `ws://${window.location.host}`;
 const reconnectInterval = 3000;
@@ -13,10 +14,11 @@ const overlayBox = document.getElementById('overlay-box');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayText = document.getElementById('overlay-text');
 
-const ANIMATION_CLASSES = ['anim-slide-up', 'anim-slide-side', 'anim-slide-down', 'anim-fade', 'anim-fade-slow', 'anim-clip-reveal', 'anim-zoom-in', 'anim-blur'];
+const ANIMATION_CLASSES = ['anim-slide-up', 'anim-slide-side', 'anim-slide-down', 'anim-fade', 'anim-fade-slow', 'anim-clip-reveal', 'anim-zoom-in', 'anim-blur', 'anim-none'];
 
 // Tempo de saída de cada transição antes de trocar o texto
 function transitionTimeout(animationType) {
+  if (animationType === 'none') return 0;
   if (animationType === 'fade-slow') return 600;
   if (animationType === 'blur') return 350;
   return 300;
@@ -138,6 +140,9 @@ function applyStyles() {
   }
 }
 
+// Duração escolhida (segundos) em relação à padrão de 0,4 s
+const speedOf = (s) => Math.min(5, Math.max(0.25, (Number(s.transitionTime) || 0.4) / 0.4));
+
 // ================= Camadas de tela (Hinos e Bíblia) =================
 // Tela cheia ou faixa embaixo, fundo em cor (com transparência) ou imagem, texto que
 // diminui sozinho para caber e transição só no texto (o fundo não pisca na troca).
@@ -179,6 +184,8 @@ function createScreenLayer(prefix, { content, look }) {
     setLine(title, c.title);
     setLine(label, c.label);
     text.textContent = c.text;
+    // Coro com cor própria (se o operador escolheu); o resto usa a cor da letra
+    text.style.color = c.color || look(styles).textColor;
     fitText(parseFloat(look(styles).fontSize) || 4);
   }
 
@@ -204,7 +211,7 @@ function createScreenLayer(prefix, { content, look }) {
       setTimeout(() => {
         render(slide);
         box.classList.remove('hidden');
-      }, transitionTimeout(look(styles).animationType));
+      }, transitionTimeout(look(styles).animationType) * look(styles).speed);
     }
     shownKey = key;
   }
@@ -215,15 +222,26 @@ function createScreenLayer(prefix, { content, look }) {
     layer.classList.toggle('layout-lower', lower);
     layer.classList.toggle('layout-full', !lower);
     layer.classList.toggle('text-bottom', !lower && l.position === 'bottom');
+    // Velocidade da transição: multiplica todas as durações do CSS
+    layer.style.setProperty('--anim-speed', l.speed);
 
     // Fundo: na tela cheia cobre a tela toda; na faixa, só a caixa
-    const target = lower ? box : layer;
-    const other = lower ? layer : box;
-    target.style.background = l.background.css;
-    if (l.background.size) target.style.backgroundSize = l.background.size;
-    other.style.background = 'transparent';
-    target.classList.toggle('bg-animated', l.background.animate);
-    other.classList.remove('bg-animated');
+    // Na faixa o fundo vai numa camada atrás do texto (::before), para a transparência não apagar a letra
+    if (lower) {
+      layer.style.background = 'transparent';
+      layer.classList.remove('bg-animated');
+      box.style.background = 'transparent';
+      box.style.setProperty('--band-bg', l.background.css);
+      box.style.setProperty('--band-size', l.background.size || 'auto');
+      box.style.setProperty('--band-opacity', 1 - Math.min(100, Math.max(0, Number(styles.bandTransparency) || 0)) / 100);
+      box.classList.toggle('band-animated', l.background.animate);
+    } else {
+      layer.style.background = l.background.css;
+      layer.style.backgroundSize = l.background.size || '';
+      layer.classList.toggle('bg-animated', l.background.animate);
+      box.style.background = 'transparent';
+      box.classList.remove('band-animated');
+    }
 
     box.style.fontFamily = l.fontFamily;
     box.style.borderColor = l.accentColor;
@@ -240,6 +258,8 @@ function createScreenLayer(prefix, { content, look }) {
 
     box.classList.remove(...ANIMATION_CLASSES);
     box.classList.add(`anim-${l.animationType || 'fade'}`);
+    // Sem transição: o fundo da tela cheia também aparece e some na hora
+    layer.classList.toggle('no-anim', l.animationType === 'none');
 
     const slide = currentSlide();
     if (slide) render(slide);
@@ -265,10 +285,11 @@ const hymnLayer = createScreenLayer('hymn', {
     const label = styles.showLabel !== false && styles.layout !== 'lower-third' ? screenLabel(slide) : '';
     // Texto embaixo (imagem com faixa no rodapé): nome e estrofe numa linha só, embaixo da letra,
     // para tudo ficar dentro da faixa
+    const color = styles.chorusColorOn && slide.kind === 'chorus' ? styles.chorusColor : null;
     if (styles.layout !== 'lower-third' && styles.position === 'bottom') {
-      return { key: hymn.id, title: '', label: [name, label].filter(Boolean).join(' · '), text: slide.text };
+      return { key: hymn.id, title: '', label: [name, label].filter(Boolean).join(' · '), text: slide.text, color };
     }
-    return { key: hymn.id, title: name, label, text: slide.text };
+    return { key: hymn.id, title: name, label, text: slide.text, color };
   },
   look: (s) => ({
     layout: s.layout,
@@ -283,7 +304,8 @@ const hymnLayer = createScreenLayer('hymn', {
     textShadow: s.textOutline ? outlineShadow(s.outlineColor || '#000000', 2) : '0 3px 10px rgba(0,0,0,0.45)',
     background: backgroundFor(s, 'rgba(5, 8, 20, 0.9)'),
     position: s.position,
-    animationType: s.animationType
+    animationType: s.animationType,
+    speed: speedOf(s)
   })
 });
 
@@ -310,35 +332,208 @@ const bibleLayer = createScreenLayer('bible', {
     textShadow: s.textShadow === false ? 'none' : '0 4px 14px rgba(0,0,0,0.6)',
     background: backgroundFor(s, 'rgba(0, 0, 0, 1)'),
     position: s.position,
-    animationType: s.animationType
+    animationType: s.animationType,
+    speed: speedOf(s)
   })
 });
 
-// ================= Mídia (imagens e vídeos em tela cheia) =================
+// ================= Mídia (imagens, vídeos e YouTube em tela cheia) =================
 // Duas "gavetas" sobrepostas: o item novo carrega escondido na outra gaveta e só então
 // faz a transição, para nunca aparecer tela piscando ou carregando.
 
 const mediaLayer = document.getElementById('media-layer');
 const mediaSlots = [document.getElementById('media-slot-a'), document.getElementById('media-slot-b')];
 let mediaStyles = {};
-let mediaShown = null;      // { url, token, slot, el }
+let mediaShown = null;      // { key, token, seekId, start, loop, slot, el, player }
 let mediaRequest = 0;       // ignora carregamentos que ficaram velhos
-let lastProgressSent = 0;
+let lastPlayback = {};
 
 const mediaDuration = () => Math.max(0, Number(mediaStyles.duration ?? 0.6));
+// O som sai aqui (OBS) a não ser que o operador tenha escolhido o computador do app.
+// A prévia do painel nunca toca som.
+const soundHere = () => !PREVIEW && (mediaStyles.audioOutput || 'obs') !== 'app';
+const itemKey = (item) => `${item.type}:${item.url}`;
 
 function sendProgress(payload) {
   if (PREVIEW || !socket || socket.readyState !== WebSocket.OPEN) return;
   socket.send(JSON.stringify({ type: 'media-progress', payload }));
 }
 
-function stopSlot(slot) {
-  const video = slot.querySelector('video');
-  if (video) {
-    video.pause();
-    video.removeAttribute('src');
-    video.load();
+// ---------- Agendamentos (som, som com imagem e vídeo) ----------
+// `state.soundNow` diz o que está tocando. O OBS (sem ?preview) toca o arquivo, mudo quando o som sai
+// "Neste computador", só para saber quando acaba e avisar "sound-ended"; o servidor passa para o próximo.
+// A imagem/vídeo entra na outra gaveta e troca com a transição da playlist.
+const schedSlots = [...document.querySelectorAll('#sched-layer .sched-slot')];
+const schedBlack = document.getElementById('sched-black');
+let schedShown = null;   // { id, slot, item }
+let schedRequest = 0;
+
+function schedSendEnded(id) {
+  if (PREVIEW || !socket || socket.readyState !== WebSocket.OPEN) return;
+  socket.send(JSON.stringify({ type: 'sound-ended', payload: { id } }));
+}
+
+function schedStopMedia(slot) {
+  const media = slot.media;
+  slot.media = null;
+  if (!media) return;
+  media.onended = null;
+  media.onerror = null;
+  media.pause();
+  media.removeAttribute('src');
+  media.load();
+}
+
+function schedClear(slot) {
+  schedStopMedia(slot);
+  clearTimeout(slot.clearTimer);
+  slot.getAnimations().forEach(a => a.cancel());
+  slot.innerHTML = '';
+  slot.style.opacity = '0';
+  slot.style.transform = '';
+}
+
+// Vai de `from` para `to`; o estado final fica no style (a animação só segura o começo durante o atraso)
+function tween(el, from, to, ms, delay = 0) {
+  el.getAnimations().forEach(a => a.cancel());
+  Object.assign(el.style, to);
+  if (ms > 0) el.animate([from, to], { duration: ms, delay, fill: 'backwards', easing: 'ease-in-out' });
+}
+
+function blackTo(opacity, ms, delay = 0) {
+  const current = getComputedStyle(schedBlack).opacity;
+  tween(schedBlack, { opacity: current }, { opacity: String(opacity) }, ms, delay);
+}
+
+// Troca a gaveta velha pela nova; devolve quanto esperar para começar a tocar (ms)
+function schedTransition(oldSlot, slot, kind, seconds) {
+  const ms = kind === 'none' ? 0 : Math.max(0, Number(seconds) || 0) * 1000;
+  const half = ms / 2;
+  if (oldSlot) {
+    if (oldSlot.media) oldSlot.media.pause();
+    clearTimeout(oldSlot.clearTimer);
+    oldSlot.clearTimer = setTimeout(() => { if (!schedShown || schedShown.slot !== oldSlot) schedClear(oldSlot); }, ms + 80);
   }
+  const shown = { opacity: '1', transform: 'none' };
+  if (kind === 'black') {
+    blackTo(1, half);
+    if (oldSlot) tween(oldSlot, { opacity: '1' }, { opacity: '0' }, half);
+    tween(slot, { opacity: '0', transform: 'none' }, shown, half, half);
+    return half;
+  }
+  blackTo(0, ms);
+  if (kind === 'slide') {
+    if (oldSlot) tween(oldSlot, { transform: 'translateX(0)' }, { transform: 'translateX(-100%)' }, ms);
+    tween(slot, { opacity: '1', transform: 'translateX(100%)' }, { opacity: '1', transform: 'translateX(0)' }, ms);
+  } else if (kind === 'zoom') {
+    if (oldSlot) tween(oldSlot, { opacity: '1' }, { opacity: '0' }, ms);
+    tween(slot, { opacity: '0', transform: 'scale(1.12)' }, shown, ms);
+  } else {
+    if (oldSlot) tween(oldSlot, { opacity: '1' }, { opacity: '0' }, ms);
+    tween(slot, { opacity: '0', transform: 'none' }, shown, ms);
+  }
+  return 0;
+}
+
+function schedPlay(media, id) {
+  media.play().catch(() => {
+    // Navegador que não deixa tocar com som sozinho: tenta mudo (o vídeo aparece e o fim é avisado)
+    if (media.muted) { schedSendEnded(id); return; }
+    media.muted = true;
+    media.play().catch(() => schedSendEnded(id));
+  });
+}
+
+function schedIn(item, joining) {
+  const req = ++schedRequest;
+  const oldSlot = schedShown ? schedShown.slot : null;
+  const slot = schedSlots.find(s => s !== oldSlot);
+  schedClear(slot);
+  schedShown = { id: item.id, slot, item };
+  // Entrou no meio (OBS abriu ou recarregou): continua de onde está
+  const offset = joining ? Math.max(0, (Date.now() - Number(item.startedAt || 0)) / 1000) : 0;
+  const src = offset > 1 ? `${item.url}#t=${offset.toFixed(1)}` : item.url;
+  let media = null;
+  let visual = null;
+  if (item.kind === 'video') {
+    media = visual = document.createElement('video');
+    media.playsInline = true;
+    media.preload = 'auto';
+  } else {
+    if (item.image) {
+      visual = new Image();
+      visual.alt = '';
+      visual.src = item.image;
+    }
+    if (!PREVIEW) media = new Audio();
+  }
+  if (media) {
+    media.muted = PREVIEW || item.output !== 'obs';
+    media.volume = Math.min(1, Math.max(0, Number(item.volume ?? 1)));
+    media.onended = () => schedSendEnded(item.id);
+    media.onerror = () => schedSendEnded(item.id);
+    media.src = src;
+    slot.media = media;
+  }
+  if (visual) slot.appendChild(visual);
+  // Só troca quando a imagem/vídeo já carregou (nunca aparece tela carregando)
+  const ready = new Promise(resolve => {
+    setTimeout(resolve, 4000);
+    if (item.kind === 'video') {
+      media.addEventListener('loadeddata', resolve, { once: true });
+      media.addEventListener('error', resolve, { once: true });
+    } else if (visual && !visual.complete) {
+      visual.onload = resolve;
+      visual.onerror = resolve;
+    } else {
+      resolve();
+    }
+  });
+  ready.then(() => {
+    if (req !== schedRequest) return;
+    const wait = schedTransition(oldSlot, slot, joining ? 'none' : item.transition, item.transitionTime);
+    if (media) setTimeout(() => { if (req === schedRequest) schedPlay(media, item.id); }, wait);
+  });
+}
+
+function schedOut() {
+  const shown = schedShown;
+  schedShown = null;
+  schedRequest++;
+  const kind = shown.item.transition;
+  const ms = kind === 'none' ? 0 : Math.max(0, Number(shown.item.transitionTime) || 0) * 1000;
+  schedStopMedia(shown.slot);
+  if (kind === 'black') {
+    tween(shown.slot, { opacity: '1' }, { opacity: '0' }, ms / 2);
+    blackTo(0, ms / 2, ms / 2);
+  } else {
+    tween(shown.slot, { opacity: getComputedStyle(shown.slot).opacity }, { opacity: '0' }, ms);
+    blackTo(0, ms);
+  }
+  clearTimeout(shown.slot.clearTimer);
+  shown.slot.clearTimer = setTimeout(() => { if (!schedShown || schedShown.slot !== shown.slot) schedClear(shown.slot); }, ms + 80);
+}
+
+function updateSchedule(state, joining) {
+  const item = state.soundNow;
+  if (!item) {
+    if (schedShown) schedOut();
+    return;
+  }
+  if (schedShown && schedShown.id === item.id) return;
+  schedIn(item, joining);
+}
+
+// Andamento do vídeo no ar, para o painel (barra de tempo e som sincronizado)
+setInterval(() => {
+  const shown = mediaShown;
+  if (!shown || !shown.player) return;
+  sendProgress({ token: shown.token, currentTime: shown.player.time(), duration: shown.player.duration(), paused: shown.player.paused(), ended: false });
+}, 500);
+
+function stopSlot(slot) {
+  if (slot.player) slot.player.destroy();
+  slot.player = null;
   slot.innerHTML = '';
 }
 
@@ -356,47 +551,56 @@ function applyZoom(el, zoom, animate) {
   el.style.transform = zoomTransform(zoom);
 }
 
-function applyPlayback(el, playback, restart) {
-  if (!el || el.tagName !== 'VIDEO') return;
-  el.muted = PREVIEW || !!playback.muted; // a prévia do painel nunca toca som
-  el.volume = Math.min(1, Math.max(0, playback.volume ?? 1));
-  el.loop = !!playback.loop;
-  if (restart) el.currentTime = 0;
-  if (playback.playing) el.play().catch(() => {});
-  else el.pause();
+// Tocar/pausar, som, repetir, recomeçar (do ponto de início) e pulos pedidos pelo painel
+function applyPlayback(shown, playback, restart) {
+  const player = shown && shown.player;
+  if (!player) return;
+  shown.start = playback.start || 0;
+  shown.loop = !!playback.loop;
+  player.setMuted(!soundHere() || !!playback.muted);
+  player.setVolume(playback.volume ?? 1);
+  if (restart) player.seek(shown.start);
+  const seekId = playback.seek ? playback.seek.id : 0;
+  if (seekId !== shown.seekId) {
+    shown.seekId = seekId;
+    if (!restart) player.seek(playback.seek.time);
+  }
+  if (playback.playing) player.play();
+  else player.pause();
 }
 
 function createMediaElement(item, playback, token) {
-  if (item.type === 'video') {
-    const video = document.createElement('video');
-    video.playsInline = true;
-    video.preload = 'auto';
-    video.muted = PREVIEW || !!playback.muted;
-    video.src = item.url;
-    video.addEventListener('timeupdate', () => {
-      const now = Date.now();
-      if (now - lastProgressSent < 500) return;
-      lastProgressSent = now;
-      sendProgress({ token, currentTime: video.currentTime, duration: video.duration || 0, paused: video.paused, ended: false });
-    });
-    video.addEventListener('ended', () => {
-      sendProgress({ token, currentTime: video.duration || 0, duration: video.duration || 0, paused: true, ended: true });
-    });
-    return { el: video, ready: new Promise(resolve => { video.addEventListener('loadeddata', resolve, { once: true }); video.addEventListener('error', resolve, { once: true }); }) };
+  if (item.type === 'image') {
+    const img = document.createElement('img');
+    img.src = item.url;
+    img.alt = '';
+    return { el: img, player: null, ready: img.decode().catch(() => {}) };
   }
-  const img = document.createElement('img');
-  img.src = item.url;
-  img.alt = '';
-  return { el: img, ready: img.decode().catch(() => {}) };
+  const player = playerFor(item, { start: playback.start || 0, muted: true });
+  player.onEnded(() => {
+    const shown = mediaShown;
+    if (!shown || shown.player !== player) return;
+    // Repetir volta para o ponto de início escolhido (não para o zero)
+    if (shown.loop) {
+      player.seek(shown.start);
+      player.play();
+      return;
+    }
+    sendProgress({ token, currentTime: player.duration(), duration: player.duration(), paused: true, ended: true });
+  });
+  player.onError((code) => sendProgress({ token, error: item.type === 'youtube' ? youtubeErrorText(code) : 'Não foi possível tocar este vídeo.' }));
+  return { el: player.el, player, ready: player.ready };
 }
 
 // Fundo desfocado atrás da mídia (modo "Inteira com fundo desfocado"): a própria foto ampliada
-// e desfocada preenche as laterais. No vídeo, usa um quadro do começo (fica parado).
+// e desfocada preenche as laterais. No vídeo, usa um quadro do começo (fica parado); no YouTube, a capa.
 function createBackdrop(item, el) {
   const backdrop = document.createElement('div');
   backdrop.className = 'media-backdrop';
   if (item.type === 'image') {
     backdrop.style.backgroundImage = `url("${item.url}")`;
+  } else if (item.type === 'youtube') {
+    backdrop.style.backgroundImage = `url("${item.thumb}")`;
   } else {
     el.addEventListener('loadeddata', () => {
       try {
@@ -426,22 +630,24 @@ function hideMediaLayer() {
   const ms = mediaStyles.transition === 'cut' ? 0 : mediaDuration() * 1000;
   mediaLayer.style.transition = `opacity ${ms}ms ease`;
   mediaLayer.classList.add('hidden');
-  setTimeout(() => { if (!mediaShown) stopSlot(leaving.slot); }, ms + 50);
+  if (leaving.player) leaving.player.pause();
+  setTimeout(() => { if (!mediaShown || mediaShown.slot !== leaving.slot) stopSlot(leaving.slot); }, ms + 50);
 }
 
 async function updateMedia(m) {
   const item = m && !m.isCleared ? m.items[m.index] : null;
+  lastPlayback = (m && m.playback) || {};
   if (!item) {
     hideMediaLayer();
     return;
   }
 
-  const playback = m.playback || {};
-  // Mesmo item no ar: só aplica tocar/pausar/som (ou recomeça se mandou de novo)
-  if (mediaShown && mediaShown.url === item.url) {
+  const playback = lastPlayback;
+  // Mesmo item no ar: só aplica tocar/pausar/som/pulo (ou recomeça se mandou de novo)
+  if (mediaShown && mediaShown.key === itemKey(item)) {
     const restart = mediaShown.token !== playback.token;
     mediaShown.token = playback.token;
-    applyPlayback(mediaShown.el, playback, restart);
+    applyPlayback(mediaShown, playback, restart);
     applyZoom(mediaShown.el, m.zoom, true); // zoom ao vivo, com movimento suave
     return;
   }
@@ -450,7 +656,8 @@ async function updateMedia(m) {
   const incoming = mediaShown && mediaShown.slot === mediaSlots[0] ? mediaSlots[1] : mediaSlots[0];
   const outgoing = mediaShown;
   stopSlot(incoming);
-  const { el, ready } = createMediaElement(item, playback, playback.token);
+  const { el, player, ready } = createMediaElement(item, playback, playback.token);
+  incoming.player = player;
   setSlotStyle(incoming, { opacity: 0 });
   applyZoom(el, m.zoom, false); // já entra com o zoom preparado
   incoming.append(createBackdrop(item, el), el);
@@ -463,8 +670,9 @@ async function updateMedia(m) {
   const type = mediaStyles.transition || 'crossfade';
   const ms = type === 'cut' ? 0 : mediaDuration() * 1000;
   const layerWasHidden = mediaLayer.classList.contains('hidden');
-  mediaShown = { url: item.url, token: playback.token, slot: incoming, el };
-  applyPlayback(el, playback, false);
+  mediaShown = { key: itemKey(item), token: playback.token, seekId: playback.seek ? playback.seek.id : 0, slot: incoming, el, player };
+  applyPlayback(mediaShown, lastPlayback, false);
+  if (outgoing && outgoing.player) outgoing.player.pause();
 
   incoming.style.zIndex = 2;
   if (outgoing) outgoing.slot.style.zIndex = 1;
@@ -510,6 +718,8 @@ function applyMediaStyles() {
   // Ao preencher a tela, qual parte da foto aparece (em cima = não corta a cabeça)
   const focus = { top: 'center top', center: 'center center', bottom: 'center bottom' }[mediaStyles.focus] || 'center center';
   mediaLayer.style.setProperty('--media-focus', focus);
+  // Trocou onde o som sai: liga/desliga o som do vídeo no ar na hora
+  if (mediaShown && mediaShown.player) mediaShown.player.setMuted(!soundHere() || !!lastPlayback.muted);
 }
 
 // ================= Nome do pregador (lower third) =================
@@ -518,10 +728,12 @@ const ltLayer = document.getElementById('lt-layer');
 const ltName = document.getElementById('lt-name');
 const ltSubtitle = document.getElementById('lt-subtitle');
 let ltStyles = {};
+let specialStyles = {};  // louvor especial: mesma faixa, visual próprio
+let ltKind = 'preacher'; // qual visual está aplicado na faixa agora
 let ltState = null;
 
 function applyLowerThirdStyles() {
-  const s = ltStyles;
+  const s = ltKind === 'special' ? specialStyles : ltStyles;
   ltLayer.className = ltLayer.className
     .split(' ')
     .filter(c => !c.startsWith('pos-') && !c.startsWith('look-') && !c.startsWith('lt-anim-'))
@@ -540,18 +752,57 @@ function applyLowerThirdStyles() {
 // Se a caixa da Mensagem ou uma faixa de hino/Bíblia estiver no rodapé, o nome sobe para não cobrir
 function liftLowerThird() {
   let lift = 0;
-  if (String(ltStyles.position || 'bottom-left').startsWith('bottom')) {
-    const boxes = [];
-    // Usa o estado (e não a animação): durante a troca de parágrafo a caixa fica escondida por um instante
-    if (!isCleared && !overlayContainer.classList.contains('telao-mode')) boxes.push(overlayBox);
-    document.querySelectorAll('.screen-layer.layout-lower:not(.hidden) .screen-box').forEach(b => boxes.push(b));
-    boxes.forEach(b => { lift = Math.max(lift, b.offsetHeight + 24); });
-  }
-  ltLayer.style.setProperty('--lt-lift', `${lift}px`);
+  const boxes = [];
+  // Usa o estado (e não a animação): durante a troca de parágrafo a caixa fica escondida por um instante
+  if (!isCleared && !overlayContainer.classList.contains('telao-mode')) boxes.push(overlayBox);
+  document.querySelectorAll('.screen-layer.layout-lower:not(.hidden) .screen-box').forEach(b => boxes.push(b));
+  boxes.forEach(b => { lift = Math.max(lift, b.offsetHeight + 24); });
+  const activeStyles = ltKind === 'special' ? specialStyles : ltStyles;
+  ltLayer.style.setProperty('--lt-lift', String(activeStyles.position || 'bottom-left').startsWith('bottom') ? `${lift}px` : '0px');
+  // O anúncio da leitura fica sempre embaixo
+  readingLayer.style.setProperty('--rd-lift', `${lift}px`);
+}
+
+let ltPreviewing = false;
+let ltPreviewTimer = null;
+
+// Só nas prévias do painel: mostra o nome com o efeito escolhido e esconde, sem ir para o OBS
+// Troca o visual da faixa (pregador ou louvor especial) quando muda quem vai aparecer
+function useLtKind(kind) {
+  const next = kind === 'special' ? 'special' : 'preacher';
+  if (next === ltKind) return;
+  ltKind = next;
+  applyLowerThirdStyles();
+}
+
+function previewLowerThird(name, subtitle, kind) {
+  if (ltState && ltState.visible) return; // já está no ar
+  useLtKind(kind);
+  ltPreviewing = true;
+  clearTimeout(ltPreviewTimer);
+  ltName.textContent = name || 'Nome do pregador';
+  ltSubtitle.textContent = subtitle || '';
+  ltSubtitle.style.display = subtitle ? '' : 'none';
+  ltLayer.classList.add('hidden');
+  void ltLayer.offsetWidth;
+  ltLayer.classList.remove('hidden');
+  ltPreviewTimer = setTimeout(() => {
+    ltLayer.classList.add('hidden');
+    ltPreviewTimer = setTimeout(() => {
+      ltPreviewing = false;
+      updateLowerThird(ltState);
+    }, 1500);
+  }, 2600);
 }
 
 function updateLowerThird(lt) {
   ltState = lt || null;
+  if (ltPreviewing && ltState && ltState.visible) {
+    ltPreviewing = false;
+    clearTimeout(ltPreviewTimer);
+  }
+  if (ltPreviewing) return;
+  if (ltState && ltState.visible) useLtKind(ltState.kind);
   if (!ltState || !ltState.visible) {
     ltLayer.classList.add('hidden');
     return;
@@ -563,19 +814,291 @@ function updateLowerThird(lt) {
   ltLayer.classList.remove('hidden');
 }
 
+// ================= Anúncio da leitura bíblica =================
+// Bíblia aberta em 3D (desenho em overlay.html) com a faixa da passagem saindo da capa direita.
+
+const readingLayer = document.getElementById('reading-layer');
+const readingText = document.getElementById('reading-text');
+const readingRef = document.getElementById('reading-ref');
+const readingLabel = document.getElementById('reading-label');
+let readingStyles = {};
+let readingToken = null;
+let readingHideTimer = null;
+
+// Linhas do texto impresso nas páginas: seguem a curva da folha (mesmas curvas do desenho)
+(function drawBibleLines() {
+  const ns = 'http://www.w3.org/2000/svg';
+  const group = document.getElementById('rd-lines');
+  const top = [[14, 12], [64, 2], [120, 18]];
+  const bottom = [[14, 128], [66, 114], [120, 126]];
+  const q = (a, c, b, t) => (1 - t) * (1 - t) * a + 2 * t * (1 - t) * c + t * t * b;
+  const yAt = (curve, x) => {
+    let best = 0, dist = Infinity;
+    for (let i = 0; i <= 100; i++) {
+      const t = i / 100;
+      const d = Math.abs(q(curve[0][0], curve[1][0], curve[2][0], t) - x);
+      if (d < dist) { dist = d; best = t; }
+    }
+    return q(curve[0][1], curve[1][1], curve[2][1], best);
+  };
+  let seed = 7;
+  const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  const line = (x1, x2, f, color, width) => {
+    const pts = [];
+    for (let i = 0; i <= 4; i++) {
+      const x = x1 + (x2 - x1) * i / 4;
+      const yt = yAt(top, x), yb = yAt(bottom, x);
+      pts.push(`${x.toFixed(1)},${(yt + (yb - yt) * f).toFixed(1)}`);
+    }
+    const p = document.createElementNS(ns, 'polyline');
+    p.setAttribute('points', pts.join(' '));
+    p.setAttribute('fill', 'none');
+    p.setAttribute('stroke', color);
+    p.setAttribute('stroke-width', width);
+    p.setAttribute('stroke-linecap', 'round');
+    group.appendChild(p);
+  };
+  line(52, 82, 0.055, '#9b2a22', 1.3); // título do livro
+  [[22, 62], [69, 110]].forEach(([a, b]) => {
+    for (let f = 0.11; f < 0.95; f += 0.031) {
+      const end = rnd() < 0.13 ? a + (b - a) * (0.3 + rnd() * 0.5) : b; // fim de parágrafo
+      line(a, end, f, '#6f6656', 0.75);
+      if (rnd() < 0.16) line(a, a + 1.6, f, '#c0392b', 1); // número do versículo
+    }
+  });
+})();
+
+// Passagem comprida: a letra diminui para caber na faixa
+// Diminui a letra de `el` até ela caber em `available` pixels de largura
+function shrinkToWidth(el, available) {
+  el.style.fontSize = '';
+  if (!el.offsetParent || available <= 0) return;
+  const width = el.scrollWidth;
+  if (width <= available) return;
+  const size = parseFloat(getComputedStyle(el).fontSize);
+  el.style.fontSize = `${Math.max(10, size * (available / width) * 0.98)}px`;
+}
+
+// Passagem comprida ("2 Tessalonicenses 2:1") ou tamanho grande: a letra diminui para caber,
+// em qualquer estilo (nunca sai da tela)
+function fitReadingText() {
+  const look = readingStyles.look || 'photo';
+  if (look === 'bible3d') {
+    readingText.style.fontSize = '';
+    const band = readingText.parentElement;
+    let size = 4.2;
+    for (let i = 0; i < 20 && band.scrollWidth > band.clientWidth + 1; i++) {
+      size *= 0.93;
+      readingText.style.fontSize = `${size}em`;
+    }
+  } else if (look === 'photo') {
+    const ref = document.querySelector('.rd-photo-ref');
+    shrinkToWidth(ref, ref.parentElement.clientWidth * 0.94);
+  } else if (look === 'full') {
+    const ref = document.querySelector('.rd-full-ref');
+    shrinkToWidth(ref, ref.parentElement.clientWidth * 0.96);
+  } else {
+    // Cartão, faixa clara e só linha: a caixa inteira cabe em 92% da tela
+    const flat = document.querySelector('.rd-flat');
+    readingRef.style.fontSize = '';
+    if (!flat.offsetParent) return;
+    const others = flat.scrollWidth - readingRef.scrollWidth;
+    shrinkToWidth(readingRef, window.innerWidth * 0.92 - others);
+  }
+}
+
+function setReadingText(text) {
+  readingText.textContent = text;
+  readingRef.textContent = text;
+  document.querySelectorAll('.rd-ref-any').forEach(el => { el.textContent = text; });
+  fitReadingText();
+}
+
+function applyReadingStyles() {
+  const s = readingStyles;
+  const font = s.fontFamily || "'Crimson Pro', serif";
+  readingLayer.style.setProperty('--rd-scale', s.scale || 1);
+  readingLayer.style.setProperty('--rd-text', s.textColor || '#ffffff');
+  readingLayer.style.setProperty('--rd-band', s.bandColor || '#11151c');
+  readingLayer.style.setProperty('--rd-border', s.borderColor || '#c99a2e');
+  readingText.style.fontFamily = font;
+  readingRef.style.fontFamily = font;
+  document.querySelectorAll('.rd-ref-any').forEach(el => { el.style.fontFamily = font; });
+  const label = s.label ?? 'LEITURA BÍBLICA';
+  readingLabel.textContent = label;
+  document.querySelectorAll('.rd-label-any').forEach(el => { el.textContent = label; });
+  readingLayer.className = readingLayer.className.split(' ').filter(c => !c.startsWith('look-')).join(' ');
+  readingLayer.classList.add(`look-${s.look || 'photo'}`);
+  readingLayer.classList.toggle('no-anim', s.animation === 'none');
+  fitReadingText();
+}
+
+let readingLast = null;        // último estado do servidor (para voltar depois de uma prévia)
+let readingPreviewing = false; // tocando a animação só na prévia do painel
+let readingPreviewTimer = null;
+
+function playReadingIn() {
+  clearTimeout(readingHideTimer);
+  fitReadingText();
+  readingLayer.classList.remove('hidden', 'leaving', 'show');
+  void readingLayer.offsetWidth;
+  readingLayer.classList.add('show');
+}
+
+function playReadingOut(after) {
+  readingLayer.classList.remove('show');
+  readingLayer.classList.add('leaving');
+  clearTimeout(readingHideTimer);
+  // Sem animação: some na hora
+  const wait = readingStyles.animation === 'none' ? 0 : 1850;
+  readingHideTimer = setTimeout(() => {
+    readingLayer.classList.remove('leaving');
+    readingLayer.classList.add('hidden');
+    if (after) after();
+  }, wait);
+}
+
+function updateReading(state) {
+  readingLast = state;
+  const announce = state.readingAnnounce || {};
+  const text = state.serviceReading || '';
+  if (announce.visible && text) {
+    // Entrou no ar de verdade: a prévia para
+    if (readingPreviewing) {
+      readingPreviewing = false;
+      clearTimeout(readingPreviewTimer);
+      readingToken = null;
+    }
+    if (readingText.textContent !== text) setReadingText(text);
+    // Cada "Exibir" toca a entrada de novo
+    if (announce.token !== readingToken || !readingLayer.classList.contains('show')) {
+      readingToken = announce.token;
+      playReadingIn();
+    }
+    return;
+  }
+  if (readingPreviewing) return;
+  if (readingLayer.classList.contains('show')) playReadingOut();
+}
+
+// Só nas prévias do painel: mostra a entrada e a saída sem mandar nada para o OBS
+function previewReading(text) {
+  const live = readingLast && readingLast.readingAnnounce && readingLast.readingAnnounce.visible;
+  if (live) {
+    // Já está no ar: só repete a entrada aqui na prévia
+    playReadingIn();
+    return;
+  }
+  readingPreviewing = true;
+  clearTimeout(readingPreviewTimer);
+  setReadingText(text || 'Efésios 4:11');
+  playReadingIn();
+  readingPreviewTimer = setTimeout(() => playReadingOut(() => {
+    readingPreviewing = false;
+    if (readingLast) setReadingText(readingLast.serviceReading || '');
+  }), 4500);
+}
+
+window.addEventListener('resize', fitReadingText);
+// A fonte escolhida pode terminar de carregar depois: mede de novo
+if (document.fonts) document.fonts.ready.then(fitReadingText);
+
+// ================= Pedidos de oração =================
+// Tela cheia: título com enfeite e os nomes em colunas (1, 2 ou 3, conforme a quantidade).
+// A letra diminui sozinha quando a lista é grande.
+
+const prayerLayer = document.getElementById('prayer-layer');
+const prayerTitle = document.getElementById('prayer-title');
+const prayerNames = document.getElementById('prayer-names');
+let prayerStyles = {};
+let prayerState = null;
+let prayerKey = '';
+
+function fitPrayerNames() {
+  const names = prayerState ? prayerState.names : [];
+  const cols = names.length <= 5 ? 1 : names.length <= 12 ? 2 : 3;
+  const rows = Math.ceil(names.length / cols);
+  prayerNames.style.gridTemplateRows = `repeat(${rows}, auto)`;
+  prayerNames.style.gridTemplateColumns = `repeat(${cols}, auto)`;
+  const base = 4.2 * (Number(prayerStyles.scale) || 1) * (cols === 3 ? 0.8 : 1);
+  let size = base;
+  prayerNames.style.fontSize = `${size}rem`;
+  for (let i = 0; i < 20 && (prayerNames.scrollHeight > prayerNames.clientHeight + 1 || prayerNames.scrollWidth > prayerNames.clientWidth + 1); i++) {
+    size *= 0.93;
+    prayerNames.style.fontSize = `${size}rem`;
+  }
+}
+
+function renderPrayer() {
+  prayerTitle.textContent = prayerState.title || '';
+  prayerNames.innerHTML = '';
+  prayerState.names.forEach(name => {
+    const div = document.createElement('div');
+    div.className = 'prayer-name';
+    div.textContent = name;
+    prayerNames.appendChild(div);
+  });
+  fitPrayerNames();
+}
+
+function updatePrayer(p) {
+  prayerState = p || null;
+  if (!prayerState || !prayerState.visible || prayerState.names.length === 0) {
+    prayerLayer.classList.add('hidden');
+    prayerKey = '';
+    return;
+  }
+  const key = `${prayerState.title}|${prayerState.names.join('|')}`;
+  if (key !== prayerKey) {
+    prayerKey = key;
+    renderPrayer();
+  }
+  prayerLayer.classList.remove('hidden');
+}
+
+// A tela mudou de tamanho (OBS, prévia do painel): recalcula o tamanho da letra
+window.addEventListener('resize', () => {
+  if (prayerState && prayerState.names.length) fitPrayerNames();
+});
+
+function applyPrayerStyles() {
+  const s = prayerStyles;
+  prayerLayer.style.setProperty('--pr-accent', s.accentColor || '#f2b632');
+  prayerLayer.style.setProperty('--pr-title', s.titleColor || '#f2b632');
+  prayerLayer.style.setProperty('--pr-name', s.nameColor || '#ffffff');
+  prayerLayer.style.fontFamily = s.fontFamily || 'Montserrat, sans-serif';
+  prayerLayer.style.background = s.bgImage
+    ? `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)), url("${s.bgImage}") center / cover no-repeat, ${s.bgColor || '#333333'}`
+    : (s.bgColor || '#333333');
+  prayerLayer.classList.toggle('no-decor', s.decor === false);
+  prayerLayer.classList.toggle('no-anim', s.noAnim === true);
+  if (prayerState && prayerState.names.length) fitPrayerNames();
+}
+
 // ================= Conexão =================
 
+// Hino/Bíblia: a tela no ar fica guardada em `air` (independe do que o operador abriu depois)
+function onAir(content) {
+  if (!content || content.isCleared || !content.air || !content.air.slide) return { ...(content || {}), slides: [], slideIndex: -1, isCleared: true };
+  return { ...content, ...content.air, slides: [content.air.slide], slideIndex: 0, isCleared: false };
+}
+
 function applyState(state, useTransition) {
-  activeSermonTitle = state.activeSermonTitle;
-  currentParagraphNumber = state.currentParagraphNumber;
-  currentParagraphText = state.currentParagraphText;
-  isCleared = state.isCleared;
+  updateSchedule(state, !useTransition);
+  // Mostra só o que foi para o ar (o operador pode estar navegando por outra mensagem/hino/capítulo)
+  const air = state.messageAir;
+  activeSermonTitle = air ? air.title : state.activeSermonTitle;
+  currentParagraphNumber = air ? air.number : state.currentParagraphNumber;
+  currentParagraphText = air ? air.text : state.currentParagraphText;
+  isCleared = state.isCleared || !air;
   updateContent(useTransition);
 
-  hymnLayer.setState(state.hymn, useTransition);
-  bibleLayer.setState(state.bible, useTransition);
+  hymnLayer.setState(onAir(state.hymn), useTransition);
+  bibleLayer.setState(onAir(state.bible), useTransition);
   updateMedia(state.media);
+  updatePrayer(state.prayer);
   updateLowerThird(state.lowerThird);
+  updateReading(state);
   // As caixas mudam de altura com a animação: confere de novo depois que assentam
   setTimeout(liftLowerThird, 450);
 }
@@ -601,7 +1124,12 @@ function connect() {
           mediaStyles = data.payload.mediaStyles || {};
           applyMediaStyles();
           ltStyles = data.payload.lowerThirdStyles || {};
+          specialStyles = data.payload.specialStyles || {};
           applyLowerThirdStyles();
+          prayerStyles = data.payload.prayerStyles || {};
+          applyPrayerStyles();
+          readingStyles = data.payload.readingStyles || {};
+          applyReadingStyles();
           applyState(data.payload, false); // sem transição ao conectar
           break;
 
@@ -627,15 +1155,41 @@ function connect() {
           applyMediaStyles();
           break;
 
+        case 'update-prayer-style':
+          prayerStyles = { ...prayerStyles, ...data.payload };
+          applyPrayerStyles();
+          break;
+
+        case 'update-reading-style':
+          readingStyles = { ...readingStyles, ...data.payload };
+          applyReadingStyles();
+          break;
+
         case 'update-lt-style':
           ltStyles = { ...ltStyles, ...data.payload };
+          if (ltKind !== 'preacher') break;
           applyLowerThirdStyles();
           break;
+
+        case 'update-special-style':
+          specialStyles = { ...specialStyles, ...data.payload };
+          if (ltKind === 'special') applyLowerThirdStyles();
+          break;
+
       }
     } catch (err) {
       console.error('Erro ao processar mensagem do WebSocket:', err);
     }
   };
+}
+
+// O painel pede para ver uma animação só na prévia dele (nunca chega no OBS)
+if (PREVIEW) {
+  window.addEventListener('message', (event) => {
+    if (event.origin !== window.location.origin || !event.data) return;
+    if (event.data.type === 'preview-reading') previewReading(event.data.text);
+    if (event.data.type === 'preview-lt') previewLowerThird(event.data.name, event.data.subtitle, event.data.kind);
+  });
 }
 
 connect();

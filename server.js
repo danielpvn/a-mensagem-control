@@ -17,9 +17,11 @@ const sync = require('./src/sync');
 bible.autoImport();
 backgrounds.autoImport();
 const updater = require('./src/updater');
+const tfSermons = require('./src/tf-sermons');
+const sounds = require('./src/sounds');
 const { createDesktopShortcut } = require('./src/shortcut');
 
-const CURRENT_VERSION = '2.0.2';
+const CURRENT_VERSION = '2.1.0';
 const PORT = process.env.PORT || 3000;
 
 const app = express();
@@ -40,6 +42,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/backgrounds', express.static(backgrounds.DIR));
 app.use('/media', express.static(media.DIR));
+app.use('/sounds', express.static(sounds.DIR));
 
 const DEFAULT_MESSAGE_STYLES = {
   fontFamily: 'Outfit, sans-serif',
@@ -73,6 +76,9 @@ const DEFAULT_HYMN_STYLES = {
   textOutline: false,
   outlineColor: '#000000',
   animationType: 'fade',
+  transitionTime: 0.4,           // segundos da troca de tela
+  chorusColorOn: false,          // coro com cor própria
+  chorusColor: '#fde68a',
   linesPerSlide: 4,
   bgImage: null,                 // '/backgrounds/arquivo.jpg' ou null
   position: 'center',            // tela cheia: texto no 'center' ou 'bottom'
@@ -111,7 +117,8 @@ const DEFAULT_BIBLE_STYLES = {
   gradientAnimate: false,
   bgVignette: true,
   textShadow: true,
-  animationType: 'fade'
+  animationType: 'fade',
+  transitionTime: 0.4
 };
 
 const DEFAULT_MEDIA_STYLES = {
@@ -120,7 +127,8 @@ const DEFAULT_MEDIA_STYLES = {
   fit: 'blur',                   // 'blur' (inteira, laterais com a própria foto desfocada), 'contain' (inteira, com bordas) ou 'cover' (preenche a tela)
   focus: 'center',               // ao preencher: parte que aparece ('top', 'center', 'bottom')
   bgColor: '#000000',            // cor das bordas
-  endAction: 'clear'             // fim do vídeo: 'clear' (tira da tela) ou 'hold' (fica no último quadro)
+  endAction: 'clear',            // fim do vídeo: 'clear' (tira da tela) ou 'hold' (fica no último quadro)
+  audioOutput: 'obs'             // som dos vídeos: 'obs' (sai onde o link do OBS está aberto) ou 'app' (sai neste computador)
 };
 
 // Nome do pregador (lower third)
@@ -136,6 +144,41 @@ const DEFAULT_LT_STYLES = {
   animation: 'slide',            // 'slide', 'rise', 'drop', 'fade', 'zoom', 'blur', 'reveal', 'expand', 'flip', 'stagger'
   speed: 1,                      // multiplicador da duração (0.6 rápida, 1 normal, 1.7 lenta)
   autoHide: 8                    // segundos; 0 = só esconde quando o operador mandar
+};
+
+// Louvor especial (fora do hinário): mesma faixa do pregador, com o seu próprio visual
+const DEFAULT_SPECIAL_STYLES = {
+  ...DEFAULT_LT_STYLES,
+  position: 'bottom-left',
+  accentColor: '#f2b632',
+  subtitleColor: '#fde68a',
+  autoHide: 10
+};
+
+// Anúncio da leitura bíblica (Bíblia aberta com a faixa da passagem, embaixo no meio)
+const DEFAULT_READING_STYLES = {
+  // 'photo' (faixa com a Bíblia e a luz), 'full' (tela cheia com a Bíblia), 'bible3d' (Bíblia 3D com faixa),
+  // 'card' (cartão escuro), 'light' (faixa clara), 'line' (só texto e linha)
+  look: 'photo',
+  label: 'LEITURA BÍBLICA',      // texto pequeno em cima da passagem (não aparece na Bíblia 3D)
+  fontFamily: 'Montserrat, sans-serif',
+  scale: 1,                      // tamanho do conjunto
+  textColor: '#ffffff',          // passagem
+  bandColor: '#11151c',          // faixa / fundo (nos estilos que têm)
+  borderColor: '#9cc7ff',        // borda, ícone, linha e texto de cima
+  autoHide: 0                   // segundos; 0 = só esconde quando o operador mandar
+};
+
+// Pedidos de oração (tela cheia com os nomes)
+const DEFAULT_PRAYER_STYLES = {
+  fontFamily: 'Montserrat, sans-serif',
+  scale: 1,                      // tamanho dos nomes (a letra ainda diminui sozinha se não couber)
+  nameColor: '#ffffff',
+  titleColor: '#f2b632',
+  accentColor: '#f2b632',        // linhas de enfeite
+  bgColor: '#333333',
+  bgImage: null,
+  decor: true
 };
 
 // Estilos salvos antes de existir o degradê não têm `bgMode`: mantém o fundo que a pessoa
@@ -158,6 +201,10 @@ let globalState = {
   isCleared: true,
   // "Armado": parágrafo posicionado mas oculto; o próximo "avançar" exibe ele em vez de pular
   armed: false,
+  // Clicar num parágrafo só prepara: com a Mensagem no ar, o escolhido fica em "cue" até o Exibir
+  cue: -1,
+  // O que está no ar de verdade (fica igual enquanto o operador navega por outra mensagem)
+  messageAir: null,
   styles: { ...DEFAULT_MESSAGE_STYLES, ...db.getSetting('styles.message', {}) },
 
   // Qual camada o passador controla: a última que foi para o ar ('message' ou 'hymn')
@@ -169,9 +216,13 @@ let globalState = {
     slides: [],
     slideIndex: -1,
     isCleared: true,
-    armed: false
+    armed: false,
+    cue: -1,
+    air: null
   },
   hymnStyles: loadScreenStyles('styles.hymn', DEFAULT_HYMN_STYLES),
+  // Lista de hinos que vão ser cantados no culto (na ordem)
+  hymnPlaylist: db.getSetting('hymnPlaylist', []),
 
   // Bíblia: capítulo aberto, dividido em telas (versículos longos vêm em mais de uma tela)
   bible: {
@@ -182,7 +233,9 @@ let globalState = {
     slides: [],
     slideIndex: -1,
     isCleared: true,
-    armed: false
+    armed: false,
+    cue: -1,
+    air: null
   },
   bibleStyles: loadScreenStyles('styles.bible', DEFAULT_BIBLE_STYLES),
 
@@ -193,17 +246,39 @@ let globalState = {
     index: -1,
     isCleared: true,
     armed: false,
-    playback: { playing: true, muted: false, volume: 1, loop: false, token: 0 },
+    // start: segundo em que o vídeo começa; seek: pulo pedido no meio do vídeo (id muda a cada pulo)
+    playback: { playing: true, muted: false, volume: 1, loop: false, token: 0, start: 0, seek: { time: 0, id: 0 } },
     // Zoom do item no ar: scale 1 = sem zoom; x/y = ponto (em %) que fica no centro da tela
     zoom: { scale: 1, x: 50, y: 50 },
     // Zoom preparado para cada arquivo da pasta (o operador ajusta antes do culto)
-    zooms: {}
+    zooms: {},
+    // Ponto de início de cada vídeo (segundos), também preparado antes do culto
+    starts: {}
   },
   mediaStyles: { ...DEFAULT_MEDIA_STYLES, ...db.getSetting('styles.media', {}) },
 
   // Nome do pregador: camada independente, pode aparecer junto com qualquer conteúdo
-  lowerThird: { visible: false, name: '', subtitle: '', token: 0 },
-  lowerThirdStyles: { ...DEFAULT_LT_STYLES, ...db.getSetting('styles.lowerThird', {}) }
+  // kind: 'preacher' (nome do pregador) ou 'special' (louvor especial, com o visual de specialStyles)
+  lowerThird: { visible: false, name: '', subtitle: '', kind: 'preacher', token: 0 },
+  lowerThirdStyles: { ...DEFAULT_LT_STYLES, ...db.getSetting('styles.lowerThird', {}) },
+  specialStyles: { ...DEFAULT_SPECIAL_STYLES, ...db.getSetting('styles.special', {}) },
+  // Leitura bíblica do culto (vai embaixo do nome do pregador)
+  serviceReading: db.getSetting('serviceReading', ''),
+  // Anúncio da leitura no telão (usa o texto de serviceReading)
+  readingAnnounce: { visible: false, token: 0 },
+  readingStyles: { ...DEFAULT_READING_STYLES, ...db.getSetting('styles.reading', {}) },
+
+  // Pedidos de oração: os nomes ficam guardados até alguém limpar
+  prayer: { visible: false, title: 'Pedidos de oração', names: [], ...db.getSetting('prayer', {}), visible: false },
+  prayerStyles: { ...DEFAULT_PRAYER_STYLES, ...db.getSetting('styles.prayer', {}) },
+
+  // Agendamentos (sino antes do culto, vídeos...): o som sai neste computador (janela do programa) ou no OBS
+  soundSchedules: sounds.loadSchedules(),
+  soundPlaylists: sounds.loadPlaylists(),
+  soundOutput: db.getSetting('soundOutput', 'app') === 'obs' ? 'obs' : 'app',
+  // O que está tocando agora (som, som com imagem ou vídeo; o overlay mostra a imagem/vídeo por cima de tudo):
+  // { id, kind, name, url, image, label, volume, output, transition, transitionTime, startedAt, playlist: { name, index, total } | null }
+  soundNow: null
 };
 
 let activeSermonParagraphs = [];
@@ -228,6 +303,8 @@ function resetParagraphState() {
   globalState.currentParagraphNumber = null;
   globalState.isCleared = true;
   globalState.armed = false;
+  globalState.cue = -1;
+  globalState.messageAir = null;
 }
 
 function loadSermonOnServer(id) {
@@ -237,7 +314,14 @@ function loadSermonOnServer(id) {
   globalState.activeSermonTitle = sermon ? sermon.title : '';
   globalState.activeSermonDate = sermon ? sermon.date : '';
   globalState.paragraphCount = activeSermonParagraphs.length;
-  resetParagraphState();
+  if (globalState.isCleared) {
+    resetParagraphState();
+  } else {
+    // A Mensagem no ar continua na tela até o operador exibir outra coisa
+    globalState.currentParagraphIndex = -1;
+    globalState.armed = false;
+    globalState.cue = -1;
+  }
   broadcastContent();
 }
 
@@ -252,21 +336,31 @@ function positionParagraph(index) {
 function hideHymn() {
   globalState.hymn.isCleared = true;
   globalState.hymn.armed = false;
+  globalState.hymn.cue = -1;
+  globalState.hymn.air = null;
 }
 
 function hideMessage() {
   globalState.isCleared = true;
   globalState.armed = false;
+  globalState.cue = -1;
+  globalState.messageAir = null;
 }
 
 function hideBible() {
   globalState.bible.isCleared = true;
   globalState.bible.armed = false;
+  globalState.bible.cue = -1;
+  globalState.bible.air = null;
 }
 
 function hideMedia() {
   globalState.media.isCleared = true;
   globalState.media.armed = false;
+}
+
+function hidePrayer() {
+  globalState.prayer.visible = false;
 }
 
 function setParagraphOnServer(index) {
@@ -275,9 +369,16 @@ function setParagraphOnServer(index) {
   hideHymn();
   hideBible();
   hideMedia();
+  hidePrayer();
   globalState.activeLayer = 'message';
   globalState.isCleared = false;
   globalState.armed = false;
+  globalState.cue = -1;
+  globalState.messageAir = {
+    title: globalState.activeSermonTitle,
+    number: globalState.currentParagraphNumber,
+    text: globalState.currentParagraphText
+  };
   db.saveProgress(globalState.activeSermonId, index, globalState.currentParagraphNumber);
   broadcastContent();
 }
@@ -291,8 +392,26 @@ function armParagraphOnServer(index) {
   broadcastContent();
 }
 
+// Clique num parágrafo: só prepara. Sem nada no ar, fica "pronto"; com a Mensagem no ar,
+// o que está na tela continua e o escolhido espera o Exibir (ou o Próximo)
+function cueParagraphOnServer(index) {
+  if (index < 0 || index >= activeSermonParagraphs.length) return;
+  if (globalState.isCleared) {
+    positionParagraph(index);
+    globalState.armed = true;
+    globalState.cue = -1;
+  } else {
+    globalState.cue = index === globalState.currentParagraphIndex ? -1 : index;
+  }
+  broadcastContent();
+}
+
 function nextParagraph() {
   if (activeSermonParagraphs.length === 0) return;
+  if (globalState.cue !== -1) {
+    setParagraphOnServer(globalState.cue);
+    return;
+  }
   if (globalState.armed) {
     setParagraphOnServer(globalState.currentParagraphIndex);
     return;
@@ -311,13 +430,15 @@ function prevParagraph() {
   }
 }
 
+// Exibir/Ocultar: o preparado entra no ar; sem preparado, alterna o que está na tela
 function toggleClearOnServer() {
-  if (globalState.currentParagraphIndex === -1) return;
-  if (globalState.isCleared) {
-    setParagraphOnServer(globalState.currentParagraphIndex);
-  } else {
-    globalState.isCleared = true;
+  if (globalState.cue !== -1) {
+    setParagraphOnServer(globalState.cue);
+  } else if (!globalState.isCleared) {
+    hideMessage();
     broadcastContent();
+  } else if (globalState.currentParagraphIndex !== -1) {
+    setParagraphOnServer(globalState.currentParagraphIndex);
   }
 }
 
@@ -327,7 +448,12 @@ function clearScreenOnServer() {
   hideHymn();
   hideBible();
   hideMedia();
+  hidePrayer();
   hideLowerThird(false);
+  hideReading(false);
+  // Vídeo ou som com imagem também saem (som sozinho continua tocando)
+  const now = globalState.soundNow;
+  if (now && (now.kind === 'video' || now.image)) stopSoundRun(false);
   broadcastContent();
 }
 
@@ -337,7 +463,10 @@ function hymnSlidesFor(id) {
   return hymns.getHymnSlides(id, Number(globalState.hymnStyles.linesPerSlide) || 4);
 }
 
+// Abrir outro hino não mexe na tela: o que está no ar (air) continua até o Exibir
 function setHymnState(hymn, slideIndex = -1) {
+  const previous = globalState.hymn;
+  const live = previous && !previous.isCleared && previous.air;
   globalState.hymn = {
     id: hymn ? hymn.id : null,
     number: hymn ? hymn.number : null,
@@ -345,8 +474,10 @@ function setHymnState(hymn, slideIndex = -1) {
     collection: hymn ? hymn.collection : null,
     slides: hymn ? hymn.slides : [],
     slideIndex,
-    isCleared: true,
-    armed: false
+    isCleared: !live,
+    armed: false,
+    cue: -1,
+    air: live ? previous.air : null
   };
 }
 
@@ -358,8 +489,12 @@ function selectHymnOnServer(id, match) {
     const line = Number(match.lineIndex) || 0;
     const index = hymn.slides.findIndex(s => s.sectionIndex === match.sectionIndex && line >= s.firstLine && line < s.firstLine + s.lineCount);
     if (index !== -1) {
-      globalState.hymn.slideIndex = index;
-      globalState.hymn.armed = true;
+      if (globalState.hymn.isCleared) {
+        globalState.hymn.slideIndex = index;
+        globalState.hymn.armed = true;
+      } else {
+        globalState.hymn.cue = index;
+      }
     }
   }
   broadcastContent();
@@ -371,16 +506,37 @@ function showHymnSlide(index) {
   hymn.slideIndex = index;
   hymn.isCleared = false;
   hymn.armed = false;
+  hymn.cue = -1;
+  hymn.air = { id: hymn.id, number: hymn.number, title: hymn.title, collection: hymn.collection, slide: hymn.slides[index] };
   hideMessage();
   hideBible();
   hideMedia();
+  hidePrayer();
   globalState.activeLayer = 'hymn';
+  broadcastContent();
+}
+
+// Clique numa tela do hino: só prepara (mesma regra dos parágrafos)
+function cueHymnSlide(index) {
+  const hymn = globalState.hymn;
+  if (index < 0 || index >= hymn.slides.length) return;
+  if (hymn.isCleared) {
+    hymn.slideIndex = index;
+    hymn.armed = true;
+    hymn.cue = -1;
+  } else {
+    hymn.cue = index === hymn.slideIndex ? -1 : index;
+  }
   broadcastContent();
 }
 
 function nextHymnSlide() {
   const hymn = globalState.hymn;
   if (hymn.slides.length === 0) return;
+  if (hymn.cue !== -1) {
+    showHymnSlide(hymn.cue);
+    return;
+  }
   if (hymn.armed || hymn.slideIndex === -1) {
     showHymnSlide(Math.max(0, hymn.slideIndex));
     return;
@@ -395,12 +551,13 @@ function prevHymnSlide() {
 
 function toggleHymn() {
   const hymn = globalState.hymn;
-  if (hymn.slideIndex === -1) return;
-  if (hymn.isCleared) {
-    showHymnSlide(hymn.slideIndex);
-  } else {
+  if (hymn.cue !== -1) {
+    showHymnSlide(hymn.cue);
+  } else if (!hymn.isCleared) {
     hideHymn();
     broadcastContent();
+  } else if (hymn.slideIndex !== -1) {
+    showHymnSlide(hymn.slideIndex);
   }
 }
 
@@ -422,6 +579,17 @@ function refreshActiveHymn() {
     index = same !== -1 ? same : Math.min(index, hymn.slides.length - 1);
   }
   Object.assign(current, { number: hymn.number, title: hymn.title, collection: hymn.collection, slides: hymn.slides, slideIndex: index });
+  broadcastContent();
+}
+
+// Lista do culto: guarda só o necessário para mostrar e abrir cada hino
+function setHymnPlaylist(items) {
+  const seen = new Set();
+  globalState.hymnPlaylist = (Array.isArray(items) ? items : [])
+    .map(h => ({ id: Number(h && h.id), number: h.number ? String(h.number) : '', title: String((h && h.title) || ''), collection: h.collection ? String(h.collection) : '' }))
+    .filter(h => Number.isInteger(h.id) && h.id > 0 && !seen.has(h.id) && seen.add(h.id))
+    .slice(0, 60);
+  db.setSetting('hymnPlaylist', globalState.hymnPlaylist);
   broadcastContent();
 }
 
@@ -465,15 +633,21 @@ function bibleSlides(chapter) {
 function loadBibleChapter(book, chapterNumber) {
   const chapter = bible.getChapter(book, chapterNumber);
   if (!chapter) return false;
+  // Abrir outro capítulo não mexe na tela: o versículo no ar (air) continua até o Exibir
+  const previous = globalState.bible;
+  const live = !previous.isCleared && previous.air;
+  const same = previous.book === book && previous.chapter === chapterNumber;
   globalState.bible = {
     book,
     bookName: chapter.bookName,
     chapter: chapterNumber,
     chapters: chapter.chapters,
     slides: bibleSlides(chapter),
-    slideIndex: -1,
-    isCleared: true,
-    armed: false
+    slideIndex: live && same ? previous.slideIndex : -1,
+    isCleared: !live,
+    armed: false,
+    cue: -1,
+    air: live ? previous.air : null
   };
   return true;
 }
@@ -481,10 +655,15 @@ function loadBibleChapter(book, chapterNumber) {
 function selectBibleOnServer(book, chapter, verse) {
   if (!loadBibleChapter(Number(book), Number(chapter))) return;
   if (verse) {
-    const index = globalState.bible.slides.findIndex(s => s.verse === Number(verse));
+    const b = globalState.bible;
+    const index = b.slides.findIndex(s => s.verse === Number(verse));
     if (index !== -1) {
-      globalState.bible.slideIndex = index;
-      globalState.bible.armed = true;
+      if (b.isCleared) {
+        b.slideIndex = index;
+        b.armed = true;
+      } else if (index !== b.slideIndex) {
+        b.cue = index;
+      }
     }
   }
   broadcastContent();
@@ -496,17 +675,38 @@ function showBibleSlide(index) {
   b.slideIndex = index;
   b.isCleared = false;
   b.armed = false;
+  b.cue = -1;
+  b.air = { book: b.book, bookName: b.bookName, chapter: b.chapter, slide: b.slides[index] };
   hideMessage();
   hideHymn();
   hideMedia();
+  hidePrayer();
   globalState.activeLayer = 'bible';
   broadcastContent();
 }
 
 // No fim do capítulo, segue para o próximo (o pastor pode ler um trecho que atravessa capítulos)
+// Clique num versículo: só prepara (mesma regra dos parágrafos)
+function cueBibleSlide(index) {
+  const b = globalState.bible;
+  if (index < 0 || index >= b.slides.length) return;
+  if (b.isCleared) {
+    b.slideIndex = index;
+    b.armed = true;
+    b.cue = -1;
+  } else {
+    b.cue = index === b.slideIndex ? -1 : index;
+  }
+  broadcastContent();
+}
+
 function nextBibleSlide() {
   const b = globalState.bible;
   if (b.slides.length === 0) return;
+  if (b.cue !== -1) {
+    showBibleSlide(b.cue);
+    return;
+  }
   if (b.armed || b.slideIndex === -1) {
     showBibleSlide(Math.max(0, b.slideIndex));
   } else if (b.slideIndex + 1 < b.slides.length) {
@@ -527,12 +727,13 @@ function prevBibleSlide() {
 
 function toggleBible() {
   const b = globalState.bible;
-  if (b.slideIndex === -1) return;
-  if (b.isCleared) {
-    showBibleSlide(b.slideIndex);
-  } else {
+  if (b.cue !== -1) {
+    showBibleSlide(b.cue);
+  } else if (!b.isCleared) {
     hideBible();
     broadcastContent();
+  } else if (b.slideIndex !== -1) {
+    showBibleSlide(b.slideIndex);
   }
 }
 
@@ -576,14 +777,43 @@ function cleanZoom(zoom) {
 const zoomKey = (folder, name) => `${folder}/${name}`;
 const savedZooms = () => db.getSetting('mediaZooms', {});
 
-// Zooms preparados da pasta aberta (guardados no banco: valem para o culto inteiro)
-function zoomsFor(folder) {
-  const all = savedZooms();
+// Ajustes preparados da pasta aberta (zoom, início do vídeo), guardados no banco por "pasta/arquivo"
+function settingsFor(key, folder) {
+  const all = db.getSetting(key, {});
   const result = {};
-  Object.keys(all).forEach(key => {
-    if (key.startsWith(`${folder}/`)) result[key.slice(folder.length + 1)] = all[key];
+  Object.keys(all).forEach(k => {
+    if (k.startsWith(`${folder}/`)) result[k.slice(folder.length + 1)] = all[k];
   });
   return result;
+}
+const zoomsFor = (folder) => settingsFor('mediaZooms', folder);
+
+// O que o painel e o overlay precisam de cada item
+const mediaItemsFor = (folder) => media.listItems(folder).map(({ name, type, url, videoId, title, thumb }) => ({ name, type, url, videoId, title, thumb }));
+
+// Ponto de início de um vídeo (0 = do começo)
+function setMediaStart({ name, start }) {
+  const m = globalState.media;
+  if (!m.folder || !name) return;
+  const seconds = Math.max(0, Math.round((Number(start) || 0) * 10) / 10);
+  const all = db.getSetting('mediaStarts', {});
+  if (seconds > 0) {
+    all[zoomKey(m.folder, name)] = seconds;
+    m.starts[name] = seconds;
+  } else {
+    delete all[zoomKey(m.folder, name)];
+    delete m.starts[name];
+  }
+  db.setSetting('mediaStarts', all);
+  broadcastContent();
+}
+
+// Nova ordem da pasta aberta (o operador arrastou as mídias)
+function setMediaOrder(names) {
+  const m = globalState.media;
+  if (!m.folder) return;
+  media.setOrder(m.folder, names);
+  refreshMediaItems(m.folder);
 }
 
 // Ajusta o zoom de um arquivo. Se ele estiver no ar, o OBS aproxima na hora (com movimento suave).
@@ -609,7 +839,8 @@ function openMediaFolder(folder) {
   const m = globalState.media;
   m.folder = folder || null;
   m.zooms = folder ? zoomsFor(folder) : {};
-  m.items = folder ? media.listItems(folder).map(({ name, type, url }) => ({ name, type, url })) : [];
+  m.starts = folder ? settingsFor('mediaStarts', folder) : {};
+  m.items = folder ? mediaItemsFor(folder) : [];
   m.index = -1;
   m.isCleared = true;
   m.armed = false;
@@ -621,7 +852,7 @@ function refreshMediaItems(folder) {
   const m = globalState.media;
   if (m.folder !== folder) return;
   const current = m.items[m.index];
-  m.items = media.listItems(folder).map(({ name, type, url }) => ({ name, type, url }));
+  m.items = mediaItemsFor(folder);
   if (current) {
     const index = m.items.findIndex(i => i.name === current.name);
     if (index === -1) {
@@ -642,11 +873,12 @@ function showMediaItem(index) {
   m.armed = false;
   // Entra com o zoom que foi preparado para ele (ou sem zoom)
   m.zoom = m.zooms[m.items[index].name] || NO_ZOOM;
-  // Cada vez que vai ao ar o vídeo começa do início e tocando
-  m.playback = { ...m.playback, playing: true, token: m.playback.token + 1 };
+  // Cada vez que vai ao ar o vídeo começa tocando, do ponto de início preparado (ou do começo)
+  m.playback = { ...m.playback, playing: true, token: m.playback.token + 1, start: m.starts[m.items[index].name] || 0 };
   hideMessage();
   hideHymn();
   hideBible();
+  hidePrayer();
   globalState.activeLayer = 'media';
   broadcastContent();
 }
@@ -688,6 +920,7 @@ function controlMedia({ action, value }) {
   if (action === 'play') p.playing = true;
   else if (action === 'pause') p.playing = false;
   else if (action === 'restart') { p.playing = true; p.token++; }
+  else if (action === 'seek') p.seek = { time: Math.max(0, Number(value) || 0), id: (p.seek ? p.seek.id : 0) + 1 };
   else if (action === 'mute') p.muted = !!value;
   else if (action === 'volume') p.volume = Math.min(1, Math.max(0, Number(value) || 0));
   else if (action === 'loop') p.loop = !!value;
@@ -724,19 +957,23 @@ function hideLowerThird(broadcastNow = true) {
   if (broadcastNow) broadcastContent();
 }
 
-function showLowerThird({ name, subtitle }) {
+function showLowerThird({ name, subtitle, kind }) {
   const cleanName = String(name || '').trim();
   if (!cleanName) return;
   clearTimeout(lowerThirdTimer);
+  // Os dois ficam embaixo: o nome do pregador tira o anúncio da leitura
+  hideReading(false);
   globalState.lowerThird = {
     visible: true,
     name: cleanName,
     subtitle: String(subtitle || '').trim(),
+    kind: kind === 'special' ? 'special' : 'preacher',
     token: globalState.lowerThird.token + 1
   };
   broadcastContent();
-  // Some sozinho depois de alguns segundos (se configurado)
-  const seconds = Number(globalState.lowerThirdStyles.autoHide) || 0;
+  // Some sozinho depois de alguns segundos (se configurado; cada um tem o seu tempo)
+  const styles = globalState.lowerThird.kind === 'special' ? globalState.specialStyles : globalState.lowerThirdStyles;
+  const seconds = Number(styles.autoHide) || 0;
   if (seconds > 0) lowerThirdTimer = setTimeout(() => hideLowerThird(), seconds * 1000);
 }
 
@@ -752,6 +989,193 @@ function updateLowerThirdStyles(partial) {
   broadcast('update-lt-style', globalState.lowerThirdStyles);
   clearTimeout(saveLtStylesTimer);
   saveLtStylesTimer = setTimeout(() => db.setSetting('styles.lowerThird', globalState.lowerThirdStyles), 400);
+}
+
+let saveSpecialStylesTimer = null;
+function updateSpecialStyles(partial) {
+  globalState.specialStyles = { ...globalState.specialStyles, ...partial };
+  broadcast('update-special-style', globalState.specialStyles);
+  clearTimeout(saveSpecialStylesTimer);
+  saveSpecialStylesTimer = setTimeout(() => db.setSetting('styles.special', globalState.specialStyles), 400);
+}
+
+function setServiceReading(text) {
+  globalState.serviceReading = String(text || '').trim().slice(0, 80);
+  db.setSetting('serviceReading', globalState.serviceReading);
+  if (!globalState.serviceReading) hideReading(false);
+  broadcastContent();
+}
+
+// ---------- Anúncio da leitura bíblica ----------
+
+let readingTimer = null;
+
+function hideReading(broadcastNow = true) {
+  clearTimeout(readingTimer);
+  globalState.readingAnnounce.visible = false;
+  if (broadcastNow) broadcastContent();
+}
+
+// Da aba Bíblia vem a passagem escolhida (vira também a leitura do culto, embaixo do nome do pregador)
+function showReading(text) {
+  if (text !== undefined && String(text).trim()) {
+    globalState.serviceReading = String(text).trim().slice(0, 80);
+    db.setSetting('serviceReading', globalState.serviceReading);
+  }
+  if (!globalState.serviceReading) return;
+  clearTimeout(readingTimer);
+  hideLowerThird(false);
+  globalState.readingAnnounce = { visible: true, token: globalState.readingAnnounce.token + 1 };
+  broadcastContent();
+  const seconds = Number(globalState.readingStyles.autoHide) || 0;
+  if (seconds > 0) readingTimer = setTimeout(() => hideReading(), seconds * 1000);
+}
+
+let saveReadingStylesTimer = null;
+function updateReadingStyles(partial) {
+  if (partial.label !== undefined) partial = { ...partial, label: String(partial.label || '').slice(0, 40) };
+  globalState.readingStyles = { ...globalState.readingStyles, ...partial };
+  broadcast('update-reading-style', globalState.readingStyles);
+  clearTimeout(saveReadingStylesTimer);
+  saveReadingStylesTimer = setTimeout(() => db.setSetting('styles.reading', globalState.readingStyles), 400);
+}
+
+// ---------- Agendamentos (sons, vídeos e playlists) ----------
+
+let soundToken = 0;
+let soundRun = null; // { items, index, label, playlist, transition, transitionTime, volume }
+
+// Toca um arquivo ou uma playlist: um item atrás do outro; quem avisa o fim de cada um é o overlay
+// do OBS ou a janela do programa ("sound-ended"), e o servidor passa para o próximo.
+function playSound({ name, playlist, volume, label }) {
+  const master = Math.min(1, Math.max(0, Number(volume ?? 1)));
+  if (playlist) {
+    const list = globalState.soundPlaylists.find(p => p.id === playlist);
+    if (!list || list.items.length === 0) return;
+    soundRun = { items: list.items, index: 0, label: String(label || list.name), playlist: list.name, transition: list.transition, transitionTime: list.transitionTime, volume: master };
+  } else {
+    if (!name) return;
+    soundRun = { items: [{ name, volume: 1 }], index: 0, label: label ? String(label) : null, playlist: null, transition: 'fade', transitionTime: 0.6, volume: master };
+  }
+  playRunItem();
+}
+
+function playRunItem() {
+  const files = sounds.listSounds();
+  // Arquivo apagado no meio da playlist: pula
+  while (soundRun && soundRun.index < soundRun.items.length && !files.some(f => f.name === soundRun.items[soundRun.index].name)) soundRun.index++;
+  if (!soundRun || soundRun.index >= soundRun.items.length) {
+    stopSoundRun(true);
+    return;
+  }
+  const item = soundRun.items[soundRun.index];
+  const file = files.find(f => f.name === item.name);
+  const title = file.name.replace(/\.[^.]+$/, '');
+  const now = {
+    id: ++soundToken,
+    kind: file.kind,
+    name: file.name,
+    url: file.url,
+    image: file.image,
+    label: soundRun.playlist ? title : (soundRun.label || title),
+    volume: Math.min(1, Math.max(0, item.volume * soundRun.volume)),
+    output: globalState.soundOutput,
+    transition: soundRun.transition,
+    transitionTime: soundRun.transitionTime,
+    startedAt: Date.now(),
+    playlist: soundRun.playlist ? { name: soundRun.label, index: soundRun.index, total: soundRun.items.length } : null
+  };
+  globalState.soundNow = now;
+  broadcast('sound-play', now);
+  broadcastContent();
+}
+
+// Acabou o item `id` (ou "pular"): vai para o próximo da playlist
+function soundFinished(id) {
+  const now = globalState.soundNow;
+  if (!now || (id !== undefined && now.id !== id)) return;
+  broadcast('sound-ended', { id: now.id });
+  if (soundRun) soundRun.index++;
+  playRunItem();
+}
+
+function stopSoundRun(notify = true) {
+  const now = globalState.soundNow;
+  soundRun = null;
+  globalState.soundNow = null;
+  if (now) broadcast('sound-ended', { id: now.id });
+  broadcast('sound-stop', {});
+  if (notify) broadcastContent();
+}
+
+function setSoundOutput(output) {
+  globalState.soundOutput = output === 'obs' ? 'obs' : 'app';
+  db.setSetting('soundOutput', globalState.soundOutput);
+  stopSoundRun();
+}
+
+function setSoundSchedules(items) {
+  globalState.soundSchedules = sounds.saveSchedules(items);
+  broadcastContent();
+}
+
+function setSoundPlaylists(items) {
+  globalState.soundPlaylists = sounds.savePlaylists(items);
+  // Playlist apagada leva os agendamentos dela
+  const ids = new Set(globalState.soundPlaylists.map(p => p.id));
+  const left = globalState.soundSchedules.filter(s => !s.playlist || ids.has(s.playlist));
+  if (left.length !== globalState.soundSchedules.length) globalState.soundSchedules = sounds.saveSchedules(left);
+  broadcastContent();
+}
+
+sounds.startScheduler({
+  getSchedules: () => globalState.soundSchedules,
+  onFire: (s) => {
+    const list = s.playlist && globalState.soundPlaylists.find(p => p.id === s.playlist);
+    console.log(`Agendamento: ${s.label || (list ? list.name : s.name)} (${s.time})`);
+    playSound({ name: s.name, playlist: s.playlist, volume: s.volume, label: s.label || (list ? list.name : null) });
+  },
+  onChange: (list) => {
+    globalState.soundSchedules = list;
+    broadcastContent();
+  }
+});
+
+// ---------- Pedidos de oração ----------
+
+function setPrayer({ title, names }) {
+  const p = globalState.prayer;
+  if (title !== undefined) p.title = String(title || '').trim().slice(0, 40);
+  if (names !== undefined) {
+    p.names = (Array.isArray(names) ? names : [])
+      .map(n => String(n || '').replace(/\s+/g, ' ').trim().slice(0, 60))
+      .filter(Boolean)
+      .slice(0, 40);
+  }
+  db.setSetting('prayer', { title: p.title, names: p.names });
+  broadcastContent();
+}
+
+// Tela cheia: tira o que estiver no ar (o nome do pregador pode continuar)
+function showPrayer(visible) {
+  const p = globalState.prayer;
+  if (visible && p.names.length === 0) return;
+  if (visible) {
+    hideMessage();
+    hideHymn();
+    hideBible();
+    hideMedia();
+  }
+  p.visible = !!visible;
+  broadcastContent();
+}
+
+let savePrayerStylesTimer = null;
+function updatePrayerStyles(partial) {
+  globalState.prayerStyles = { ...globalState.prayerStyles, ...partial };
+  broadcast('update-prayer-style', globalState.prayerStyles);
+  clearTimeout(savePrayerStylesTimer);
+  savePrayerStylesTimer = setTimeout(() => db.setSetting('styles.prayer', globalState.prayerStyles), 400);
 }
 
 // Passador/teclado: o painel diz a aba (mode); o R400 com o app minimizado usa a última camada no ar
@@ -833,6 +1257,11 @@ wss.on('connection', (ws, req) => {
         onMediaProgress(payload);
         return;
       }
+      // Fim do som que tocou no OBS (o painel volta para "Nada tocando")
+      if (data.type === 'sound-ended') {
+        soundFinished(Number(payload.id));
+        return;
+      }
       if (!ws.canControl) return;
 
       switch (data.type) {
@@ -849,6 +1278,9 @@ wss.on('connection', (ws, req) => {
         case 'arm-paragraph':
           armParagraphOnServer(payload.index);
           break;
+        case 'cue-paragraph':
+          cueParagraphOnServer(payload.index);
+          break;
         case 'next':
           next(payload.mode);
           break;
@@ -864,6 +1296,12 @@ wss.on('connection', (ws, req) => {
         case 'hymn-show':
           showHymnSlide(payload.index);
           break;
+        case 'hymn-cue':
+          cueHymnSlide(payload.index);
+          break;
+        case 'hymn-playlist':
+          setHymnPlaylist(payload.items);
+          break;
         case 'update-hymn-styles':
           updateHymnStyles(payload);
           break;
@@ -875,6 +1313,9 @@ wss.on('connection', (ws, req) => {
           break;
         case 'bible-show':
           showBibleSlide(payload.index);
+          break;
+        case 'bible-cue':
+          cueBibleSlide(payload.index);
           break;
         case 'update-bible-styles':
           updateBibleStyles(payload);
@@ -897,6 +1338,12 @@ wss.on('connection', (ws, req) => {
         case 'media-zoom':
           setMediaZoom(payload);
           break;
+        case 'media-start':
+          setMediaStart(payload);
+          break;
+        case 'media-order':
+          setMediaOrder(payload.names);
+          break;
         case 'update-media-styles':
           updateMediaStyles(payload);
           break;
@@ -917,6 +1364,60 @@ wss.on('connection', (ws, req) => {
           break;
         case 'reset-lt-styles':
           updateLowerThirdStyles(DEFAULT_LT_STYLES);
+          break;
+        case 'update-special-styles':
+          updateSpecialStyles(payload);
+          break;
+        case 'reset-special-styles':
+          updateSpecialStyles(DEFAULT_SPECIAL_STYLES);
+          break;
+        case 'service-reading':
+          setServiceReading(payload.text);
+          break;
+        case 'reading-show':
+          showReading(payload.text);
+          break;
+        case 'reading-hide':
+          hideReading();
+          break;
+        case 'update-reading-styles':
+          updateReadingStyles(payload);
+          break;
+        case 'reset-reading-styles':
+          updateReadingStyles(DEFAULT_READING_STYLES);
+          break;
+        case 'sound-schedules':
+          setSoundSchedules(payload.items);
+          break;
+        case 'sound-play':
+          playSound(payload);
+          break;
+        case 'sound-output':
+          setSoundOutput(payload.output);
+          break;
+        case 'sound-playlists':
+          setSoundPlaylists(payload.items);
+          break;
+        case 'sound-next':
+          soundFinished();
+          break;
+        case 'sound-stop':
+          stopSoundRun();
+          break;
+        case 'prayer-set':
+          setPrayer(payload);
+          break;
+        case 'prayer-show':
+          showPrayer(true);
+          break;
+        case 'prayer-hide':
+          showPrayer(false);
+          break;
+        case 'update-prayer-styles':
+          updatePrayerStyles(payload);
+          break;
+        case 'reset-prayer-styles':
+          updatePrayerStyles(DEFAULT_PRAYER_STYLES);
           break;
         case 'clear-screen':
           clearScreenOnServer();
@@ -958,6 +1459,28 @@ app.get('/api/info', (req, res) => {
 });
 
 // API: Listar sermões disponíveis
+// Baixa todas as mensagens do site do Tabernáculo da Fé e troca as do app (o andamento vai pelo WebSocket)
+app.post('/api/sermons/import-site', (req, res) => {
+  if (tfSermons.isRunning()) return res.status(409).json({ error: 'A importação já está em andamento.' });
+  res.status(202).json({ started: true });
+  let last = 0;
+  tfSermons.importFromSite({
+    onProgress: (p) => {
+      // Não precisa avisar o painel a cada mensagem: no máximo umas 4 vezes por segundo
+      const now = Date.now();
+      if (now - last > 250 || p.done === p.total) {
+        last = now;
+        broadcast('site-import', { status: 'running', ...p });
+      }
+    }
+  }).then(result => {
+    broadcast('site-import', { status: 'done', result });
+    broadcast('library-changed', { sermons: result.imported, hymns: 0, backgrounds: 0 });
+  }).catch(err => {
+    broadcast('site-import', { status: 'error', message: err.message });
+  });
+});
+
 app.get('/api/sermons', (req, res) => {
   try {
     res.json(db.listSermons());
@@ -1055,6 +1578,12 @@ app.put('/api/hymns/:id', (req, res) => {
     const id = Number(req.params.id);
     if (!hymns.updateHymn(id, req.body)) return res.status(404).json({ error: 'Hino não encontrado' });
     if (globalState.hymn.id === id) refreshActiveHymn();
+    // Título ou número mudou: a lista do culto mostra o novo
+    const listed = globalState.hymnPlaylist.find(h => h.id === id);
+    if (listed) {
+      const hymn = hymns.getHymn(id);
+      setHymnPlaylist(globalState.hymnPlaylist.map(h => (h.id === id ? { ...h, number: hymn.number, title: hymn.title, collection: hymn.collection } : h)));
+    }
     res.json({ success: true, id });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -1064,10 +1593,9 @@ app.put('/api/hymns/:id', (req, res) => {
 app.delete('/api/hymns/:id', (req, res) => {
   const id = Number(req.params.id);
   if (!hymns.deleteHymn(id)) return res.status(404).json({ error: 'Hino não encontrado' });
-  if (globalState.hymn.id === id) {
-    setHymnState(null);
-    broadcastContent();
-  }
+  if (globalState.hymn.id === id) setHymnState(null);
+  if (globalState.hymnPlaylist.some(h => h.id === id)) setHymnPlaylist(globalState.hymnPlaylist.filter(h => h.id !== id));
+  else broadcastContent();
   res.json({ success: true });
 });
 
@@ -1143,6 +1671,78 @@ app.post('/api/media/upload', async (req, res) => {
   try {
     const saved = await media.saveUpload(req, req.query.folder || media.todayFolder(), req.query.name);
     refreshMediaItems(req.query.folder || media.todayFolder());
+    res.json({ success: true, ...saved });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ---------- API de sons agendados ----------
+
+app.get('/api/sounds', (req, res) => {
+  res.json(sounds.listSounds());
+});
+
+app.post('/api/sounds/upload', async (req, res) => {
+  try {
+    const saved = await sounds.saveUpload(req, req.query.name);
+    res.json({ success: true, ...saved });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Imagem que aparece no OBS enquanto o som toca
+app.post('/api/sounds/:name/image', async (req, res) => {
+  try {
+    res.json({ success: true, ...(await sounds.saveImage(req, req.params.name, req.query.file)) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/sounds/:name/image', (req, res) => {
+  try {
+    sounds.removeImage(req.params.name);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Apagar o som também tira os agendamentos dele
+app.delete('/api/sounds/:name', (req, res) => {
+  try {
+    if (!sounds.removeSound(req.params.name)) return res.status(404).json({ error: 'Som não encontrado.' });
+    const left = globalState.soundSchedules.filter(s => s.name !== req.params.name);
+    if (left.length !== globalState.soundSchedules.length) setSoundSchedules(left);
+    // Sai também das playlists
+    const name = req.params.name;
+    if (globalState.soundPlaylists.some(p => p.items.some(it => it.name === name))) {
+      setSoundPlaylists(globalState.soundPlaylists.map(p => ({ ...p, items: p.items.filter(it => it.name !== name) })));
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Vídeo do YouTube pelo link (fica na pasta como um item, igual aos arquivos)
+app.post('/api/media/youtube', async (req, res) => {
+  try {
+    const folder = req.body.folder || media.todayFolder();
+    const saved = await media.addYoutube(folder, req.body.url);
+    if (saved.start && globalState.media.folder === folder) {
+      refreshMediaItems(folder);
+      setMediaStart({ name: saved.name, start: saved.start });
+    } else {
+      if (saved.start) {
+        const all = db.getSetting('mediaStarts', {});
+        all[zoomKey(folder, saved.name)] = saved.start;
+        db.setSetting('mediaStarts', all);
+      }
+      refreshMediaItems(folder);
+    }
     res.json({ success: true, ...saved });
   } catch (err) {
     res.status(400).json({ error: err.message });

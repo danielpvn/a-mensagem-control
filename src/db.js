@@ -148,7 +148,7 @@ const stmt = {
            r.paragraph_index AS progressIndex, r.paragraph_number AS progressNumber, r.updated_at AS progressAt
     FROM sermons s
     LEFT JOIN reading_progress r ON r.sermon_id = s.id
-    ORDER BY COALESCE(r.updated_at, s.created_at) DESC
+    ORDER BY COALESCE(r.updated_at, s.created_at) DESC, s.title COLLATE NOCASE, s.date
   `),
   getSermon: db.prepare('SELECT id, title, date FROM sermons WHERE id = ?'),
   getParagraphs: db.prepare('SELECT number, text FROM sermon_paragraphs WHERE sermon_id = ? ORDER BY position'),

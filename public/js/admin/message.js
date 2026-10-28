@@ -83,16 +83,9 @@ function renderSermonList() {
   });
 }
 
-async function chooseSermon(id) {
+// Abrir outra mensagem não mexe na tela: o parágrafo no ar continua até o Exibir
+function chooseSermon(id) {
   if (state && state.activeSermonId === id) return;
-  if (state && !state.isCleared) {
-    const ok = await confirmDialog({
-      title: 'Trocar de mensagem?',
-      text: 'O parágrafo que está no ar será retirado da tela.',
-      okLabel: 'Trocar'
-    });
-    if (!ok) return;
-  }
   ws.send('select-sermon', { id });
 }
 
@@ -176,7 +169,8 @@ function renderParagraphs() {
     row.type = 'button';
     row.className = 'p-row';
     row.dataset.index = p.index;
-    row.onclick = () => ws.send('show-paragraph', { index: p.index });
+    // Clicar só prepara; quem põe no ar é o Exibir (ou o Próximo)
+    row.onclick = () => ws.send('cue-paragraph', { index: p.index });
     if (p.index === bookmark) row.classList.add('bookmark');
 
     const num = document.createElement('span');
@@ -196,13 +190,15 @@ function renderParagraphs() {
 
 function highlightCurrentRow(scroll = true) {
   const current = state ? state.currentParagraphIndex : -1;
+  const cue = state ? state.cue ?? -1 : -1;
   el.list.querySelectorAll('.p-row').forEach(row => {
-    const isCurrent = Number(row.dataset.index) === current;
+    const index = Number(row.dataset.index);
+    const isCurrent = index === current;
     row.classList.toggle('live', isCurrent && !state.isCleared);
-    row.classList.toggle('armed', isCurrent && state.isCleared && state.armed);
+    row.classList.toggle('armed', (isCurrent && state.isCleared && state.armed) || index === cue);
     row.classList.toggle('held', isCurrent && state.isCleared && !state.armed);
   });
-  const row = el.list.querySelector(`.p-row[data-index="${current}"]`);
+  const row = el.list.querySelector(`.p-row[data-index="${cue !== -1 ? cue : current}"]`);
   if (row && scroll) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -237,24 +233,28 @@ function renderLiveState() {
   const hasSermon = !!sermon;
   const index = state ? state.currentParagraphIndex : -1;
   const total = hasSermon ? sermon.paragraphs.length : 0;
-  const isLive = !!state && !state.isCleared && index !== -1;
+  const cue = state ? state.cue ?? -1 : -1;
+  const onAir = !!state && !state.isCleared;  // alguma parte da Mensagem na tela (pode ser de outra mensagem)
   const isArmed = !!state && state.armed && index !== -1;
+  // Com algo preparado, o botão põe no ar; sem, alterna o que está na tela
+  const willHide = onAir && cue === -1;
 
   el.btnPrev.disabled = !hasSermon || index <= 0;
-  el.btnNext.disabled = !hasSermon || (!isArmed && index >= total - 1);
-  el.btnToggle.disabled = !hasSermon || index === -1;
-  el.btnToggleLabel.textContent = isLive ? 'Ocultar' : 'Exibir';
-  el.btnToggle.classList.toggle('is-live', isLive);
+  el.btnNext.disabled = !hasSermon || (cue === -1 && !isArmed && index >= total - 1);
+  el.btnToggle.disabled = !onAir && cue === -1 && (!hasSermon || index === -1);
+  el.btnToggleLabel.textContent = willHide ? 'Ocultar' : 'Exibir';
+  el.btnToggle.classList.toggle('is-live', willHide);
 
   // O que vem a seguir, para o operador se antecipar
   let next = null;
-  if (hasSermon) next = isArmed ? sermon.paragraphs[index] : sermon.paragraphs[index + 1];
+  if (hasSermon) next = cue !== -1 ? sermon.paragraphs[cue] : isArmed ? sermon.paragraphs[index] : sermon.paragraphs[index + 1];
   el.nextLabel.textContent = next ? `Próximo · § ${next.number}` : 'Próximo';
   el.nextText.textContent = next ? next.text : (hasSermon && index >= total - 1 ? 'Fim da mensagem.' : '—');
 }
 
 function onServerState(newState) {
   const previousIndex = state ? state.currentParagraphIndex : -1;
+  const previousCue = state ? state.cue ?? -1 : -1;
   state = newState;
 
   if (state.activeSermonId && (!sermon || sermon.id !== state.activeSermonId) && loadingId !== state.activeSermonId) {
@@ -280,7 +280,7 @@ function onServerState(newState) {
     renderSermonList();
   }
   if (sermon) {
-    highlightCurrentRow(state.currentParagraphIndex !== previousIndex);
+    highlightCurrentRow(state.currentParagraphIndex !== previousIndex || (state.cue ?? -1) !== previousCue);
     renderResumeBanner();
   }
   renderLiveState();
@@ -303,7 +303,7 @@ export const messageControls = {
 function goToFirstMatch() {
   const rows = sermon ? filteredParagraphs() : [];
   if (rows.length === 0) return;
-  ws.send('show-paragraph', { index: rows[0].index });
+  ws.send('cue-paragraph', { index: rows[0].index });
   paragraphQuery = '';
   el.paragraphSearch.value = '';
   renderParagraphs();
