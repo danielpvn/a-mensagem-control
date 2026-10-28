@@ -7,7 +7,7 @@
   <link rel="icon" href="assets/favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="assets/favicon.png">
   <link rel="stylesheet" href="fonts.css">
-  <link rel="stylesheet" href="admin.css?v=2.1.12">
+  <link rel="stylesheet" href="admin.css?v=2.1.13">
 </head>
 <body>
   <div class="app">
@@ -17,7 +17,7 @@
         <img src="assets/logo.svg" alt="" class="brand-logo">
         <div class="brand-text">
           <strong>A MENSAGEM</strong>
-          <span>CONTROL <em id="app-version" class="version-tag">v2.1.0-beta.5</em></span>
+          <span>CONTROL <em id="app-version" class="version-tag">v2.1.0-beta.6</em></span>
         </div>
       </div>
 
@@ -43,8 +43,8 @@
           Culto
         </button>
         <button class="tab" role="tab" data-tab="sons">
-          <svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-          Sons
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M12 14v3l2 1"/></svg>
+          Agendamentos
         </button>
         <button class="tab" role="tab" data-tab="config">
           <svg viewBox="0 0 24 24"><path d="M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.6a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.6a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -1174,104 +1174,157 @@
       </section>
 
       <!-- ============ ABA CONFIGURAÇÕES ============ -->
-      <!-- ============ ABA SONS (agendados) ============ -->
+      <!-- ============ ABA AGENDAMENTOS (sons, vídeos e playlists) ============ -->
       <section class="panel" data-panel="sons">
         <div class="workspace">
-          <!-- Sons enviados -->
+          <!-- Arquivos enviados -->
           <aside class="card library sounds-library">
             <div class="card-head">
-              <h2>Sons</h2>
+              <h2>Arquivos</h2>
             </div>
             <label class="dropzone dropzone-small" id="sound-dropzone">
-              <input type="file" id="sound-files" accept="audio/*,.mp3,.wav,.ogg,.m4a" multiple>
+              <input type="file" id="sound-files" accept="audio/*,video/mp4,video/webm,video/quicktime,.mp3,.wav,.ogg,.m4a,.mp4,.webm,.mov,.m4v" multiple>
               <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-              <strong>Enviar sons</strong>
-              <span class="muted small">.mp3, .wav, .ogg ou .m4a (sino, hino, aviso...)</span>
+              <strong>Enviar sons ou vídeos</strong>
+              <span class="muted small">.mp3, .wav, .m4a, .mp4, .webm ou .mov</span>
             </label>
             <div id="sound-uploads" class="uploads"></div>
             <div id="sound-list" class="sound-list"></div>
-            <p class="muted small sound-image-hint">Clique no quadrinho <b>ao lado do som</b> para escolher uma imagem: ela aparece no OBS enquanto o som toca e sai quando ele acaba.</p>
+            <p class="muted small sound-image-hint">Clique no quadrinho <b>ao lado do som</b> para escolher uma imagem: ela aparece no OBS enquanto o som toca. Os vídeos aparecem no OBS sozinhos.</p>
           </aside>
 
-          <!-- Agendamentos -->
+          <!-- Agendamentos e playlists -->
           <section class="center">
             <div class="card reader schedules-card">
-              <div class="reader-head">
-                <div class="reader-title-wrap">
-                  <h2 id="schedule-form-title">Novo agendamento</h2>
-                  <p class="muted">O som toca sozinho na hora marcada, neste computador (onde o programa está aberto).</p>
-                </div>
+              <div class="segmented sched-views" role="radiogroup" aria-label="Mostrar">
+                <label><input type="radio" name="sched-view" value="schedules" checked><span>Agendamentos</span></label>
+                <label><input type="radio" name="sched-view" value="playlists"><span>Playlists</span></label>
               </div>
-              <form id="schedule-form" class="schedule-form">
-                <div class="schedule-grid">
-                  <div class="field">
-                    <label for="sch-sound">Som</label>
-                    <select id="sch-sound" required></select>
+
+              <div id="sched-view-schedules" class="sched-view">
+                <div class="reader-head">
+                  <div class="reader-title-wrap">
+                    <h2 id="schedule-form-title">Novo agendamento</h2>
+                    <p class="muted">Na hora marcada o som, o vídeo ou a playlist começa sozinho.</p>
+                  </div>
+                </div>
+                <form id="schedule-form" class="schedule-form">
+                  <div class="schedule-grid">
+                    <div class="field">
+                      <label for="sch-sound">O que tocar</label>
+                      <select id="sch-sound" required></select>
+                    </div>
+                    <div class="field">
+                      <label for="sch-hour">Horário</label>
+                      <input type="hidden" id="sch-time" value="19:00">
+                      <div class="time-pick" id="sch-time-pick" title="Clique nas setas, role a rodinha do mouse ou digite">
+                        <div class="time-part">
+                          <button type="button" class="time-step" data-part="h" data-step="1" aria-label="Mais uma hora"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
+                          <input type="text" id="sch-hour" inputmode="numeric" maxlength="2" value="19" aria-label="Hora" autocomplete="off">
+                          <button type="button" class="time-step" data-part="h" data-step="-1" aria-label="Menos uma hora"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+                        </div>
+                        <span class="time-colon">:</span>
+                        <div class="time-part">
+                          <button type="button" class="time-step" data-part="m" data-step="5" aria-label="Mais 5 minutos"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
+                          <input type="text" id="sch-minute" inputmode="numeric" maxlength="2" value="00" aria-label="Minutos" autocomplete="off">
+                          <button type="button" class="time-step" data-part="m" data-step="-5" aria-label="Menos 5 minutos"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label for="sch-label">Nome (opcional)</label>
+                      <input type="text" id="sch-label" maxlength="60" placeholder="Ex: Sino 30 minutos antes" autocomplete="off">
+                    </div>
+                    <div class="field">
+                      <label for="sch-mode">Repetir</label>
+                      <select id="sch-mode">
+                        <option value="weekly">Em dias da semana</option>
+                        <option value="daily">Todos os dias</option>
+                        <option value="once">Só uma vez</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="field" id="sch-days-field">
+                    <label>Dias</label>
+                    <div class="day-chips" id="sch-days">
+                      <label><input type="checkbox" value="0" checked><span>Dom</span></label>
+                      <label><input type="checkbox" value="1"><span>Seg</span></label>
+                      <label><input type="checkbox" value="2"><span>Ter</span></label>
+                      <label><input type="checkbox" value="3"><span>Qua</span></label>
+                      <label><input type="checkbox" value="4"><span>Qui</span></label>
+                      <label><input type="checkbox" value="5"><span>Sex</span></label>
+                      <label><input type="checkbox" value="6"><span>Sáb</span></label>
+                    </div>
+                  </div>
+                  <div class="field" id="sch-date-field" hidden>
+                    <label for="sch-date">Dia</label>
+                    <input type="date" id="sch-date" class="date-input">
                   </div>
                   <div class="field">
-                    <label for="sch-hour">Horário</label>
-                    <input type="hidden" id="sch-time" value="19:00">
-                    <div class="time-pick" id="sch-time-pick" title="Clique nas setas, role a rodinha do mouse ou digite">
-                      <div class="time-part">
-                        <button type="button" class="time-step" data-part="h" data-step="1" aria-label="Mais uma hora"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
-                        <input type="text" id="sch-hour" inputmode="numeric" maxlength="2" value="19" aria-label="Hora" autocomplete="off">
-                        <button type="button" class="time-step" data-part="h" data-step="-1" aria-label="Menos uma hora"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
-                      </div>
-                      <span class="time-colon">:</span>
-                      <div class="time-part">
-                        <button type="button" class="time-step" data-part="m" data-step="5" aria-label="Mais 5 minutos"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
-                        <input type="text" id="sch-minute" inputmode="numeric" maxlength="2" value="00" aria-label="Minutos" autocomplete="off">
-                        <button type="button" class="time-step" data-part="m" data-step="-5" aria-label="Menos 5 minutos"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
-                      </div>
+                    <div class="field-row"><label for="sch-volume">Volume</label><output id="sch-volume-val">100%</output></div>
+                    <input type="range" id="sch-volume" min="0" max="100" step="5" value="100">
+                  </div>
+                  <div class="modal-actions">
+                    <button type="button" id="btn-sch-cancel" class="btn btn-text btn-sm" hidden>Cancelar edição</button>
+                    <button type="submit" id="btn-sch-save" class="btn btn-primary">Adicionar agendamento</button>
+                  </div>
+                </form>
+                <div class="schedule-list-head">
+                  <h3>Agendamentos</h3>
+                  <span id="schedule-count" class="muted small"></span>
+                </div>
+                <div id="schedule-list" class="schedule-list"></div>
+              </div>
+
+              <div id="sched-view-playlists" class="sched-view" hidden>
+                <div class="reader-head">
+                  <div class="reader-title-wrap">
+                    <h2>Playlists</h2>
+                    <p class="muted">Vários itens tocando um atrás do outro (ex.: vídeo, sino com imagem, outro vídeo). Depois é só agendar a playlist.</p>
+                  </div>
+                  <button type="button" id="btn-pl-new" class="btn btn-primary btn-sm">+ Nova playlist</button>
+                </div>
+                <form id="pl-editor" class="schedule-form pl-editor" hidden>
+                  <div class="schedule-grid">
+                    <div class="field">
+                      <label for="pl-name">Nome da playlist</label>
+                      <input type="text" id="pl-name" maxlength="60" placeholder="Ex: Antes do culto" autocomplete="off">
+                    </div>
+                    <div class="field">
+                      <label for="pl-transition">Transição</label>
+                      <select id="pl-transition">
+                        <option value="fade">Esmaecer</option>
+                        <option value="black">Passar pelo preto</option>
+                        <option value="slide">Deslizar</option>
+                        <option value="zoom">Aproximar</option>
+                        <option value="none">Corte seco (sem transição)</option>
+                      </select>
+                    </div>
+                    <div class="field" id="pl-time-field">
+                      <div class="field-row"><label for="pl-time">Tempo da transição</label><output id="pl-time-val">1,0 s</output></div>
+                      <input type="range" id="pl-time" min="0.2" max="5" step="0.1" value="1">
                     </div>
                   </div>
                   <div class="field">
-                    <label for="sch-label">Nome (opcional)</label>
-                    <input type="text" id="sch-label" maxlength="60" placeholder="Ex: Sino 30 minutos antes" autocomplete="off">
+                    <div class="field-row"><label>Itens (arraste para mudar a ordem)</label><span id="pl-count" class="muted small"></span></div>
+                    <div id="pl-items" class="pl-items"></div>
+                    <div class="pl-add">
+                      <select id="pl-add-select" aria-label="Arquivo para colocar na playlist"></select>
+                      <button type="button" id="btn-pl-add" class="btn btn-secondary btn-sm">+ Colocar</button>
+                    </div>
+                    <p class="muted small">Também dá para clicar no <b>+</b> ao lado de cada arquivo, na lista da esquerda.</p>
                   </div>
-                  <div class="field">
-                    <label for="sch-mode">Repetir</label>
-                    <select id="sch-mode">
-                      <option value="weekly">Em dias da semana</option>
-                      <option value="daily">Todos os dias</option>
-                      <option value="once">Só uma vez</option>
-                    </select>
+                  <div class="modal-actions">
+                    <button type="button" id="btn-pl-cancel" class="btn btn-text btn-sm">Cancelar</button>
+                    <button type="submit" id="btn-pl-save" class="btn btn-primary">Salvar playlist</button>
                   </div>
-                </div>
-                <div class="field" id="sch-days-field">
-                  <label>Dias</label>
-                  <div class="day-chips" id="sch-days">
-                    <label><input type="checkbox" value="0" checked><span>Dom</span></label>
-                    <label><input type="checkbox" value="1"><span>Seg</span></label>
-                    <label><input type="checkbox" value="2"><span>Ter</span></label>
-                    <label><input type="checkbox" value="3"><span>Qua</span></label>
-                    <label><input type="checkbox" value="4"><span>Qui</span></label>
-                    <label><input type="checkbox" value="5"><span>Sex</span></label>
-                    <label><input type="checkbox" value="6"><span>Sáb</span></label>
-                  </div>
-                </div>
-                <div class="field" id="sch-date-field" hidden>
-                  <label for="sch-date">Dia</label>
-                  <input type="date" id="sch-date" class="date-input">
-                </div>
-                <div class="field">
-                  <div class="field-row"><label for="sch-volume">Volume</label><output id="sch-volume-val">100%</output></div>
-                  <input type="range" id="sch-volume" min="0" max="100" step="5" value="100">
-                </div>
-                <div class="modal-actions">
-                  <button type="button" id="btn-sch-cancel" class="btn btn-text btn-sm" hidden>Cancelar edição</button>
-                  <button type="submit" id="btn-sch-save" class="btn btn-primary">Adicionar agendamento</button>
-                </div>
-              </form>
-              <div class="schedule-list-head">
-                <h3>Agendamentos</h3>
-                <span id="schedule-count" class="muted small"></span>
+                </form>
+                <div id="pl-list" class="schedule-list"></div>
               </div>
-              <div id="schedule-list" class="schedule-list"></div>
             </div>
           </section>
 
-          <!-- Tocando agora e próximos toques -->
+          <!-- Tocando agora e próximos -->
           <aside class="card appearance sounds-side">
             <div class="card-head">
               <h2>Agora</h2>
@@ -1286,10 +1339,14 @@
             <div class="now-playing" id="now-playing">
               <span class="muted small">Tocando agora</span>
               <strong id="now-playing-name">Nada tocando</strong>
-              <button type="button" id="btn-sound-stop" class="btn btn-danger btn-sm" disabled>Parar o som</button>
+              <span class="muted small" id="now-playing-list" hidden></span>
+              <div class="now-playing-actions">
+                <button type="button" id="btn-sound-next" class="btn btn-secondary btn-sm" hidden>Pular para o próximo</button>
+                <button type="button" id="btn-sound-stop" class="btn btn-danger btn-sm" disabled>Parar</button>
+              </div>
             </div>
             <div class="field">
-              <label>Próximos toques</label>
+              <label>Próximos</label>
               <div id="upcoming-list" class="upcoming-list"></div>
             </div>
             <p class="muted small" id="sound-device-note"></p>
@@ -1410,7 +1467,7 @@
 
           <div class="card">
             <h2>Sobre</h2>
-            <p class="muted">A Mensagem Control <strong id="about-version">v2.1.0-beta.5</strong></p>
+            <p class="muted">A Mensagem Control <strong id="about-version">v2.1.0-beta.6</strong></p>
             <p class="muted small">Feito para as equipes de mídia das igrejas do Tabernáculo da Fé.</p>
             <button id="btn-check-update" class="btn btn-secondary btn-sm">Verificar atualizações</button>
             <p id="update-status" class="muted small"></p>
@@ -1554,6 +1611,6 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script type="module" src="js/admin/main.js?v=2.1.12"></script>
+  <script type="module" src="js/admin/main.js?v=2.1.13"></script>
 </body>
 </html>

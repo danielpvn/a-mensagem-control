@@ -1,7 +1,8 @@
-// Sons agendados (aba Sons): o sino antes do culto, um hino para começar, etc.
+// Aba Agendamentos: sons e vídeos que entram sozinhos na hora marcada (o sino antes do culto, um vídeo de aviso...).
 // Os arquivos ficam em Documentos/A Mensagem Control/data/sounds e são servidos em /sounds/.
 // Cada som pode ter uma imagem (data/sounds/_imagens/<som>.<ext>) que aparece no OBS enquanto ele toca.
-// Agendamentos: { id, name (arquivo), label, time "HH:MM", mode, date, days, volume, enabled }
+// Playlists: { id, name, items: [{ name, volume }], transition, transitionTime } tocam um item atrás do outro.
+// Agendamentos: { id, name (arquivo) ou playlist (id), label, time "HH:MM", mode, date, days, volume, enabled }
 //   mode 'once'   -> só no dia `date` ("2026-11-01"); depois de tocar, desliga sozinho
 //   mode 'daily'  -> todo dia
 //   mode 'weekly' -> nos dias da semana em `days` (0 = domingo ... 6 = sábado)
@@ -11,8 +12,9 @@ const crypto = require('crypto');
 const db = require('./db');
 
 const DIR = path.join(db.DATA_DIR, 'sounds');
-const AUDIO = /\.(mp3|wav|ogg|m4a|aac|flac|webm)$/i;
-const MAX_BYTES = 200 * 1024 * 1024; // 200 MB por som
+const AUDIO = /\.(mp3|wav|ogg|m4a|aac|flac)$/i;
+const VIDEO = /\.(mp4|webm|mov|m4v)$/i;
+const MAX_BYTES = 4 * 1024 * 1024 * 1024; // 4 GB por arquivo (vídeos)
 const IMG_DIR = path.join(DIR, '_imagens');
 const IMAGE = /\.(png|jpe?g|webp|gif)$/i;
 const MAX_IMAGE_BYTES = 30 * 1024 * 1024;
@@ -53,10 +55,11 @@ function imageUrl(name) {
 
 function listSounds() {
   return fs.readdirSync(DIR)
-    .filter(name => AUDIO.test(name))
+    .filter(name => AUDIO.test(name) || VIDEO.test(name))
     .map(name => {
       const stat = fs.statSync(path.join(DIR, name));
-      return { name, size: stat.size, url: `/sounds/${encodeURIComponent(name)}`, image: imageUrl(name), addedAt: stat.mtimeMs };
+      const kind = VIDEO.test(name) ? 'video' : 'audio';
+      return { name, kind, size: stat.size, url: `/sounds/${encodeURIComponent(name)}`, image: kind === 'audio' ? imageUrl(name) : null, addedAt: stat.mtimeMs };
     })
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 }
@@ -66,18 +69,19 @@ function saveUpload(req, name) {
   let target;
   try {
     const fileName = safe(name);
-    if (!AUDIO.test(fileName)) throw new Error('Envie um arquivo de som (.mp3, .wav, .ogg, .m4a).');
+    if (!AUDIO.test(fileName) && !VIDEO.test(fileName)) throw new Error('Envie um som (.mp3, .wav, .ogg, .m4a) ou um vídeo (.mp4, .webm, .mov).');
     target = path.join(DIR, freeName(fileName));
   } catch (err) {
     return Promise.reject(err);
   }
-  return streamTo(req, target, MAX_BYTES, '200 MB');
+  return streamTo(req, target, MAX_BYTES, '4 GB');
 }
 
 // Imagem do som (troca a anterior)
 async function saveImage(req, soundName, fileName) {
   const name = safe(soundName);
   if (!fs.existsSync(path.join(DIR, name))) throw new Error('Som não encontrado.');
+  if (!AUDIO.test(name)) throw new Error('Só os sons têm imagem (o vídeo já aparece no OBS).');
   const ext = path.extname(safe(fileName)).toLowerCase();
   if (!IMAGE.test(ext)) throw new Error('Envie uma imagem (.png, .jpg, .webp ou .gif).');
   const old = imageFiles(name);
@@ -146,9 +150,11 @@ function cleanSchedule(raw) {
   const days = Array.isArray(raw && raw.days)
     ? [...new Set(raw.days.map(Number).filter(d => Number.isInteger(d) && d >= 0 && d <= 6))].sort()
     : [];
+  const playlist = raw && raw.playlist ? String(raw.playlist).slice(0, 40) : null;
   return {
     id: String((raw && raw.id) || crypto.randomUUID()).slice(0, 40),
-    name: safe(raw && raw.name),
+    name: playlist ? null : safe(raw && raw.name),
+    playlist,
     label: String((raw && raw.label) || '').trim().slice(0, 60),
     time: TIME.test(raw && raw.time) ? raw.time : '19:00',
     mode,
@@ -170,6 +176,36 @@ function saveSchedules(list) {
     try { return cleanSchedule(s); } catch (e) { return null; }
   }).filter(Boolean);
   db.setSetting('soundSchedules', clean);
+  return clean;
+}
+
+// ---------- Playlists ----------
+
+const TRANSITIONS = ['none', 'fade', 'black', 'slide', 'zoom'];
+
+function cleanPlaylist(raw) {
+  const items = (Array.isArray(raw && raw.items) ? raw.items : []).slice(0, 100).map(it => {
+    try {
+      return { name: safe(it && it.name), volume: Math.min(1, Math.max(0, Number(it && it.volume !== undefined ? it.volume : 1) || 0)) };
+    } catch (e) { return null; }
+  }).filter(Boolean);
+  const time = Number(raw && raw.transitionTime);
+  return {
+    id: String((raw && raw.id) || crypto.randomUUID()).slice(0, 40),
+    name: String((raw && raw.name) || '').trim().slice(0, 60) || 'Playlist',
+    items,
+    transition: TRANSITIONS.includes(raw && raw.transition) ? raw.transition : 'fade',
+    transitionTime: Number.isFinite(time) ? Math.min(5, Math.max(0.2, time)) : 1
+  };
+}
+
+function loadPlaylists() {
+  return db.getSetting('soundPlaylists', []).map(cleanPlaylist);
+}
+
+function savePlaylists(list) {
+  const clean = (Array.isArray(list) ? list : []).slice(0, 50).map(cleanPlaylist);
+  db.setSetting('soundPlaylists', clean);
   return clean;
 }
 
@@ -210,4 +246,4 @@ function startScheduler({ getSchedules, onFire, onChange }) {
   return setInterval(tick, 5000);
 }
 
-module.exports = { DIR, listSounds, imageUrl, saveUpload, saveImage, removeImage, removeSound, loadSchedules, saveSchedules, startScheduler };
+module.exports = { DIR, TRANSITIONS, listSounds, loadPlaylists, savePlaylists, imageUrl, saveUpload, saveImage, removeImage, removeSound, loadSchedules, saveSchedules, startScheduler };

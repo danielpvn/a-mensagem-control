@@ -359,48 +359,169 @@ function sendProgress(payload) {
   socket.send(JSON.stringify({ type: 'media-progress', payload }));
 }
 
-// ---------- Sons agendados (quando o operador escolhe "No OBS") ----------
-let soundAudio = null;
+// ---------- Agendamentos (som, som com imagem e vídeo) ----------
+// `state.soundNow` diz o que está tocando. O OBS (sem ?preview) toca o arquivo, mudo quando o som sai
+// "Neste computador", só para saber quando acaba e avisar "sound-ended"; o servidor passa para o próximo.
+// A imagem/vídeo entra na outra gaveta e troca com a transição da playlist.
+const schedSlots = [...document.querySelectorAll('#sched-layer .sched-slot')];
+const schedBlack = document.getElementById('sched-black');
+let schedShown = null;   // { id, slot, item }
+let schedRequest = 0;
 
-function stopSound() {
-  if (!soundAudio) return;
-  soundAudio.onended = null;
-  soundAudio.onerror = null;
-  soundAudio.pause();
-  soundAudio.removeAttribute('src');
-  soundAudio.load();
-  soundAudio = null;
+function schedSendEnded(id) {
+  if (PREVIEW || !socket || socket.readyState !== WebSocket.OPEN) return;
+  socket.send(JSON.stringify({ type: 'sound-ended', payload: { id } }));
 }
 
-// Com "Neste computador" o OBS toca mudo só para saber quando o som acaba (e tirar a imagem dele)
-function playSound(p) {
-  stopSound();
-  if (PREVIEW || (p.output !== 'obs' && !p.image)) return;
-  const audio = new Audio(p.url);
-  soundAudio = audio;
-  audio.volume = p.volume;
-  audio.muted = p.output !== 'obs';
-  const done = () => {
-    if (soundAudio !== audio) return;
-    stopSound();
-    if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'sound-ended', payload: { id: p.id } }));
-  };
-  audio.onended = done;
-  audio.onerror = done;
-  audio.play().catch(done);
+function schedStopMedia(slot) {
+  const media = slot.media;
+  slot.media = null;
+  if (!media) return;
+  media.onended = null;
+  media.onerror = null;
+  media.pause();
+  media.removeAttribute('src');
+  media.load();
 }
 
-const soundImageLayer = document.getElementById('sound-image-layer');
-const soundImage = document.getElementById('sound-image');
+function schedClear(slot) {
+  schedStopMedia(slot);
+  clearTimeout(slot.clearTimer);
+  slot.getAnimations().forEach(a => a.cancel());
+  slot.innerHTML = '';
+  slot.style.opacity = '0';
+  slot.style.transform = '';
+}
 
-function updateSoundImage(state) {
-  const shown = state.soundImage;
-  if (shown && shown.url) {
-    if (soundImage.getAttribute('src') !== shown.url) soundImage.src = shown.url;
-    soundImageLayer.classList.remove('hidden');
-  } else {
-    soundImageLayer.classList.add('hidden');
+// Vai de `from` para `to`; o estado final fica no style (a animação só segura o começo durante o atraso)
+function tween(el, from, to, ms, delay = 0) {
+  el.getAnimations().forEach(a => a.cancel());
+  Object.assign(el.style, to);
+  if (ms > 0) el.animate([from, to], { duration: ms, delay, fill: 'backwards', easing: 'ease-in-out' });
+}
+
+function blackTo(opacity, ms, delay = 0) {
+  const current = getComputedStyle(schedBlack).opacity;
+  tween(schedBlack, { opacity: current }, { opacity: String(opacity) }, ms, delay);
+}
+
+// Troca a gaveta velha pela nova; devolve quanto esperar para começar a tocar (ms)
+function schedTransition(oldSlot, slot, kind, seconds) {
+  const ms = kind === 'none' ? 0 : Math.max(0, Number(seconds) || 0) * 1000;
+  const half = ms / 2;
+  if (oldSlot) {
+    if (oldSlot.media) oldSlot.media.pause();
+    clearTimeout(oldSlot.clearTimer);
+    oldSlot.clearTimer = setTimeout(() => { if (!schedShown || schedShown.slot !== oldSlot) schedClear(oldSlot); }, ms + 80);
   }
+  const shown = { opacity: '1', transform: 'none' };
+  if (kind === 'black') {
+    blackTo(1, half);
+    if (oldSlot) tween(oldSlot, { opacity: '1' }, { opacity: '0' }, half);
+    tween(slot, { opacity: '0', transform: 'none' }, shown, half, half);
+    return half;
+  }
+  blackTo(0, ms);
+  if (kind === 'slide') {
+    if (oldSlot) tween(oldSlot, { transform: 'translateX(0)' }, { transform: 'translateX(-100%)' }, ms);
+    tween(slot, { opacity: '1', transform: 'translateX(100%)' }, { opacity: '1', transform: 'translateX(0)' }, ms);
+  } else if (kind === 'zoom') {
+    if (oldSlot) tween(oldSlot, { opacity: '1' }, { opacity: '0' }, ms);
+    tween(slot, { opacity: '0', transform: 'scale(1.12)' }, shown, ms);
+  } else {
+    if (oldSlot) tween(oldSlot, { opacity: '1' }, { opacity: '0' }, ms);
+    tween(slot, { opacity: '0', transform: 'none' }, shown, ms);
+  }
+  return 0;
+}
+
+function schedPlay(media, id) {
+  media.play().catch(() => {
+    // Navegador que não deixa tocar com som sozinho: tenta mudo (o vídeo aparece e o fim é avisado)
+    if (media.muted) { schedSendEnded(id); return; }
+    media.muted = true;
+    media.play().catch(() => schedSendEnded(id));
+  });
+}
+
+function schedIn(item, joining) {
+  const req = ++schedRequest;
+  const oldSlot = schedShown ? schedShown.slot : null;
+  const slot = schedSlots.find(s => s !== oldSlot);
+  schedClear(slot);
+  schedShown = { id: item.id, slot, item };
+  // Entrou no meio (OBS abriu ou recarregou): continua de onde está
+  const offset = joining ? Math.max(0, (Date.now() - Number(item.startedAt || 0)) / 1000) : 0;
+  const src = offset > 1 ? `${item.url}#t=${offset.toFixed(1)}` : item.url;
+  let media = null;
+  let visual = null;
+  if (item.kind === 'video') {
+    media = visual = document.createElement('video');
+    media.playsInline = true;
+    media.preload = 'auto';
+  } else {
+    if (item.image) {
+      visual = new Image();
+      visual.alt = '';
+      visual.src = item.image;
+    }
+    if (!PREVIEW) media = new Audio();
+  }
+  if (media) {
+    media.muted = PREVIEW || item.output !== 'obs';
+    media.volume = Math.min(1, Math.max(0, Number(item.volume ?? 1)));
+    media.onended = () => schedSendEnded(item.id);
+    media.onerror = () => schedSendEnded(item.id);
+    media.src = src;
+    slot.media = media;
+  }
+  if (visual) slot.appendChild(visual);
+  // Só troca quando a imagem/vídeo já carregou (nunca aparece tela carregando)
+  const ready = new Promise(resolve => {
+    setTimeout(resolve, 4000);
+    if (item.kind === 'video') {
+      media.addEventListener('loadeddata', resolve, { once: true });
+      media.addEventListener('error', resolve, { once: true });
+    } else if (visual && !visual.complete) {
+      visual.onload = resolve;
+      visual.onerror = resolve;
+    } else {
+      resolve();
+    }
+  });
+  ready.then(() => {
+    if (req !== schedRequest) return;
+    const wait = schedTransition(oldSlot, slot, joining ? 'none' : item.transition, item.transitionTime);
+    if (media) setTimeout(() => { if (req === schedRequest) schedPlay(media, item.id); }, wait);
+  });
+}
+
+function schedOut() {
+  const shown = schedShown;
+  schedShown = null;
+  schedRequest++;
+  const kind = shown.item.transition;
+  const ms = kind === 'none' ? 0 : Math.max(0, Number(shown.item.transitionTime) || 0) * 1000;
+  schedStopMedia(shown.slot);
+  if (kind === 'black') {
+    tween(shown.slot, { opacity: '1' }, { opacity: '0' }, ms / 2);
+    blackTo(0, ms / 2, ms / 2);
+  } else {
+    tween(shown.slot, { opacity: getComputedStyle(shown.slot).opacity }, { opacity: '0' }, ms);
+    blackTo(0, ms);
+  }
+  clearTimeout(shown.slot.clearTimer);
+  shown.slot.clearTimer = setTimeout(() => { if (!schedShown || schedShown.slot !== shown.slot) schedClear(shown.slot); }, ms + 80);
+}
+
+function updateSchedule(state, joining) {
+  const item = state.soundNow;
+  if (!item) {
+    if (schedShown) schedOut();
+    return;
+  }
+  if (schedShown && schedShown.id === item.id) return;
+  schedIn(item, joining);
 }
 
 // Andamento do vídeo no ar, para o painel (barra de tempo e som sincronizado)
@@ -963,7 +1084,7 @@ function onAir(content) {
 }
 
 function applyState(state, useTransition) {
-  updateSoundImage(state);
+  updateSchedule(state, !useTransition);
   // Mostra só o que foi para o ar (o operador pode estar navegando por outra mensagem/hino/capítulo)
   const air = state.messageAir;
   activeSermonTitle = air ? air.title : state.activeSermonTitle;
@@ -1055,13 +1176,6 @@ function connect() {
           if (ltKind === 'special') applyLowerThirdStyles();
           break;
 
-        case 'sound-play':
-          playSound(data.payload);
-          break;
-
-        case 'sound-stop':
-          stopSound();
-          break;
       }
     } catch (err) {
       console.error('Erro ao processar mensagem do WebSocket:', err);

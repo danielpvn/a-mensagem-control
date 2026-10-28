@@ -8,7 +8,7 @@
   <!-- Fontes locais (funcionam sem internet) -->
   <link rel="stylesheet" href="fonts.css">
   
-  <link rel="stylesheet" href="overlay.css?v=2.1.12">
+  <link rel="stylesheet" href="overlay.css?v=2.1.13">
 </head>
 <body>
   <div id="overlay-container" class="overlay-container">
@@ -118,7 +118,8 @@
   </div>
 
   <!-- Imagem do som agendado (fica no ar enquanto o som toca) -->
-  <div id="sound-image-layer" class="sound-image-layer hidden"><img id="sound-image" alt=""></div>
+  <!-- Agendamentos: imagem do som ou vídeo, por cima de tudo -->
+  <div id="sched-layer" class="sched-layer"><div class="sched-black" id="sched-black"></div><div class="sched-slot"></div><div class="sched-slot"></div></div>
 
   <!-- Nome do pregador -->
   <div id="lt-layer" class="lt-layer pos-bottom-left look-modern lt-anim-slide hidden">
@@ -128,6 +129,6 @@
     </div>
   </div>
 
-  <script type="module" src="overlay.js?v=2.1.12"></script>
+  <script type="module" src="overlay.js?v=2.1.13"></script>
 </body>
 </html>

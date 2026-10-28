@@ -21,7 +21,7 @@ const tfSermons = require('./src/tf-sermons');
 const sounds = require('./src/sounds');
 const { createDesktopShortcut } = require('./src/shortcut');
 
-const CURRENT_VERSION = '2.1.0-beta.5';
+const CURRENT_VERSION = '2.1.0-beta.6';
 const PORT = process.env.PORT || 3000;
 
 const app = express();
@@ -272,11 +272,13 @@ let globalState = {
   prayer: { visible: false, title: 'Pedidos de oração', names: [], ...db.getSetting('prayer', {}), visible: false },
   prayerStyles: { ...DEFAULT_PRAYER_STYLES, ...db.getSetting('styles.prayer', {}) },
 
-  // Sons agendados (sino antes do culto etc.): tocam neste computador (janela do programa) ou no OBS
+  // Agendamentos (sino antes do culto, vídeos...): o som sai neste computador (janela do programa) ou no OBS
   soundSchedules: sounds.loadSchedules(),
+  soundPlaylists: sounds.loadPlaylists(),
   soundOutput: db.getSetting('soundOutput', 'app') === 'obs' ? 'obs' : 'app',
-  // Imagem do som que está tocando (aparece no OBS até o som acabar): { id, url } ou null
-  soundImage: null
+  // O que está tocando agora (som, som com imagem ou vídeo; o overlay mostra a imagem/vídeo por cima de tudo):
+  // { id, kind, name, url, image, label, volume, output, transition, transitionTime, startedAt, playlist: { name, index, total } | null }
+  soundNow: null
 };
 
 let activeSermonParagraphs = [];
@@ -449,7 +451,9 @@ function clearScreenOnServer() {
   hidePrayer();
   hideLowerThird(false);
   hideReading(false);
-  globalState.soundImage = null;
+  // Vídeo ou som com imagem também saem (som sozinho continua tocando)
+  const now = globalState.soundNow;
+  if (now && (now.kind === 'video' || now.image)) stopSoundRun(false);
   broadcastContent();
 }
 
@@ -1036,44 +1040,78 @@ function updateReadingStyles(partial) {
   saveReadingStylesTimer = setTimeout(() => db.setSetting('styles.reading', globalState.readingStyles), 400);
 }
 
-// ---------- Sons agendados ----------
+// ---------- Agendamentos (sons, vídeos e playlists) ----------
 
 let soundToken = 0;
+let soundRun = null; // { items, index, label, playlist, transition, transitionTime, volume }
 
-// Manda tocar: quem toca é a janela do programa (output 'app') ou o overlay do OBS ('obs')
-function playSound({ name, volume, label }) {
-  const file = sounds.listSounds().find(x => x.name === name);
-  if (!file) return;
-  const id = ++soundToken;
-  broadcast('sound-play', {
-    id,
+// Toca um arquivo ou uma playlist: um item atrás do outro; quem avisa o fim de cada um é o overlay
+// do OBS ou a janela do programa ("sound-ended"), e o servidor passa para o próximo.
+function playSound({ name, playlist, volume, label }) {
+  const master = Math.min(1, Math.max(0, Number(volume ?? 1)));
+  if (playlist) {
+    const list = globalState.soundPlaylists.find(p => p.id === playlist);
+    if (!list || list.items.length === 0) return;
+    soundRun = { items: list.items, index: 0, label: String(label || list.name), playlist: list.name, transition: list.transition, transitionTime: list.transitionTime, volume: master };
+  } else {
+    if (!name) return;
+    soundRun = { items: [{ name, volume: 1 }], index: 0, label: label ? String(label) : null, playlist: null, transition: 'fade', transitionTime: 0.6, volume: master };
+  }
+  playRunItem();
+}
+
+function playRunItem() {
+  const files = sounds.listSounds();
+  // Arquivo apagado no meio da playlist: pula
+  while (soundRun && soundRun.index < soundRun.items.length && !files.some(f => f.name === soundRun.items[soundRun.index].name)) soundRun.index++;
+  if (!soundRun || soundRun.index >= soundRun.items.length) {
+    stopSoundRun(true);
+    return;
+  }
+  const item = soundRun.items[soundRun.index];
+  const file = files.find(f => f.name === item.name);
+  const title = file.name.replace(/\.[^.]+$/, '');
+  const now = {
+    id: ++soundToken,
+    kind: file.kind,
     name: file.name,
     url: file.url,
     image: file.image,
-    label: String(label || file.name),
-    volume: Math.min(1, Math.max(0, Number(volume ?? 1))),
-    output: globalState.soundOutput
-  });
-  // Som com imagem: a imagem entra no OBS e sai quando o som acaba
-  if (file.image || globalState.soundImage) {
-    globalState.soundImage = file.image ? { id, url: file.image } : null;
-    broadcastContent();
-  }
+    label: soundRun.playlist ? title : (soundRun.label || title),
+    volume: Math.min(1, Math.max(0, item.volume * soundRun.volume)),
+    output: globalState.soundOutput,
+    transition: soundRun.transition,
+    transitionTime: soundRun.transitionTime,
+    startedAt: Date.now(),
+    playlist: soundRun.playlist ? { name: soundRun.label, index: soundRun.index, total: soundRun.items.length } : null
+  };
+  globalState.soundNow = now;
+  broadcast('sound-play', now);
+  broadcastContent();
 }
 
+// Acabou o item `id` (ou "pular"): vai para o próximo da playlist
 function soundFinished(id) {
-  broadcast('sound-ended', { id });
-  if (globalState.soundImage && (id === undefined || globalState.soundImage.id === id)) {
-    globalState.soundImage = null;
-    broadcastContent();
-  }
+  const now = globalState.soundNow;
+  if (!now || (id !== undefined && now.id !== id)) return;
+  broadcast('sound-ended', { id: now.id });
+  if (soundRun) soundRun.index++;
+  playRunItem();
+}
+
+function stopSoundRun(notify = true) {
+  const now = globalState.soundNow;
+  soundRun = null;
+  globalState.soundNow = null;
+  if (now) broadcast('sound-ended', { id: now.id });
+  broadcast('sound-stop', {});
+  if (notify) broadcastContent();
 }
 
 function setSoundOutput(output) {
   globalState.soundOutput = output === 'obs' ? 'obs' : 'app';
   db.setSetting('soundOutput', globalState.soundOutput);
-  broadcast('sound-stop', {});
-  broadcastContent();
+  stopSoundRun();
 }
 
 function setSoundSchedules(items) {
@@ -1081,11 +1119,21 @@ function setSoundSchedules(items) {
   broadcastContent();
 }
 
+function setSoundPlaylists(items) {
+  globalState.soundPlaylists = sounds.savePlaylists(items);
+  // Playlist apagada leva os agendamentos dela
+  const ids = new Set(globalState.soundPlaylists.map(p => p.id));
+  const left = globalState.soundSchedules.filter(s => !s.playlist || ids.has(s.playlist));
+  if (left.length !== globalState.soundSchedules.length) globalState.soundSchedules = sounds.saveSchedules(left);
+  broadcastContent();
+}
+
 sounds.startScheduler({
   getSchedules: () => globalState.soundSchedules,
   onFire: (s) => {
-    console.log(`Som agendado: ${s.label || s.name} (${s.time})`);
-    playSound({ name: s.name, volume: s.volume, label: s.label || s.name });
+    const list = s.playlist && globalState.soundPlaylists.find(p => p.id === s.playlist);
+    console.log(`Agendamento: ${s.label || (list ? list.name : s.name)} (${s.time})`);
+    playSound({ name: s.name, playlist: s.playlist, volume: s.volume, label: s.label || (list ? list.name : null) });
   },
   onChange: (list) => {
     globalState.soundSchedules = list;
@@ -1347,9 +1395,14 @@ wss.on('connection', (ws, req) => {
         case 'sound-output':
           setSoundOutput(payload.output);
           break;
-        case 'sound-stop':
-          broadcast('sound-stop', {});
+        case 'sound-playlists':
+          setSoundPlaylists(payload.items);
+          break;
+        case 'sound-next':
           soundFinished();
+          break;
+        case 'sound-stop':
+          stopSoundRun();
           break;
         case 'prayer-set':
           setPrayer(payload);
@@ -1663,6 +1716,11 @@ app.delete('/api/sounds/:name', (req, res) => {
     if (!sounds.removeSound(req.params.name)) return res.status(404).json({ error: 'Som não encontrado.' });
     const left = globalState.soundSchedules.filter(s => s.name !== req.params.name);
     if (left.length !== globalState.soundSchedules.length) setSoundSchedules(left);
+    // Sai também das playlists
+    const name = req.params.name;
+    if (globalState.soundPlaylists.some(p => p.items.some(it => it.name === name))) {
+      setSoundPlaylists(globalState.soundPlaylists.map(p => ({ ...p, items: p.items.filter(it => it.name !== name) })));
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
