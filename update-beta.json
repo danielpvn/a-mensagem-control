@@ -1,5 +1,5 @@
 {
-  "version": "2.1.0-beta.4",
-  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.1.0-beta.4/A_Mensagem_Control.zip",
-  "notes": "Teste: cada som agendado pode ter uma imagem que aparece no OBS enquanto ele toca; passagem do anúncio sempre cabe na tela; nome do pregador só com o nome; louvor especial na aba Culto; opção sem transição em tudo; aba Sons com sons agendados (neste computador ou no OBS)."
+  "version": "2.1.0-beta.5",
+  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.1.0-beta.5/A_Mensagem_Control.zip",
+  "notes": "Teste: ícone do programa sem o fundo azul e maior; imagem do som agendado no OBS enquanto ele toca; passagem do anúncio sempre cabe na tela; nome do pregador só com o nome; louvor especial na aba Culto; opção sem transição em tudo; aba Sons com sons agendados (neste computador ou no OBS)."
 }
