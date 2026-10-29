@@ -26,6 +26,10 @@ const soundTitle = (name) => name.replace(/\.[^.]+$/, '');
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
 const fileOf = (name) => soundFiles.find(f => f.name === name);
 const playlistOf = (id) => playlists.find(p => p.id === id);
+// Arquivos que um item de playlist usa (o rodízio usa vários)
+const itemNames = (it) => (it.rotation ? [...it.rotation.files, it.rotation.special.name].filter(Boolean) : [it.name]);
+const itemTitle = (it) => (it.rotation ? `Rodízio (${it.rotation.files.length})` : soundTitle(it.name));
+const WEEK_NAMES = { w1: '1º domingo do mês', w2: '2º domingo do mês', w3: '3º domingo do mês', w4: '4º domingo do mês', last: 'último domingo do mês' };
 const TRANSITION_NAMES = { fade: 'Esmaecer', black: 'Passar pelo preto', slide: 'Deslizar', zoom: 'Aproximar', none: 'Corte seco' };
 // O que o agendamento toca (arquivo ou playlist)
 const scheduleTitle = (s) => {
@@ -124,7 +128,7 @@ function renderSounds() {
     strong.textContent = soundTitle(file.name);
     const meta = document.createElement('span');
     const uses = schedules.filter(s => s.name === file.name).length;
-    const inLists = playlists.filter(p => p.items.some(it => it.name === file.name)).length;
+    const inLists = playlists.filter(p => p.items.some(it => itemNames(it).includes(file.name))).length;
     meta.textContent = [
       file.kind === 'video' ? 'Vídeo' : 'Som',
       sizeText(file.size),
@@ -594,7 +598,7 @@ function renderPlaylists() {
     const title = document.createElement('strong');
     title.textContent = p.name;
     const detail = document.createElement('span');
-    detail.textContent = p.items.map(it => soundTitle(it.name)).join(' → ') || 'Vazia';
+    detail.textContent = p.items.map(itemTitle).join(' → ') || 'Vazia';
     const meta = document.createElement('span');
     const own = schedules.filter(s => s.playlist === p.id);
     const uses = own.length;
@@ -692,21 +696,21 @@ function renderEditor() {
     return;
   }
   plEditing.items.forEach((it, i) => {
-    const file = fileOf(it.name);
+    const file = it.rotation ? null : fileOf(it.name);
     const row = document.createElement('div');
     row.className = 'pl-item';
-    // Arrasta pela linha, mas não quando mexe no volume
-    row.onpointerdown = (e) => { row.draggable = !e.target.closest('input, button'); };
+    // Arrasta pela linha, mas não quando mexe no volume ou no rodízio
+    row.onpointerdown = (e) => { row.draggable = !e.target.closest('input, button, select, .rot-box'); };
     const num = document.createElement('span');
     num.className = 'pl-num';
     num.textContent = i + 1;
     const kind = document.createElement('span');
     kind.className = 'pl-kind';
-    kind.textContent = !file ? '?' : file.kind === 'video' ? 'Vídeo' : file.image ? 'Som + imagem' : 'Som';
+    kind.textContent = it.rotation ? 'Rodízio' : !file ? '?' : file.kind === 'video' ? 'Vídeo' : file.image ? 'Som + imagem' : 'Som';
     const name = document.createElement('span');
     name.className = 'pl-name';
-    name.classList.toggle('missing', !file);
-    name.textContent = file ? soundTitle(it.name) : `${soundTitle(it.name)} (apagado)`;
+    name.classList.toggle('missing', !it.rotation && !file);
+    name.textContent = it.rotation ? rotationSummary(it.rotation) : file ? soundTitle(it.name) : `${soundTitle(it.name)} (apagado)`;
     const vol = document.createElement('label');
     vol.className = 'pl-vol';
     vol.title = 'Volume deste item';
@@ -727,8 +731,149 @@ function renderEditor() {
     remove.textContent = '×';
     remove.onclick = () => { plEditing.items.splice(i, 1); renderEditor(); };
     row.append(num, kind, name, vol, remove);
+    if (it.rotation) {
+      row.classList.add('rot');
+      row.appendChild(rotationBox(it.rotation));
+    }
     box.appendChild(row);
   });
+}
+
+// ---------- Rodízio (um arquivo diferente a cada dia, na ordem, e um especial no domingo marcado) ----------
+
+const dateBr = (key) => key.split('-').reverse().join('/');
+
+function rotationSummary(r) {
+  const next = r.files.length ? soundTitle(r.files[r.next % r.files.length]) : 'nenhum';
+  return `${r.files.length} ${r.files.length === 1 ? 'arquivo' : 'arquivos'} · próximo: ${next}${r.special.name ? ` · ${WEEK_NAMES[r.special.week]}: ${soundTitle(r.special.name)}` : ''}`;
+}
+
+function fileOptions(select, empty) {
+  select.innerHTML = '';
+  if (empty) select.add(new Option(empty, ''));
+  soundFiles.forEach(f => select.add(new Option(`${f.kind === 'video' ? 'Vídeo' : 'Som'}: ${soundTitle(f.name)}`, f.name)));
+}
+
+function rotationBox(r) {
+  const box = document.createElement('div');
+  box.className = 'rot-box';
+  const redraw = () => renderEditor();
+
+  const head = document.createElement('div');
+  head.className = 'rot-label';
+  head.textContent = 'Um por dia, nesta ordem (clique num para ele ser o próximo):';
+  const list = document.createElement('div');
+  list.className = 'rot-files';
+  if (r.files.length === 0) list.innerHTML = '<div class="muted small">Coloque os vídeos do rodízio aqui embaixo.</div>';
+  r.files.forEach((name, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'rot-file';
+    chip.classList.toggle('next', i === r.next % r.files.length);
+    chip.classList.toggle('missing', !fileOf(name));
+    const pick = document.createElement('button');
+    pick.type = 'button';
+    pick.className = 'rot-pick';
+    pick.title = 'Tocar este no próximo dia';
+    pick.textContent = `${i + 1}. ${soundTitle(name)}${i === r.next % r.files.length ? ' (próximo)' : ''}`;
+    pick.onclick = () => { r.next = i; r.lastDate = null; r.lastName = null; redraw(); };
+    const up = document.createElement('button');
+    up.type = 'button';
+    up.className = 'btn-x small';
+    up.title = 'Subir na ordem';
+    up.textContent = '↑';
+    up.disabled = i === 0;
+    up.onclick = () => {
+      const nextName = r.files[r.next % r.files.length];
+      r.files = moveItem(r.files, i, i - 1);
+      r.next = r.files.indexOf(nextName);
+      redraw();
+    };
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn-x small';
+    remove.title = 'Tirar do rodízio';
+    remove.textContent = '×';
+    remove.onclick = () => {
+      const nextName = r.files[r.next % r.files.length];
+      r.files.splice(i, 1);
+      r.next = Math.max(0, r.files.indexOf(nextName === name ? r.files[i] || r.files[0] : nextName));
+      redraw();
+    };
+    chip.append(pick, up, remove);
+    list.appendChild(chip);
+  });
+
+  const add = document.createElement('div');
+  add.className = 'pl-add';
+  const addSelect = document.createElement('select');
+  addSelect.setAttribute('aria-label', 'Arquivo para pôr no rodízio');
+  fileOptions(addSelect);
+  addSelect.value = (soundFiles.find(f => f.kind === 'video' && !r.files.includes(f.name)) || {}).name || addSelect.value;
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'btn btn-secondary btn-sm';
+  addBtn.textContent = '+ Pôr no rodízio';
+  addBtn.onclick = () => {
+    if (!addSelect.value) return;
+    r.files.push(addSelect.value);
+    redraw();
+  };
+  add.append(addSelect, addBtn);
+
+  // Especial: no domingo marcado toca este no lugar do rodízio (o rodízio fica parado)
+  const special = document.createElement('div');
+  special.className = 'rot-special';
+  const spLabel = document.createElement('span');
+  spLabel.textContent = 'Especial:';
+  const spFile = document.createElement('select');
+  spFile.setAttribute('aria-label', 'Arquivo especial');
+  fileOptions(spFile, 'Nenhum');
+  spFile.value = r.special.name || '';
+  spFile.onchange = () => { r.special.name = spFile.value || null; redraw(); };
+  const spWeek = document.createElement('select');
+  spWeek.setAttribute('aria-label', 'Em qual domingo do mês');
+  Object.entries(WEEK_NAMES).forEach(([value, text]) => spWeek.add(new Option(`no ${text}`, value)));
+  spWeek.value = r.special.week;
+  spWeek.disabled = !r.special.name;
+  spWeek.onchange = () => { r.special.week = spWeek.value; };
+  special.append(spLabel, spFile, spWeek);
+
+  box.append(head, list, add, special);
+  if (!r.special.name) return box;
+
+  // Mudou de data num mês (ex: a Ceia foi para outro domingo): nesse mês o especial toca só na data marcada
+  const moved = document.createElement('div');
+  moved.className = 'rot-moved';
+  const mvLabel = document.createElement('span');
+  mvLabel.textContent = 'Mudou de data num mês? Marque o dia:';
+  const mvDate = document.createElement('input');
+  mvDate.type = 'date';
+  const mvBtn = document.createElement('button');
+  mvBtn.type = 'button';
+  mvBtn.className = 'btn btn-secondary btn-sm';
+  mvBtn.textContent = 'Marcar';
+  mvBtn.onclick = () => {
+    if (!mvDate.value) return;
+    r.special.moved = [...r.special.moved.filter(d => d.slice(0, 7) !== mvDate.value.slice(0, 7)), mvDate.value].sort();
+    redraw();
+  };
+  moved.append(mvLabel, mvDate, mvBtn);
+  const today = dayKey(new Date());
+  r.special.moved.filter(d => d >= today.slice(0, 7)).forEach(d => {
+    const chip = document.createElement('span');
+    chip.className = 'rot-date';
+    chip.textContent = `${dateBr(d)} (no lugar do ${WEEK_NAMES[r.special.week].replace(' do mês', '')} desse mês)`;
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'btn-x small';
+    x.title = 'Desmarcar';
+    x.textContent = '×';
+    x.onclick = () => { r.special.moved = r.special.moved.filter(m => m !== d); redraw(); };
+    chip.appendChild(x);
+    moved.appendChild(chip);
+  });
+  box.appendChild(moved);
+  return box;
 }
 
 function addToPlaylist(name) {
@@ -748,6 +893,11 @@ function setupPlaylists() {
   $('btn-pl-new').onclick = () => openEditor(null);
   $('btn-pl-cancel').onclick = closeEditor;
   $('btn-pl-add').onclick = () => { if ($('pl-add-select').value) addToPlaylist($('pl-add-select').value); };
+  $('btn-pl-rotation').onclick = () => {
+    if (!plEditing) return;
+    plEditing.items.push({ rotation: { files: [], next: 0, lastDate: null, lastName: null, special: { name: null, week: 'w1', moved: [] } }, volume: 1 });
+    renderEditor();
+  };
   $('pl-transition').onchange = renderEditor;
   $('pl-time').oninput = () => { $('pl-time-val').textContent = `${Number($('pl-time').value).toFixed(1).replace('.', ',')} s`; };
   makeSortable($('pl-items'), '.pl-item', (from, to) => {
@@ -765,6 +915,10 @@ function setupPlaylists() {
     }
     if (plEditing.items.length === 0) {
       toast('Coloque pelo menos um som ou vídeo.', 'error');
+      return;
+    }
+    if (plEditing.items.some(it => it.rotation && !it.rotation.files.length && !it.rotation.special.name)) {
+      toast('O rodízio está vazio: coloque os vídeos dele.', 'error');
       return;
     }
     const item = {

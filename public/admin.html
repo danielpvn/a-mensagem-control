@@ -7,7 +7,7 @@
   <link rel="icon" href="assets/favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="assets/favicon.png">
   <link rel="stylesheet" href="fonts.css">
-  <link rel="stylesheet" href="admin.css?v=2.1.14">
+  <link rel="stylesheet" href="admin.css?v=2.1.15">
 </head>
 <body>
   <div class="app">
@@ -17,7 +17,7 @@
         <img src="assets/logo.svg" alt="" class="brand-logo">
         <div class="brand-text">
           <strong>A MENSAGEM</strong>
-          <span>CONTROL <em id="app-version" class="version-tag">v2.1.1</em></span>
+          <span>CONTROL <em id="app-version" class="version-tag">v2.1.2</em></span>
         </div>
       </div>
 
@@ -692,7 +692,7 @@
               </div>
             </div>
             <div class="folder-row">
-              <select id="media-folder" aria-label="Pasta do culto"></select>
+              <select id="media-folder" aria-label="Pasta de mídias"></select>
               <button id="btn-media-delete-folder" class="btn btn-ghost-danger btn-sm" title="Apagar esta pasta e tudo dentro dela">
                 <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
               </button>
@@ -1311,8 +1311,9 @@
                     <div class="pl-add">
                       <select id="pl-add-select" aria-label="Arquivo para colocar na playlist"></select>
                       <button type="button" id="btn-pl-add" class="btn btn-secondary btn-sm">+ Colocar</button>
+                      <button type="button" id="btn-pl-rotation" class="btn btn-secondary btn-sm" title="Um vídeo diferente a cada dia, na ordem, com um especial no domingo marcado (ex: Ceia)">+ Rodízio</button>
                     </div>
-                    <p class="muted small">Também dá para clicar no <b>+</b> ao lado de cada arquivo, na lista da esquerda.</p>
+                    <p class="muted small">Também dá para clicar no <b>+</b> ao lado de cada arquivo, na lista da esquerda. O <b>Rodízio</b> toca um arquivo diferente a cada dia em que a playlist toca pelo horário (ex: um vídeo por domingo), e um especial no domingo marcado.</p>
                   </div>
                   <div class="modal-actions">
                     <button type="button" id="btn-pl-cancel" class="btn btn-text btn-sm">Cancelar</button>
@@ -1467,7 +1468,7 @@
 
           <div class="card">
             <h2>Sobre</h2>
-            <p class="muted">A Mensagem Control <strong id="about-version">v2.1.1</strong></p>
+            <p class="muted">A Mensagem Control <strong id="about-version">v2.1.2</strong></p>
             <p class="muted small">Feito para as equipes de mídia das igrejas do Tabernáculo da Fé.</p>
             <button id="btn-check-update" class="btn btn-secondary btn-sm">Verificar atualizações</button>
             <p id="update-status" class="muted small"></p>
@@ -1611,6 +1612,6 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script type="module" src="js/admin/main.js?v=2.1.14"></script>
+  <script type="module" src="js/admin/main.js?v=2.1.15"></script>
 </body>
 </html>
