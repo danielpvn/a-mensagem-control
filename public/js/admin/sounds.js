@@ -29,7 +29,9 @@ const playlistOf = (id) => playlists.find(p => p.id === id);
 // Arquivos que um item de playlist usa (o rodízio usa vários)
 const itemNames = (it) => (it.rotation ? [...it.rotation.files, it.rotation.special.name].filter(Boolean) : [it.name]);
 const itemTitle = (it) => (it.rotation ? `Rodízio (${it.rotation.files.length})` : soundTitle(it.name));
+const PART_NAMES = { all: 'em todos os horários', am: 'só de manhã', pm: 'só à tarde/noite' };
 const WEEK_NAMES = { w1: '1º domingo do mês', w2: '2º domingo do mês', w3: '3º domingo do mês', w4: '4º domingo do mês', last: 'último domingo do mês' };
+const weekName = (r) => WEEK_NAMES[r.special.week] || WEEK_NAMES.w1;
 const TRANSITION_NAMES = { fade: 'Esmaecer', black: 'Passar pelo preto', slide: 'Deslizar', zoom: 'Aproximar', none: 'Corte seco' };
 // O que o agendamento toca (arquivo ou playlist)
 const scheduleTitle = (s) => {
@@ -739,13 +741,13 @@ function renderEditor() {
   });
 }
 
-// ---------- Rodízio (um arquivo diferente a cada dia, na ordem, e um especial no domingo marcado) ----------
+// ---------- Rodízio (um arquivo diferente a cada vez que toca pelo horário, e um especial no domingo marcado) ----------
 
 const dateBr = (key) => key.split('-').reverse().join('/');
 
 function rotationSummary(r) {
   const next = r.files.length ? soundTitle(r.files[r.next % r.files.length]) : 'nenhum';
-  return `${r.files.length} ${r.files.length === 1 ? 'arquivo' : 'arquivos'} · próximo: ${next}${r.special.name ? ` · ${WEEK_NAMES[r.special.week]}: ${soundTitle(r.special.name)}` : ''}`;
+  return `${r.files.length} ${r.files.length === 1 ? 'arquivo' : 'arquivos'} · próximo: ${next}${r.special.name ? ` · ${weekName(r)}${r.special.part === 'am' ? ' de manhã' : r.special.part === 'pm' ? ' à tarde' : ''}: ${soundTitle(r.special.name)}` : ''}`;
 }
 
 function fileOptions(select, empty) {
@@ -761,7 +763,7 @@ function rotationBox(r) {
 
   const head = document.createElement('div');
   head.className = 'rot-label';
-  head.textContent = 'Um por dia, nesta ordem (clique num para ele ser o próximo):';
+  head.textContent = 'Um a cada vez que a playlist toca pelo horário, nesta ordem (clique num para ele ser o próximo):';
   const list = document.createElement('div');
   list.className = 'rot-files';
   if (r.files.length === 0) list.innerHTML = '<div class="muted small">Coloque os vídeos do rodízio aqui embaixo.</div>';
@@ -773,7 +775,7 @@ function rotationBox(r) {
     const pick = document.createElement('button');
     pick.type = 'button';
     pick.className = 'rot-pick';
-    pick.title = 'Tocar este no próximo dia';
+    pick.title = 'Tocar este na próxima vez';
     pick.textContent = `${i + 1}. ${soundTitle(name)}${i === r.next % r.files.length ? ' (próximo)' : ''}`;
     pick.onclick = () => { r.next = i; r.lastDate = null; r.lastName = null; redraw(); };
     const up = document.createElement('button');
@@ -836,7 +838,14 @@ function rotationBox(r) {
   spWeek.value = r.special.week;
   spWeek.disabled = !r.special.name;
   spWeek.onchange = () => { r.special.week = spWeek.value; };
-  special.append(spLabel, spFile, spWeek);
+  const spPart = document.createElement('select');
+  spPart.setAttribute('aria-label', 'Em qual parte do dia');
+  spPart.title = 'Manhã = antes do meio-dia; tarde/noite = depois do meio-dia (pela hora em que a playlist toca)';
+  Object.entries(PART_NAMES).forEach(([value, text]) => spPart.add(new Option(text, value)));
+  spPart.value = r.special.part || 'all';
+  spPart.disabled = !r.special.name;
+  spPart.onchange = () => { r.special.part = spPart.value; };
+  special.append(spLabel, spFile, spWeek, spPart);
 
   box.append(head, list, add, special);
   if (!r.special.name) return box;
@@ -862,7 +871,7 @@ function rotationBox(r) {
   r.special.moved.filter(d => d >= today.slice(0, 7)).forEach(d => {
     const chip = document.createElement('span');
     chip.className = 'rot-date';
-    chip.textContent = `${dateBr(d)} (no lugar do ${WEEK_NAMES[r.special.week].replace(' do mês', '')} desse mês)`;
+    chip.textContent = `${dateBr(d)} (no lugar do ${weekName(r).replace(' do mês', '')} desse mês)`;
     const x = document.createElement('button');
     x.type = 'button';
     x.className = 'btn-x small';
@@ -895,7 +904,7 @@ function setupPlaylists() {
   $('btn-pl-add').onclick = () => { if ($('pl-add-select').value) addToPlaylist($('pl-add-select').value); };
   $('btn-pl-rotation').onclick = () => {
     if (!plEditing) return;
-    plEditing.items.push({ rotation: { files: [], next: 0, lastDate: null, lastName: null, special: { name: null, week: 'w1', moved: [] } }, volume: 1 });
+    plEditing.items.push({ rotation: { files: [], next: 0, lastDate: null, lastName: null, special: { name: null, week: 'w1', part: 'all', moved: [] } }, volume: 1 });
     renderEditor();
   };
   $('pl-transition').onchange = renderEditor;
