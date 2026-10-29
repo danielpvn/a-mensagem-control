@@ -193,3 +193,6 @@ create policy "editores trocam fundos" on storage.objects
 --   update public.profiles set role = 'editor', church = 'Tabernáculo da Fé - (cidade)'
 --   where user_id = (select id from auth.users where email = 'seu-email@exemplo.com');
 -- =====================================================================
+
+-- Faz a API enxergar as tabelas novas na hora
+notify pgrst, 'reload schema';
