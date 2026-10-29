@@ -37,7 +37,7 @@ const verseLabel = (slide) => (slide.parts > 1 ? `${slide.verse} (${slide.part}/
 
 // ---------- Livros e capítulos ----------
 
-async function fetchBooks() {
+export async function fetchBooks() {
   try {
     const data = await (await fetch('/api/bible/books')).json();
     books = data.books;
@@ -59,7 +59,8 @@ function renderBrowser() {
   if (books.every(b => !b.chapters)) {
     el.results.innerHTML = `
       <div class="empty">A Bíblia ainda não está neste computador.<br>
-      Importe a pasta <strong>2 Biblia_ACF</strong> em <strong>Configurações</strong>.</div>`;
+      Ela chega sozinha pelo <strong>Banco online</strong> (Configurações) depois que a igreja entra,<br>
+      ou importe a pasta <strong>2 Biblia_ACF</strong> em <strong>Configurações</strong>.</div>`;
     return;
   }
 

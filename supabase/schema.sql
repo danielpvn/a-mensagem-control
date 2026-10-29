@@ -87,9 +87,22 @@ create table if not exists public.library_backgrounds (
   updated_by uuid default auth.uid()
 );
 
+-- Bíblia ACF: um capítulo por linha (id "livro:capítulo", versos = [{ verse, text }]).
+-- Fica só aqui, para as igrejas aprovadas; o texto nunca vai para o GitHub (direitos da SBTB).
+create table if not exists public.library_bible (
+  id text primary key,
+  book int not null,
+  chapter int not null,
+  verses jsonb not null default '[]'::jsonb,
+  deleted boolean not null default false,
+  updated_at timestamptz not null default now(),
+  updated_by uuid default auth.uid()
+);
+
 create index if not exists library_sermons_updated on public.library_sermons (updated_at);
 create index if not exists library_hymns_updated on public.library_hymns (updated_at);
 create index if not exists library_backgrounds_updated on public.library_backgrounds (updated_at);
+create index if not exists library_bible_updated on public.library_bible (updated_at);
 
 -- A hora da alteração é sempre a do servidor (os relógios dos PCs podem estar errados)
 create or replace function public.touch_updated_at()
@@ -110,14 +123,17 @@ create trigger touch_hymns before insert or update on public.library_hymns
 drop trigger if exists touch_backgrounds on public.library_backgrounds;
 create trigger touch_backgrounds before insert or update on public.library_backgrounds
   for each row execute function public.touch_updated_at();
+drop trigger if exists touch_bible on public.library_bible;
+create trigger touch_bible before insert or update on public.library_bible
+  for each row execute function public.touch_updated_at();
 
 -- ---------- Permissões da API ----------
 -- Necessárias se "Automatically expose new tables" estiver desmarcado no projeto.
 -- Quem não fez login (anon) não recebe nada; o que cada login pode fazer é decidido pelo RLS abaixo.
-revoke all on public.profiles, public.library_sermons, public.library_hymns, public.library_backgrounds from anon;
+revoke all on public.profiles, public.library_sermons, public.library_hymns, public.library_backgrounds, public.library_bible from anon;
 grant select on public.profiles to authenticated;
 grant update (role, church) on public.profiles to authenticated;
-grant select, insert, update on public.library_sermons, public.library_hymns, public.library_backgrounds to authenticated;
+grant select, insert, update on public.library_sermons, public.library_hymns, public.library_backgrounds, public.library_bible to authenticated;
 
 -- ---------- Regras de acesso (RLS) ----------
 -- Sem login, ninguém lê nada (os hinos e as Mensagens têm direitos autorais).
@@ -125,6 +141,7 @@ alter table public.profiles enable row level security;
 alter table public.library_sermons enable row level security;
 alter table public.library_hymns enable row level security;
 alter table public.library_backgrounds enable row level security;
+alter table public.library_bible enable row level security;
 
 -- Cada um vê o próprio perfil; editores veem todos (para aprovar os pedidos de acesso)
 drop policy if exists "ver o proprio perfil" on public.profiles;
@@ -139,7 +156,7 @@ create policy "editores aprovam" on public.profiles
 do $$
 declare t text;
 begin
-  foreach t in array array['library_sermons', 'library_hymns', 'library_backgrounds'] loop
+  foreach t in array array['library_sermons', 'library_hymns', 'library_backgrounds', 'library_bible'] loop
     execute format('drop policy if exists "logados leem" on public.%I', t);
     execute format('drop policy if exists "aprovados leem" on public.%I', t);
     execute format('create policy "aprovados leem" on public.%I for select to authenticated using (public.is_member())', t);
@@ -176,3 +193,6 @@ create policy "editores trocam fundos" on storage.objects
 --   update public.profiles set role = 'editor', church = 'Tabernáculo da Fé - (cidade)'
 --   where user_id = (select id from auth.users where email = 'seu-email@exemplo.com');
 -- =====================================================================
+
+-- Faz a API enxergar as tabelas novas na hora
+notify pgrst, 'reload schema';

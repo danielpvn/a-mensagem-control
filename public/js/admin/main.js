@@ -6,7 +6,7 @@ import { setupMessage, messageControls, fetchSermons } from './message.js';
 import { setupHymns, hymnControls, refreshLibrary } from './hymns.js';
 import { refreshBackgrounds } from './backgrounds.js';
 import { setupCloud } from './cloud.js';
-import { setupBible, bibleControls } from './bible.js';
+import { setupBible, bibleControls, fetchBooks as refreshBible } from './bible.js';
 import { setupBibleAppearance } from './bible-appearance.js';
 import { setupMedia, mediaControls } from './media.js';
 import { setupLowerThird, toggleLowerThird } from './lowerthird.js';
@@ -100,6 +100,7 @@ ws.on('library-changed', (changed) => {
   if (changed.sermons) fetchSermons();
   if (changed.hymns) refreshLibrary();
   if (changed.backgrounds) refreshBackgrounds();
+  if (changed.bible) refreshBible();
 });
 
 setupStages();
