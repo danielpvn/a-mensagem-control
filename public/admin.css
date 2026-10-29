@@ -1490,7 +1490,7 @@ fieldset.collapsed > :not(legend) { display: none !important; }
 .rot-file.next .rot-pick { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 .rot-file.missing .rot-pick { color: var(--danger, #ef4444); }
 .rot-special, .rot-moved { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 0.82rem; }
-.rot-special select { flex: 1; min-width: 140px; }
+.rot-special select { flex: 1 1 170px; min-width: 0; }
 .rot-date { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 8px; border-radius: 999px; background: var(--accent-soft); font-size: 0.78rem; }
 .pl-row .schedule-time { font-size: 1rem; min-width: 0; }
 .pl-row .pl-badge { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 56px; height: 44px; border-radius: var(--radius-sm); background: var(--accent-soft); font-weight: 700; }
