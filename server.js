@@ -1634,7 +1634,7 @@ app.post('/api/bible/import', (req, res) => {
 // ---------- API de mídias ----------
 
 app.get('/api/media/folders', (req, res) => {
-  res.json({ today: media.todayFolder(), folders: media.listFolders() });
+  res.json({ general: media.GENERAL, folders: media.listFolders() });
 });
 
 app.post('/api/media/folders', (req, res) => {
@@ -1669,8 +1669,8 @@ app.get('/api/media/items/:folder', (req, res) => {
 // Envio em streaming: o corpo da requisição é o próprio arquivo
 app.post('/api/media/upload', async (req, res) => {
   try {
-    const saved = await media.saveUpload(req, req.query.folder || media.todayFolder(), req.query.name);
-    refreshMediaItems(req.query.folder || media.todayFolder());
+    const saved = await media.saveUpload(req, req.query.folder || media.GENERAL, req.query.name);
+    refreshMediaItems(req.query.folder || media.GENERAL);
     res.json({ success: true, ...saved });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -1730,7 +1730,7 @@ app.delete('/api/sounds/:name', (req, res) => {
 // Vídeo do YouTube pelo link (fica na pasta como um item, igual aos arquivos)
 app.post('/api/media/youtube', async (req, res) => {
   try {
-    const folder = req.body.folder || media.todayFolder();
+    const folder = req.body.folder || media.GENERAL;
     const saved = await media.addYoutube(folder, req.body.url);
     if (saved.start && globalState.media.folder === folder) {
       refreshMediaItems(folder);
