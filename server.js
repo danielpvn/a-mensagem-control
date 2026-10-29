@@ -21,7 +21,7 @@ const tfSermons = require('./src/tf-sermons');
 const sounds = require('./src/sounds');
 const { createDesktopShortcut } = require('./src/shortcut');
 
-const CURRENT_VERSION = '2.1.1';
+const CURRENT_VERSION = '2.1.2';
 const PORT = process.env.PORT || 3000;
 
 const app = express();
@@ -1047,12 +1047,25 @@ let soundRun = null; // { items, index, label, playlist, transition, transitionT
 
 // Toca um arquivo ou uma playlist: um item atrás do outro; quem avisa o fim de cada um é o overlay
 // do OBS ou a janela do programa ("sound-ended"), e o servidor passa para o próximo.
-function playSound({ name, playlist, volume, label }) {
+// `advance`: veio do horário marcado, então os rodízios andam (ver sounds.pickRotation)
+function playSound({ name, playlist, volume, label, advance = false }) {
   const master = Math.min(1, Math.max(0, Number(volume ?? 1)));
   if (playlist) {
     const list = globalState.soundPlaylists.find(p => p.id === playlist);
     if (!list || list.items.length === 0) return;
-    soundRun = { items: list.items, index: 0, label: String(label || list.name), playlist: list.name, transition: list.transition, transitionTime: list.transitionTime, volume: master };
+    let rotated = false;
+    const items = list.items.map((it, i) => {
+      if (!it.rotation) return it;
+      const pick = sounds.pickRotation(it.rotation, new Date(), advance);
+      if (pick.changed) {
+        list.items[i] = { ...it, rotation: pick.changed };
+        rotated = true;
+      }
+      return pick.name ? { name: pick.name, volume: it.volume } : null;
+    }).filter(Boolean);
+    if (rotated) setSoundPlaylists(globalState.soundPlaylists);
+    if (items.length === 0) return;
+    soundRun = { items, index: 0, label: String(label || list.name), playlist: list.name, transition: list.transition, transitionTime: list.transitionTime, volume: master };
   } else {
     if (!name) return;
     soundRun = { items: [{ name, volume: 1 }], index: 0, label: label ? String(label) : null, playlist: null, transition: 'fade', transitionTime: 0.6, volume: master };
@@ -1133,7 +1146,7 @@ sounds.startScheduler({
   onFire: (s) => {
     const list = s.playlist && globalState.soundPlaylists.find(p => p.id === s.playlist);
     console.log(`Agendamento: ${s.label || (list ? list.name : s.name)} (${s.time})`);
-    playSound({ name: s.name, playlist: s.playlist, volume: s.volume, label: s.label || (list ? list.name : null) });
+    playSound({ name: s.name, playlist: s.playlist, volume: s.volume, label: s.label || (list ? list.name : null), advance: true });
   },
   onChange: (list) => {
     globalState.soundSchedules = list;
@@ -1634,7 +1647,7 @@ app.post('/api/bible/import', (req, res) => {
 // ---------- API de mídias ----------
 
 app.get('/api/media/folders', (req, res) => {
-  res.json({ today: media.todayFolder(), folders: media.listFolders() });
+  res.json({ general: media.GENERAL, folders: media.listFolders() });
 });
 
 app.post('/api/media/folders', (req, res) => {
@@ -1669,8 +1682,8 @@ app.get('/api/media/items/:folder', (req, res) => {
 // Envio em streaming: o corpo da requisição é o próprio arquivo
 app.post('/api/media/upload', async (req, res) => {
   try {
-    const saved = await media.saveUpload(req, req.query.folder || media.todayFolder(), req.query.name);
-    refreshMediaItems(req.query.folder || media.todayFolder());
+    const saved = await media.saveUpload(req, req.query.folder || media.GENERAL, req.query.name);
+    refreshMediaItems(req.query.folder || media.GENERAL);
     res.json({ success: true, ...saved });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -1718,8 +1731,15 @@ app.delete('/api/sounds/:name', (req, res) => {
     if (left.length !== globalState.soundSchedules.length) setSoundSchedules(left);
     // Sai também das playlists
     const name = req.params.name;
-    if (globalState.soundPlaylists.some(p => p.items.some(it => it.name === name))) {
-      setSoundPlaylists(globalState.soundPlaylists.map(p => ({ ...p, items: p.items.filter(it => it.name !== name) })));
+    const uses = (it) => it.name === name || (it.rotation && (it.rotation.files.includes(name) || it.rotation.special.name === name));
+    if (globalState.soundPlaylists.some(p => p.items.some(uses))) {
+      setSoundPlaylists(globalState.soundPlaylists.map(p => ({
+        ...p,
+        items: p.items.filter(it => it.name !== name).map(it => (it.rotation ? {
+          ...it,
+          rotation: { ...it.rotation, files: it.rotation.files.filter(f => f !== name), special: it.rotation.special.name === name ? { ...it.rotation.special, name: null } : it.rotation.special }
+        } : it))
+      })));
     }
     res.json({ success: true });
   } catch (err) {
@@ -1730,7 +1750,7 @@ app.delete('/api/sounds/:name', (req, res) => {
 // Vídeo do YouTube pelo link (fica na pasta como um item, igual aos arquivos)
 app.post('/api/media/youtube', async (req, res) => {
   try {
-    const folder = req.body.folder || media.todayFolder();
+    const folder = req.body.folder || media.GENERAL;
     const saved = await media.addYoutube(folder, req.body.url);
     if (saved.start && globalState.media.folder === folder) {
       refreshMediaItems(folder);

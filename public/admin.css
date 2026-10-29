@@ -1481,6 +1481,17 @@ fieldset.collapsed > :not(legend) { display: none !important; }
 .pl-item .pl-vol input { width: 90px; }
 .pl-add { display: flex; gap: 8px; margin-top: 8px; }
 .pl-add select { flex: 1; min-width: 0; }
+.pl-item.rot { flex-wrap: wrap; }
+.rot-box { flex-basis: 100%; display: flex; flex-direction: column; gap: 8px; margin: 4px 0 2px 28px; padding: 10px; border-radius: var(--radius-sm); border: 1px dashed var(--border); background: var(--panel, transparent); cursor: default; }
+.rot-label { font-size: 0.78rem; color: var(--text-2); }
+.rot-files { display: flex; flex-direction: column; gap: 4px; }
+.rot-file { display: flex; align-items: center; gap: 4px; }
+.rot-pick { flex: 1; min-width: 0; text-align: left; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--field-hover); color: var(--text); font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.rot-file.next .rot-pick { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.rot-file.missing .rot-pick { color: var(--danger, #ef4444); }
+.rot-special, .rot-moved { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 0.82rem; }
+.rot-special select { flex: 1; min-width: 140px; }
+.rot-date { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 8px; border-radius: 999px; background: var(--accent-soft); font-size: 0.78rem; }
 .pl-row .schedule-time { font-size: 1rem; min-width: 0; }
 .pl-row .pl-badge { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 56px; height: 44px; border-radius: var(--radius-sm); background: var(--accent-soft); font-weight: 700; }
 .pl-row .pl-badge small { font-size: 0.66rem; font-weight: 500; color: var(--text-2); }

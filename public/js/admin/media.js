@@ -7,7 +7,7 @@ import { playerFor, youtubeErrorText } from '../shared/players.js';
 
 let state = null;
 let folders = [];
-let today = '';
+let general = 'Geral';
 let renderedKey = '';
 let progress = { token: -1, currentTime: 0, duration: 0 };
 let uploading = 0;
@@ -56,32 +56,31 @@ const kindName = (item) => (item.type === 'youtube' ? 'YouTube' : item.type === 
 const startOf = (name) => (state && state.media.starts && state.media.starts[name]) || 0;
 const audioOutput = () => previewStyle.audioOutput || 'obs';
 
-// "2026-10-25" -> "Hoje · sábado, 25/10"
+// "Geral" = a do dia a dia; pastas antigas de data ("2026-10-25") aparecem como "sábado, 25/10"
 function folderLabel(name) {
+  if (name === general) return 'Geral';
   const match = name.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return name;
   const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
   const weekday = date.toLocaleDateString('pt-BR', { weekday: 'long' }).replace('-feira', '');
-  const label = `${weekday}, ${match[3]}/${match[2]}`;
-  return name === today ? `Hoje · ${label}` : label;
+  return `${weekday}, ${match[3]}/${match[2]}`;
 }
 
-const currentFolder = () => (state && state.media.folder) || today;
+const currentFolder = () => (state && state.media.folder) || general;
 
 // ---------- Pastas ----------
 
 async function loadFolders() {
   try {
     const data = await (await fetch('/api/media/folders')).json();
-    today = data.today;
+    general = data.general || general;
     folders = data.folders;
   } catch (err) {
     return;
   }
   const names = new Set(folders.map(f => f.name));
   el.folder.innerHTML = '';
-  // A pasta de hoje aparece mesmo antes de existir (é criada no primeiro envio)
-  if (!names.has(today)) folders.unshift({ name: today, count: 0 });
+  if (!names.has(general)) folders.unshift({ name: general, count: 0 });
   folders.forEach(f => {
     const option = document.createElement('option');
     option.value = f.name;
@@ -89,7 +88,13 @@ async function loadFolders() {
     el.folder.appendChild(option);
   });
   el.folder.value = currentFolder();
-  if (state && !state.media.folder) ws.send('media-folder', { folder: today });
+  updateDeleteFolder();
+  if (state && !state.media.folder) ws.send('media-folder', { folder: general });
+}
+
+// A pasta Geral não se apaga
+function updateDeleteFolder() {
+  $('btn-media-delete-folder').hidden = currentFolder() === general;
 }
 
 function setupFolders() {
@@ -133,7 +138,7 @@ function setupFolders() {
     if (!ok) return;
     await fetch(`/api/media/folders/${encodeURIComponent(folder)}`, { method: 'DELETE' });
     toast('Pasta apagada.', 'success');
-    ws.send('media-folder', { folder: today });
+    ws.send('media-folder', { folder: general });
     loadFolders();
   };
 }
@@ -811,8 +816,11 @@ function onServerState(newState) {
   const hadFolder = state && state.media.folder;
   state = newState;
   const m = state.media;
-  if (!m.folder && today) ws.send('media-folder', { folder: today });
-  if (m.folder && m.folder !== hadFolder) el.folder.value = m.folder;
+  if (!m.folder) ws.send('media-folder', { folder: general });
+  if (m.folder && m.folder !== hadFolder) {
+    el.folder.value = m.folder;
+    updateDeleteFolder();
+  }
 
   // A seleção acompanha a mídia que foi ao ar (passador, celular, Próximo)
   const live = m.items[m.index];

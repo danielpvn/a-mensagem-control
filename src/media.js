@@ -1,5 +1,5 @@
-// Mídias que o pastor envia (imagens e vídeos), guardadas em uma pasta por culto:
-// Documentos/A Mensagem Control/data/media/<pasta>/<arquivo>, servidas em /media/...
+// Mídias que o pastor envia (imagens e vídeos): Documentos/A Mensagem Control/data/media/<pasta>/<arquivo>,
+// servidas em /media/... A pasta "Geral" é a do dia a dia (sempre existe); outras pastas são opcionais.
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
@@ -13,7 +13,9 @@ const VIDEO = /\.(mp4|webm|mov|m4v)$/i;
 const YOUTUBE = /\.youtube$/i;
 const MAX_BYTES = 4 * 1024 * 1024 * 1024; // 4 GB por arquivo
 
-fs.mkdirSync(DIR, { recursive: true });
+const GENERAL = 'Geral';
+
+fs.mkdirSync(path.join(DIR, GENERAL), { recursive: true });
 
 const typeOf = (name) => (IMAGE.test(name) ? 'image' : VIDEO.test(name) ? 'video' : YOUTUBE.test(name) ? 'youtube' : null);
 
@@ -27,12 +29,6 @@ function safe(name) {
   return clean;
 }
 
-// Pasta do dia ("2026-10-25"), criada quando o operador abre a aba
-function todayFolder() {
-  const d = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
 
 function folderPath(folder) {
   return path.join(DIR, safe(folder));
@@ -46,8 +42,11 @@ function listFolders() {
       const stat = fs.statSync(path.join(DIR, e.name));
       return { name: e.name, count: files.length, modified: stat.mtimeMs };
     })
-    // Pastas de data primeiro (mais recente no topo), depois as com nome
-    .sort((a, b) => b.name.localeCompare(a.name, 'pt-BR'));
+    // "Geral" no topo, depois as com nome (A-Z) e por último as de data antigas (mais recente primeiro)
+    .sort((a, b) => {
+      const rank = (n) => (n === GENERAL ? 0 : /^\d{4}-\d{2}-\d{2}$/.test(n) ? 2 : 1);
+      return rank(a.name) - rank(b.name) || (rank(a.name) === 2 ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name, 'pt-BR'));
+    });
 }
 
 function createFolder(name) {
@@ -233,10 +232,11 @@ function removeItem(folder, name) {
 }
 
 function removeFolder(folder) {
+  if (safe(folder) === GENERAL) throw new Error('A pasta Geral não pode ser apagada.');
   const dir = folderPath(folder);
   if (!fs.existsSync(dir)) return false;
   fs.rmSync(dir, { recursive: true, force: true });
   return true;
 }
 
-module.exports = { DIR, todayFolder, listFolders, createFolder, listItems, setOrder, addYoutube, parseYoutubeUrl, saveUpload, removeItem, removeFolder };
+module.exports = { DIR, GENERAL, listFolders, createFolder, listItems, setOrder, addYoutube, parseYoutubeUrl, saveUpload, removeItem, removeFolder };

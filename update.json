@@ -1,5 +1,5 @@
 {
-  "version": "2.1.1",
-  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.1.1/A_Mensagem_Control.zip",
-  "notes": "Bíblia ACF pelo banco online: as igrejas aprovadas recebem a Bíblia sozinhas, sem precisar importar a pasta."
+  "version": "2.1.2",
+  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.1.2/A_Mensagem_Control.zip",
+  "notes": "Mídia numa pasta Geral (sem pasta por dia; pastas com nome continuam opcionais). Agendamentos: rodízio de vídeos na playlist, um por domingo, com o vídeo especial no 1º domingo do mês (Ceia) e opção de mudar a data num mês."
 }
