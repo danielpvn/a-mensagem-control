@@ -1,4 +1,4 @@
-// Sincronização com o banco online (Supabase): biblioteca de Mensagens, Hinos e imagens de fundo.
+// Sincronização com o banco online (Supabase): biblioteca de Mensagens, Hinos, imagens de fundo e Bíblia.
 // - O PC sempre trabalha com o banco local; isto roda em segundo plano (a cada minuto e logo
 //   depois de uma alteração). Sem internet, tenta de novo depois, sem atrapalhar o culto.
 // - Leitor: só recebe. Editor: também envia o que mudou aqui.
@@ -8,6 +8,7 @@ const path = require('path');
 const db = require('./db');
 const hymns = require('./hymns');
 const backgrounds = require('./backgrounds');
+const bible = require('./bible');
 const defaults = require('./cloud-config');
 
 const INTERVAL_MS = 60 * 1000;
@@ -282,6 +283,21 @@ async function pullBackgrounds() {
   });
 }
 
+// Bíblia: junta os capítulos que mudaram e troca de uma vez (o índice de busca é refeito uma vez só).
+// Editor com Bíblia ainda não enviada: a dele vence (vai ser enviada em seguida).
+// Banco online sem a tabela (schema.sql antigo): segue sem a Bíblia, sem dar erro.
+async function pullBible() {
+  if (isEditor() && bible.cloudDirty()) return 0;
+  const rows = [];
+  try {
+    await pullTable('library_bible', 'id', async (row) => { rows.push(row); return true; });
+  } catch (err) {
+    if (/ 404|PGRST205|42P01|does not exist/.test(err.message)) return 0;
+    throw err;
+  }
+  return bible.applyCloudChapters(rows);
+}
+
 // ---------- Enviar (push, só editor) ----------
 
 // Envia em lotes; o servidor devolve a hora oficial de cada item
@@ -325,6 +341,24 @@ async function pushHymns() {
   const rows = hymns.dirtyHymns().map(h => ({ ...h, deleted: false }));
   if (rows.length) (await upsert('library_hymns', rows, 'uid')).forEach(r => hymns.markHymnSynced(r.uid, r.updated_at));
   return rows.length + await pushDeletions('hymn', 'library_hymns', 'uid');
+}
+
+// A Bíblia inteira (1.189 capítulos) vai em lotes de 50, só quando foi importada de novo aqui
+async function pushBible() {
+  if (!bible.cloudDirty()) return 0;
+  const rows = bible.chaptersForCloud().map(c => ({ ...c, deleted: false }));
+  let done;
+  try {
+    done = await upsert('library_bible', rows, 'id', 50, 'id,updated_at');
+  } catch (err) {
+    if (/ 404|PGRST205|42P01|does not exist/.test(err.message)) return 0;
+    throw err;
+  }
+  bible.markCloudSynced();
+  // O que acabou de ir não precisa voltar na próxima leitura
+  const newest = done.reduce((max, r) => (r.updated_at > max ? r.updated_at : max), cursors().library_bible || '');
+  if (newest) saveCursor('library_bible', newest);
+  return 1;
 }
 
 async function pushBackgrounds() {
@@ -377,15 +411,17 @@ async function runSync() {
     const changed = {
       sermons: await pullSermons(),
       hymns: await pullHymns(),
-      backgrounds: await pullBackgrounds()
+      backgrounds: await pullBackgrounds(),
+      bible: await pullBible()
     };
     let sent = 0;
-    if (isEditor()) sent = await pushSermons() + await pushHymns() + await pushBackgrounds();
+    if (isEditor()) sent = await pushSermons() + await pushHymns() + await pushBackgrounds() + await pushBible();
     const parts = [];
+    if (changed.bible) parts.push(changed.bible > 100 ? 'recebida a Bíblia' : `recebidos ${changed.bible} capítulos da Bíblia`);
     if (changed.sermons || changed.hymns || changed.backgrounds) parts.push(`recebidas ${changed.sermons + changed.hymns + changed.backgrounds} alterações`);
     if (sent) parts.push(`enviadas ${sent}`);
     setStatus({ state: 'ok', lastSync: new Date().toISOString(), lastError: null, message: parts.length ? `Sincronizado: ${parts.join(', ')}.` : 'Tudo sincronizado.' });
-    if (changed.sermons || changed.hymns || changed.backgrounds) changedListener(changed);
+    if (changed.sermons || changed.hymns || changed.backgrounds || changed.bible) changedListener(changed);
     return { changed };
   } catch (err) {
     const offline = /fetch failed|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|network|aborted|timeout/i.test(`${err.name} ${err.message}`);

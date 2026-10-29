@@ -1,9 +1,10 @@
 // Bíblia ACF: banco local, importação da pasta da igreja, capítulos e busca.
-// O texto NÃO vai no repositório (é público e a ACF tem direitos da SBTB): cada PC importa
-// a pasta "2 Biblia_ACF" (automático na primeira vez, se estiver em C:\tf_slides).
+// O texto NÃO vai no repositório (é público e a ACF tem direitos da SBTB). Chega de dois jeitos:
+// pelo banco online (só igrejas aprovadas; o editor que importou envia) ou importando a pasta
+// "2 Biblia_ACF" (automático na primeira vez, se estiver em C:\tf_slides).
 const fs = require('fs');
 const path = require('path');
-const { connection: db, transaction } = require('./db');
+const { connection: db, transaction, getSetting, setSetting, notifyChange } = require('./db');
 const { books, parseReference } = require('./bible-books');
 
 const DEFAULT_FOLDER = 'C:\\tf_slides\\2 Biblia_ACF';
@@ -29,6 +30,8 @@ const stmt = {
   chapter: db.prepare('SELECT verse, text FROM bible_verses WHERE book = ? AND chapter = ? ORDER BY verse'),
   clear: db.prepare('DELETE FROM bible_verses'),
   insert: db.prepare('INSERT OR REPLACE INTO bible_verses (book, chapter, verse, text) VALUES (?, ?, ?, ?)'),
+  clearChapter: db.prepare('DELETE FROM bible_verses WHERE book = ? AND chapter = ?'),
+  allVerses: db.prepare('SELECT book, chapter, verse, text FROM bible_verses ORDER BY book, chapter, verse'),
   search: db.prepare(`
     SELECT v.book, v.chapter, v.verse, v.text FROM bible_fts f
     JOIN bible_verses v ON v.id = f.rowid
@@ -111,7 +114,43 @@ function importBible(files) {
     db.exec("INSERT INTO bible_fts(bible_fts) VALUES('rebuild')");
   });
   chapterCounts = null;
+  // Editor: a Bíblia importada aqui vai para o banco online (as outras igrejas recebem)
+  setSetting('bibleCloud', { dirty: true });
+  notifyChange('bible');
   return { chapters, verses, skipped: skipped.length };
+}
+
+// ---------- Banco online (sync.js) ----------
+
+// Sem marca (Bíblia importada antes do banco online) conta como "ainda não enviada"
+const cloudDirty = () => verseCount() > 0 && getSetting('bibleCloud', { dirty: true }).dirty !== false;
+const markCloudSynced = () => setSetting('bibleCloud', { dirty: false });
+
+// Capítulos para enviar: [{ id: "livro:capítulo", book, chapter, verses: [{ verse, text }] }]
+function chaptersForCloud() {
+  const map = new Map();
+  for (const v of stmt.allVerses.all()) {
+    const id = `${v.book}:${v.chapter}`;
+    if (!map.has(id)) map.set(id, { id, book: v.book, chapter: v.chapter, verses: [] });
+    map.get(id).verses.push({ verse: v.verse, text: v.text });
+  }
+  return [...map.values()];
+}
+
+// Capítulos que chegaram do banco online (troca só esses); o índice de busca é refeito no fim
+function applyCloudChapters(rows) {
+  if (rows.length === 0) return 0;
+  transaction(() => {
+    rows.forEach(row => {
+      stmt.clearChapter.run(row.book, row.chapter);
+      if (row.deleted) return;
+      (row.verses || []).forEach(v => stmt.insert.run(row.book, row.chapter, v.verse, String(v.text || '')));
+    });
+    db.exec("INSERT INTO bible_fts(bible_fts) VALUES('rebuild')");
+  });
+  chapterCounts = null;
+  markCloudSynced();
+  return rows.length;
 }
 
 function readFolder(root) {
@@ -221,4 +260,7 @@ function search(query, limit = 30) {
   return result;
 }
 
-module.exports = { DEFAULT_FOLDER, autoImport, importBible, verseCount, listBooks, getChapter, search, bookName };
+module.exports = {
+  DEFAULT_FOLDER, autoImport, importBible, verseCount, listBooks, getChapter, search, bookName,
+  cloudDirty, markCloudSynced, chaptersForCloud, applyCloudChapters
+};
