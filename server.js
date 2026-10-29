@@ -21,7 +21,7 @@ const tfSermons = require('./src/tf-sermons');
 const sounds = require('./src/sounds');
 const { createDesktopShortcut } = require('./src/shortcut');
 
-const CURRENT_VERSION = '2.1.3';
+const CURRENT_VERSION = '2.1.4';
 const PORT = process.env.PORT || 3000;
 
 const app = express();
@@ -275,6 +275,7 @@ let globalState = {
   // Agendamentos (sino antes do culto, vídeos...): o som sai neste computador (janela do programa) ou no OBS
   soundSchedules: sounds.loadSchedules(),
   soundPlaylists: sounds.loadPlaylists(),
+  soundFolders: sounds.loadFolders(),
   soundOutput: db.getSetting('soundOutput', 'app') === 'obs' ? 'obs' : 'app',
   // O que está tocando agora (som, som com imagem ou vídeo; o overlay mostra a imagem/vídeo por cima de tudo):
   // { id, kind, name, url, image, label, volume, output, transition, transitionTime, startedAt, playlist: { name, index, total } | null }
@@ -1132,6 +1133,11 @@ function setSoundSchedules(items) {
   broadcastContent();
 }
 
+function setSoundFolders(folders) {
+  globalState.soundFolders = sounds.saveFolders(folders);
+  broadcastContent();
+}
+
 function setSoundPlaylists(items) {
   globalState.soundPlaylists = sounds.savePlaylists(items);
   // Playlist apagada leva os agendamentos dela
@@ -1410,6 +1416,9 @@ wss.on('connection', (ws, req) => {
           break;
         case 'sound-playlists':
           setSoundPlaylists(payload.items);
+          break;
+        case 'sound-folders':
+          setSoundFolders(payload);
           break;
         case 'sound-next':
           soundFinished();
@@ -1699,6 +1708,9 @@ app.get('/api/sounds', (req, res) => {
 app.post('/api/sounds/upload', async (req, res) => {
   try {
     const saved = await sounds.saveUpload(req, req.query.name);
+    // Enviado com uma pasta aberta: já entra nela
+    const f = globalState.soundFolders;
+    if (req.query.folder && f.list.includes(req.query.folder)) setSoundFolders({ ...f, files: { ...f.files, [saved.name]: req.query.folder } });
     res.json({ success: true, ...saved });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -1729,8 +1741,13 @@ app.delete('/api/sounds/:name', (req, res) => {
     if (!sounds.removeSound(req.params.name)) return res.status(404).json({ error: 'Som não encontrado.' });
     const left = globalState.soundSchedules.filter(s => s.name !== req.params.name);
     if (left.length !== globalState.soundSchedules.length) setSoundSchedules(left);
-    // Sai também das playlists
+    // Sai também das playlists e da pasta
     const name = req.params.name;
+    if (globalState.soundFolders.files[name]) {
+      const files = { ...globalState.soundFolders.files };
+      delete files[name];
+      setSoundFolders({ ...globalState.soundFolders, files });
+    }
     const uses = (it) => it.name === name || (it.rotation && (it.rotation.files.includes(name) || it.rotation.special.name === name));
     if (globalState.soundPlaylists.some(p => p.items.some(uses))) {
       setSoundPlaylists(globalState.soundPlaylists.map(p => ({
