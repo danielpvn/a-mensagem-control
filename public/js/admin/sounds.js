@@ -739,7 +739,7 @@ function renderEditor() {
   });
 }
 
-// ---------- Rodízio (um arquivo diferente a cada dia, na ordem, e um especial no domingo marcado) ----------
+// ---------- Rodízio (um arquivo diferente a cada vez que toca pelo horário, e um especial no domingo marcado) ----------
 
 const dateBr = (key) => key.split('-').reverse().join('/');
 
@@ -761,7 +761,7 @@ function rotationBox(r) {
 
   const head = document.createElement('div');
   head.className = 'rot-label';
-  head.textContent = 'Um por dia, nesta ordem (clique num para ele ser o próximo):';
+  head.textContent = 'Um a cada vez que a playlist toca pelo horário, nesta ordem (clique num para ele ser o próximo):';
   const list = document.createElement('div');
   list.className = 'rot-files';
   if (r.files.length === 0) list.innerHTML = '<div class="muted small">Coloque os vídeos do rodízio aqui embaixo.</div>';
@@ -773,7 +773,7 @@ function rotationBox(r) {
     const pick = document.createElement('button');
     pick.type = 'button';
     pick.className = 'rot-pick';
-    pick.title = 'Tocar este no próximo dia';
+    pick.title = 'Tocar este na próxima vez';
     pick.textContent = `${i + 1}. ${soundTitle(name)}${i === r.next % r.files.length ? ' (próximo)' : ''}`;
     pick.onclick = () => { r.next = i; r.lastDate = null; r.lastName = null; redraw(); };
     const up = document.createElement('button');

@@ -187,7 +187,8 @@ const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDa
 const TRANSITIONS = ['none', 'fade', 'black', 'slide', 'zoom'];
 
 // ---------- Rodízio ----------
-// Item de playlist que toca um arquivo diferente a cada dia, na ordem (ex: um vídeo por domingo),
+// Item de playlist que toca um arquivo diferente a cada vez que a playlist toca pelo horário, na ordem
+// (ex: domingo de manhã o vídeo 4, à tarde o 5, no outro domingo o 6...),
 // e um "especial" numa semana do mês (ex: o vídeo da Ceia no 1º domingo). Se o especial mudar de
 // data num mês, `moved` guarda a data nova e a semana normal daquele mês volta para o rodízio.
 // { files, next, lastDate, lastName, special: { name, week 'w1'..'w4' | 'last', moved: ['AAAA-MM-DD'] } }
@@ -223,17 +224,15 @@ function specialDay(special, date) {
   return Math.ceil(day / 7) === Number(special.week.slice(1));
 }
 
-// Qual arquivo toca hoje. `advance` (só quando toca pelo horário marcado) anda o rodízio;
-// tocar de novo no mesmo dia repete o mesmo, e "Tocar agora" só mostra o da vez sem gastar.
-// No dia do especial o rodízio fica parado.
+// Qual arquivo toca agora. `advance` (só quando toca pelo horário marcado) anda o rodízio, então
+// a playlist da manhã e a da tarde tocam vídeos diferentes; "Tocar agora" só mostra o da vez sem gastar.
+// No dia do especial ele toca em todas as vezes e o rodízio fica parado.
 function pickRotation(r, date = new Date(), advance = false) {
   if (specialDay(r.special, date)) return { name: r.special.name, changed: null };
-  const key = dayKey(date);
-  if (r.lastDate === key && r.lastName) return { name: r.lastName, changed: null };
   if (!r.files.length) return { name: null, changed: null };
   const name = r.files[r.next % r.files.length];
   if (!advance) return { name, changed: null };
-  return { name, changed: { ...r, next: (r.next + 1) % r.files.length, lastDate: key, lastName: name } };
+  return { name, changed: { ...r, next: (r.next + 1) % r.files.length, lastDate: dayKey(date), lastName: name } };
 }
 
 function cleanPlaylist(raw) {
