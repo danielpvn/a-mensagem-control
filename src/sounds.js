@@ -258,6 +258,24 @@ function cleanPlaylist(raw) {
   };
 }
 
+// ---------- Pastas ----------
+// Só organizam a lista do painel: os arquivos ficam todos em data/sounds, então agendamentos e
+// playlists (que guardam o nome do arquivo) não mudam. { list: ['Sinos', ...], files: { 'arquivo.mp4': 'Sinos' } }
+function cleanFolders(raw) {
+  const list = [...new Set((Array.isArray(raw && raw.list) ? raw.list : []).map(n => String(n || '').trim().slice(0, 40)).filter(Boolean))].slice(0, 50);
+  const files = {};
+  Object.entries((raw && raw.files) || {}).forEach(([file, folder]) => { if (list.includes(folder)) files[String(file)] = folder; });
+  return { list, files };
+}
+
+const loadFolders = () => cleanFolders(db.getSetting('soundFolders', {}));
+
+function saveFolders(raw) {
+  const clean = cleanFolders(raw);
+  db.setSetting('soundFolders', clean);
+  return clean;
+}
+
 function loadPlaylists() {
   return db.getSetting('soundPlaylists', []).map(cleanPlaylist);
 }
@@ -302,4 +320,4 @@ function startScheduler({ getSchedules, onFire, onChange }) {
   return setInterval(tick, 5000);
 }
 
-module.exports = { DIR, TRANSITIONS, listSounds, loadPlaylists, savePlaylists, pickRotation, imageUrl, saveUpload, saveImage, removeImage, removeSound, loadSchedules, saveSchedules, startScheduler };
+module.exports = { DIR, TRANSITIONS, listSounds, loadPlaylists, savePlaylists, pickRotation, loadFolders, saveFolders, imageUrl, saveUpload, saveImage, removeImage, removeSound, loadSchedules, saveSchedules, startScheduler };

@@ -985,6 +985,7 @@ fieldset.collapsed > :not(legend) { display: none !important; }
 
 .folder-row { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
 .folder-row select, .folder-row input { flex: 1; min-width: 0; }
+.sound-name .sound-move { margin-top: 3px; width: 100%; padding: 2px 6px; font-size: 0.72rem; height: auto; }
 .media-drop { padding: 14px; flex-shrink: 0; }
 .media-drop svg { width: 22px; height: 22px; }
 

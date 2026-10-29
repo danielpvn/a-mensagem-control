@@ -7,7 +7,7 @@
   <link rel="icon" href="assets/favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="assets/favicon.png">
   <link rel="stylesheet" href="fonts.css">
-  <link rel="stylesheet" href="admin.css?v=2.1.16">
+  <link rel="stylesheet" href="admin.css?v=2.1.17">
 </head>
 <body>
   <div class="app">
@@ -17,7 +17,7 @@
         <img src="assets/logo.svg" alt="" class="brand-logo">
         <div class="brand-text">
           <strong>A MENSAGEM</strong>
-          <span>CONTROL <em id="app-version" class="version-tag">v2.1.3</em></span>
+          <span>CONTROL <em id="app-version" class="version-tag">v2.1.4</em></span>
         </div>
       </div>
 
@@ -1181,7 +1181,20 @@
           <aside class="card library sounds-library">
             <div class="card-head">
               <h2>Arquivos</h2>
+              <div class="head-actions">
+                <button type="button" id="btn-sound-new-folder" class="btn btn-secondary btn-sm" title="Criar uma pasta para organizar (ex: Vídeos do rodízio)">Nova pasta</button>
+              </div>
             </div>
+            <div class="folder-row" id="sound-folder-row" hidden>
+              <select id="sound-folder" aria-label="Pasta"></select>
+              <button type="button" id="btn-sound-delete-folder" class="btn btn-ghost-danger btn-sm" title="Apagar esta pasta (os arquivos continuam, sem pasta)">
+                <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+              </button>
+            </div>
+            <form id="sound-new-folder-form" class="folder-row" hidden>
+              <input type="text" id="sound-new-folder-name" placeholder="Nome da pasta (ex: Vídeos do rodízio)" maxlength="40">
+              <button type="submit" class="btn btn-primary btn-sm">Criar</button>
+            </form>
             <label class="dropzone dropzone-small" id="sound-dropzone">
               <input type="file" id="sound-files" accept="audio/*,video/mp4,video/webm,video/quicktime,.mp3,.wav,.ogg,.m4a,.mp4,.webm,.mov,.m4v" multiple>
               <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
@@ -1468,7 +1481,7 @@
 
           <div class="card">
             <h2>Sobre</h2>
-            <p class="muted">A Mensagem Control <strong id="about-version">v2.1.3</strong></p>
+            <p class="muted">A Mensagem Control <strong id="about-version">v2.1.4</strong></p>
             <p class="muted small">Feito para as equipes de mídia das igrejas do Tabernáculo da Fé.</p>
             <button id="btn-check-update" class="btn btn-secondary btn-sm">Verificar atualizações</button>
             <p id="update-status" class="muted small"></p>
@@ -1612,6 +1625,6 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script type="module" src="js/admin/main.js?v=2.1.16"></script>
+  <script type="module" src="js/admin/main.js?v=2.1.17"></script>
 </body>
 </html>
