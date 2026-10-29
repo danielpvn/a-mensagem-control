@@ -18,6 +18,10 @@ let audio = null;       // o que está tocando agora na janela do programa: { id
 let playing = null;     // state.soundNow (o que está tocando, venha de onde vier)
 let output = 'app';     // onde o som sai: 'app' (este computador) ou 'obs'
 let plEditing = null;   // playlist aberta no editor: { id, name, items, transition, transitionTime }
+let folders = { list: [], files: {} }; // pastas (só organizam a lista): { list, files: { arquivo: pasta } }
+const NO_FOLDER = '-';
+// Pasta aberta na lista: '' = todos, NO_FOLDER = sem pasta
+let openFolder = (() => { try { return localStorage.getItem('amc.soundFolder') || ''; } catch (e) { return ''; } })();
 
 const pad = (n) => String(n).padStart(2, '0');
 const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -25,6 +29,7 @@ const sizeText = (bytes) => (bytes > 1024 * 1024 ? `${(bytes / 1024 / 1024).toFi
 const soundTitle = (name) => name.replace(/\.[^.]+$/, '');
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
 const fileOf = (name) => soundFiles.find(f => f.name === name);
+const folderOf = (name) => folders.files[name] || '';
 const playlistOf = (id) => playlists.find(p => p.id === id);
 // Arquivos que um item de playlist usa (o rodízio usa vários)
 const itemNames = (it) => (it.rotation ? [...it.rotation.files, it.rotation.special.name].filter(Boolean) : [it.name]);
@@ -96,10 +101,104 @@ async function loadSounds() {
   } catch (err) {
     soundFiles = [];
   }
+  renderFolders();
   renderSoundSelect();
   renderSchedules();
   renderPlaylists();
   renderEditor();
+}
+
+// ---------- Pastas ----------
+
+// Arquivos separados por pasta (para as listas de escolher); null quando não há pastas
+function groupedFiles() {
+  if (!folders.list.length) return null;
+  const groups = folders.list.map(f => [f, soundFiles.filter(x => folderOf(x.name) === f)]);
+  groups.push(['Sem pasta', soundFiles.filter(x => !folderOf(x.name))]);
+  return groups.filter(([, files]) => files.length);
+}
+
+function addFileOptions(select) {
+  const option = (f) => new Option(`${f.kind === 'video' ? 'Vídeo' : 'Som'}: ${soundTitle(f.name)}`, f.name);
+  const groups = groupedFiles();
+  if (!groups) {
+    soundFiles.forEach(f => select.add(option(f)));
+    return;
+  }
+  groups.forEach(([label, files]) => {
+    const og = document.createElement('optgroup');
+    og.label = label;
+    files.forEach(f => og.appendChild(option(f)));
+    select.appendChild(og);
+  });
+}
+
+function setOpenFolder(value) {
+  openFolder = value;
+  try { localStorage.setItem('amc.soundFolder', value); } catch (e) { /* sem armazenamento */ }
+  renderFolders();
+  renderSounds();
+}
+
+function renderFolders() {
+  if (openFolder && openFolder !== NO_FOLDER && !folders.list.includes(openFolder)) openFolder = '';
+  if (openFolder === NO_FOLDER && !folders.list.length) openFolder = '';
+  const select = $('sound-folder');
+  const count = (fn) => soundFiles.filter(fn).length;
+  select.innerHTML = '';
+  select.add(new Option(`Todos os arquivos (${soundFiles.length})`, ''));
+  folders.list.forEach(f => select.add(new Option(`${f} (${count(x => folderOf(x.name) === f)})`, f)));
+  if (folders.list.length) select.add(new Option(`Sem pasta (${count(x => !folderOf(x.name))})`, NO_FOLDER));
+  select.value = openFolder;
+  $('sound-folder-row').hidden = !folders.list.length;
+  $('btn-sound-delete-folder').hidden = !openFolder || openFolder === NO_FOLDER;
+}
+
+function saveFolders(next) {
+  folders = next;
+  ws.send('sound-folders', next);
+  renderFolders();
+  renderSounds();
+  renderSoundSelect();
+  renderEditor();
+}
+
+function setupFolders() {
+  const form = $('sound-new-folder-form');
+  $('sound-folder').onchange = (e) => setOpenFolder(e.target.value);
+  $('btn-sound-new-folder').onclick = () => {
+    form.hidden = !form.hidden;
+    if (!form.hidden) $('sound-new-folder-name').focus();
+  };
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    const name = $('sound-new-folder-name').value.trim().slice(0, 40);
+    if (!name) return;
+    if (folders.list.includes(name)) {
+      toast('Já existe uma pasta com esse nome.', 'error');
+      return;
+    }
+    form.hidden = true;
+    form.reset();
+    saveFolders({ ...folders, list: [...folders.list, name] });
+    setOpenFolder(name);
+    toast(`Pasta "${name}" criada. O que você enviar agora entra nela; para mudar um arquivo de pasta, use o seletor embaixo do nome dele.`, 'success');
+  };
+  $('btn-sound-delete-folder').onclick = async () => {
+    const folder = openFolder;
+    const inside = soundFiles.filter(f => folderOf(f.name) === folder).length;
+    const ok = await confirmDialog({
+      title: 'Apagar esta pasta?',
+      text: `A pasta "${folder}" sai da lista.${inside ? ` Os ${inside} arquivo(s) dela continuam, sem pasta.` : ''}`,
+      okLabel: 'Apagar pasta',
+      danger: true
+    });
+    if (!ok) return;
+    const files = { ...folders.files };
+    Object.keys(files).forEach(k => { if (files[k] === folder) delete files[k]; });
+    saveFolders({ list: folders.list.filter(f => f !== folder), files });
+    setOpenFolder('');
+  };
 }
 
 const playIcon = '<svg viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></svg>';
@@ -113,7 +212,12 @@ function renderSounds() {
     list.innerHTML = '<div class="empty">Envie o som do sino, um hino ou um vídeo de aviso.</div>';
     return;
   }
-  soundFiles.forEach(file => {
+  const visible = soundFiles.filter(f => !openFolder || (openFolder === NO_FOLDER ? !folderOf(f.name) : folderOf(f.name) === openFolder));
+  if (visible.length === 0) {
+    list.innerHTML = '<div class="empty">Pasta vazia. Envie arquivos com ela aberta, ou mude um arquivo de pasta pelo seletor embaixo do nome dele.</div>';
+    return;
+  }
+  visible.forEach(file => {
     const row = document.createElement('div');
     row.className = 'sound-row';
     const isPlaying = playing && playing.name === file.name;
@@ -138,6 +242,21 @@ function renderSounds() {
       inLists ? `em ${inLists} playlist${inLists > 1 ? 's' : ''}` : ''
     ].filter(Boolean).join(' · ');
     name.append(strong, meta);
+    if (folders.list.length) {
+      const move = document.createElement('select');
+      move.className = 'sound-move';
+      move.title = 'Pasta deste arquivo';
+      move.add(new Option('Sem pasta', ''));
+      folders.list.forEach(f => move.add(new Option(f, f)));
+      move.value = folderOf(file.name);
+      move.onchange = () => {
+        const files = { ...folders.files };
+        if (move.value) files[file.name] = move.value;
+        else delete files[file.name];
+        saveFolders({ ...folders, files });
+      };
+      name.appendChild(move);
+    }
     const add = document.createElement('button');
     add.type = 'button';
     add.className = 'icon-btn pl-plus';
@@ -271,20 +390,20 @@ function renderSoundSelect() {
     select.appendChild(og);
   };
   group('Playlists', playlists.map(p => [`pl:${p.id}`, `${p.name} (${p.items.length} ${p.items.length === 1 ? 'item' : 'itens'})`]));
-  group('Sons', soundFiles.filter(f => f.kind !== 'video').map(f => [`file:${f.name}`, soundTitle(f.name)]));
-  group('Vídeos', soundFiles.filter(f => f.kind === 'video').map(f => [`file:${f.name}`, soundTitle(f.name)]));
+  const byFolder = groupedFiles();
+  if (byFolder) {
+    byFolder.forEach(([label, files]) => group(label, files.map(f => [`file:${f.name}`, `${f.kind === 'video' ? 'Vídeo' : 'Som'}: ${soundTitle(f.name)}`])));
+  } else {
+    group('Sons', soundFiles.filter(f => f.kind !== 'video').map(f => [`file:${f.name}`, soundTitle(f.name)]));
+    group('Vídeos', soundFiles.filter(f => f.kind === 'video').map(f => [`file:${f.name}`, soundTitle(f.name)]));
+  }
   if ([...select.options].some(o => o.value === current)) select.value = current;
   $('btn-sch-save').disabled = !select.value;
 
   const add = $('pl-add-select');
   const keep = add.value;
   add.innerHTML = '';
-  soundFiles.forEach(f => {
-    const option = document.createElement('option');
-    option.value = f.name;
-    option.textContent = `${f.kind === 'video' ? 'Vídeo' : 'Som'}: ${soundTitle(f.name)}`;
-    add.appendChild(option);
-  });
+  addFileOptions(add);
   if (soundFiles.some(f => f.name === keep)) add.value = keep;
   $('btn-pl-add').disabled = soundFiles.length === 0;
 }
@@ -303,7 +422,8 @@ function uploadSound(file) {
     row.append(name, bar);
     $('sound-uploads').appendChild(row);
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', `/api/sounds/upload?name=${encodeURIComponent(file.name)}`);
+    const folder = openFolder && openFolder !== NO_FOLDER ? `&folder=${encodeURIComponent(openFolder)}` : '';
+    xhr.open('POST', `/api/sounds/upload?name=${encodeURIComponent(file.name)}${folder}`);
     xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) fill.style.width = `${(e.loaded / e.total) * 100}%`; };
     const finish = (error) => {
@@ -753,7 +873,7 @@ function rotationSummary(r) {
 function fileOptions(select, empty) {
   select.innerHTML = '';
   if (empty) select.add(new Option(empty, ''));
-  soundFiles.forEach(f => select.add(new Option(`${f.kind === 'video' ? 'Vídeo' : 'Som'}: ${soundTitle(f.name)}`, f.name)));
+  addFileOptions(select);
 }
 
 function rotationBox(r) {
@@ -1021,6 +1141,12 @@ export function setupSounds() {
       renderNowPlaying();
       renderPlaylists();
     }
+    if (state.soundFolders && JSON.stringify(state.soundFolders) !== JSON.stringify(folders)) {
+      folders = state.soundFolders;
+      renderFolders();
+      renderSounds();
+      renderSoundSelect();
+    }
     if (state.soundPlaylists && JSON.stringify(state.soundPlaylists) !== JSON.stringify(playlists)) {
       playlists = state.soundPlaylists;
       renderPlaylists();
@@ -1048,6 +1174,7 @@ export function setupSounds() {
   $('btn-sound-stop').onclick = () => ws.send('sound-stop');
   $('btn-sound-next').onclick = () => ws.send('sound-next');
   $('sound-files').onchange = (e) => { uploadSounds(e.target.files); e.target.value = ''; };
+  setupFolders();
   const zone = $('sound-dropzone');
   zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragging'); });
   zone.addEventListener('dragleave', () => zone.classList.remove('dragging'));
