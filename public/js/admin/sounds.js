@@ -29,8 +29,9 @@ const playlistOf = (id) => playlists.find(p => p.id === id);
 // Arquivos que um item de playlist usa (o rodízio usa vários)
 const itemNames = (it) => (it.rotation ? [...it.rotation.files, it.rotation.special.name].filter(Boolean) : [it.name]);
 const itemTitle = (it) => (it.rotation ? `Rodízio (${it.rotation.files.length})` : soundTitle(it.name));
-const PART_NAMES = { all: 'em todos os horários', am: 'só de manhã (antes do meio-dia)', pm: 'só à tarde/noite (depois do meio-dia)' };
+const PART_NAMES = { all: 'em todos os horários', am: 'só de manhã', pm: 'só à tarde/noite' };
 const WEEK_NAMES = { w1: '1º domingo do mês', w2: '2º domingo do mês', w3: '3º domingo do mês', w4: '4º domingo do mês', last: 'último domingo do mês' };
+const weekName = (r) => WEEK_NAMES[r.special.week] || WEEK_NAMES.w1;
 const TRANSITION_NAMES = { fade: 'Esmaecer', black: 'Passar pelo preto', slide: 'Deslizar', zoom: 'Aproximar', none: 'Corte seco' };
 // O que o agendamento toca (arquivo ou playlist)
 const scheduleTitle = (s) => {
@@ -746,7 +747,7 @@ const dateBr = (key) => key.split('-').reverse().join('/');
 
 function rotationSummary(r) {
   const next = r.files.length ? soundTitle(r.files[r.next % r.files.length]) : 'nenhum';
-  return `${r.files.length} ${r.files.length === 1 ? 'arquivo' : 'arquivos'} · próximo: ${next}${r.special.name ? ` · ${WEEK_NAMES[r.special.week]}${r.special.part === 'am' ? ' de manhã' : r.special.part === 'pm' ? ' à tarde' : ''}: ${soundTitle(r.special.name)}` : ''}`;
+  return `${r.files.length} ${r.files.length === 1 ? 'arquivo' : 'arquivos'} · próximo: ${next}${r.special.name ? ` · ${weekName(r)}${r.special.part === 'am' ? ' de manhã' : r.special.part === 'pm' ? ' à tarde' : ''}: ${soundTitle(r.special.name)}` : ''}`;
 }
 
 function fileOptions(select, empty) {
@@ -839,6 +840,7 @@ function rotationBox(r) {
   spWeek.onchange = () => { r.special.week = spWeek.value; };
   const spPart = document.createElement('select');
   spPart.setAttribute('aria-label', 'Em qual parte do dia');
+  spPart.title = 'Manhã = antes do meio-dia; tarde/noite = depois do meio-dia (pela hora em que a playlist toca)';
   Object.entries(PART_NAMES).forEach(([value, text]) => spPart.add(new Option(text, value)));
   spPart.value = r.special.part || 'all';
   spPart.disabled = !r.special.name;
@@ -869,7 +871,7 @@ function rotationBox(r) {
   r.special.moved.filter(d => d >= today.slice(0, 7)).forEach(d => {
     const chip = document.createElement('span');
     chip.className = 'rot-date';
-    chip.textContent = `${dateBr(d)} (no lugar do ${WEEK_NAMES[r.special.week].replace(' do mês', '')} desse mês)`;
+    chip.textContent = `${dateBr(d)} (no lugar do ${weekName(r).replace(' do mês', '')} desse mês)`;
     const x = document.createElement('button');
     x.type = 'button';
     x.className = 'btn-x small';

@@ -1,5 +1,5 @@
 {
-  "version": "2.1.2",
-  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.1.2/A_Mensagem_Control.zip",
-  "notes": "Mídia numa pasta Geral (sem pasta por dia; pastas com nome continuam opcionais). Agendamentos: rodízio de vídeos na playlist, um por domingo, com o vídeo especial no 1º domingo do mês (Ceia) e opção de mudar a data num mês."
+  "version": "2.1.3",
+  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.1.3/A_Mensagem_Control.zip",
+  "notes": "Rodízio de vídeos: anda a cada vez que a playlist toca (manhã e tarde do mesmo domingo com vídeos diferentes) e o vídeo especial pode tocar só de manhã ou só à tarde (ex: Ceia no 1º domingo à tarde)."
 }
