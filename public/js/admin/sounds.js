@@ -29,6 +29,7 @@ const playlistOf = (id) => playlists.find(p => p.id === id);
 // Arquivos que um item de playlist usa (o rodízio usa vários)
 const itemNames = (it) => (it.rotation ? [...it.rotation.files, it.rotation.special.name].filter(Boolean) : [it.name]);
 const itemTitle = (it) => (it.rotation ? `Rodízio (${it.rotation.files.length})` : soundTitle(it.name));
+const PART_NAMES = { all: 'em todos os horários', am: 'só de manhã (antes do meio-dia)', pm: 'só à tarde/noite (depois do meio-dia)' };
 const WEEK_NAMES = { w1: '1º domingo do mês', w2: '2º domingo do mês', w3: '3º domingo do mês', w4: '4º domingo do mês', last: 'último domingo do mês' };
 const TRANSITION_NAMES = { fade: 'Esmaecer', black: 'Passar pelo preto', slide: 'Deslizar', zoom: 'Aproximar', none: 'Corte seco' };
 // O que o agendamento toca (arquivo ou playlist)
@@ -745,7 +746,7 @@ const dateBr = (key) => key.split('-').reverse().join('/');
 
 function rotationSummary(r) {
   const next = r.files.length ? soundTitle(r.files[r.next % r.files.length]) : 'nenhum';
-  return `${r.files.length} ${r.files.length === 1 ? 'arquivo' : 'arquivos'} · próximo: ${next}${r.special.name ? ` · ${WEEK_NAMES[r.special.week]}: ${soundTitle(r.special.name)}` : ''}`;
+  return `${r.files.length} ${r.files.length === 1 ? 'arquivo' : 'arquivos'} · próximo: ${next}${r.special.name ? ` · ${WEEK_NAMES[r.special.week]}${r.special.part === 'am' ? ' de manhã' : r.special.part === 'pm' ? ' à tarde' : ''}: ${soundTitle(r.special.name)}` : ''}`;
 }
 
 function fileOptions(select, empty) {
@@ -836,7 +837,13 @@ function rotationBox(r) {
   spWeek.value = r.special.week;
   spWeek.disabled = !r.special.name;
   spWeek.onchange = () => { r.special.week = spWeek.value; };
-  special.append(spLabel, spFile, spWeek);
+  const spPart = document.createElement('select');
+  spPart.setAttribute('aria-label', 'Em qual parte do dia');
+  Object.entries(PART_NAMES).forEach(([value, text]) => spPart.add(new Option(text, value)));
+  spPart.value = r.special.part || 'all';
+  spPart.disabled = !r.special.name;
+  spPart.onchange = () => { r.special.part = spPart.value; };
+  special.append(spLabel, spFile, spWeek, spPart);
 
   box.append(head, list, add, special);
   if (!r.special.name) return box;
@@ -895,7 +902,7 @@ function setupPlaylists() {
   $('btn-pl-add').onclick = () => { if ($('pl-add-select').value) addToPlaylist($('pl-add-select').value); };
   $('btn-pl-rotation').onclick = () => {
     if (!plEditing) return;
-    plEditing.items.push({ rotation: { files: [], next: 0, lastDate: null, lastName: null, special: { name: null, week: 'w1', moved: [] } }, volume: 1 });
+    plEditing.items.push({ rotation: { files: [], next: 0, lastDate: null, lastName: null, special: { name: null, week: 'w1', part: 'all', moved: [] } }, volume: 1 });
     renderEditor();
   };
   $('pl-transition').onchange = renderEditor;

@@ -191,8 +191,10 @@ const TRANSITIONS = ['none', 'fade', 'black', 'slide', 'zoom'];
 // (ex: domingo de manhã o vídeo 4, à tarde o 5, no outro domingo o 6...),
 // e um "especial" numa semana do mês (ex: o vídeo da Ceia no 1º domingo). Se o especial mudar de
 // data num mês, `moved` guarda a data nova e a semana normal daquele mês volta para o rodízio.
-// { files, next, lastDate, lastName, special: { name, week 'w1'..'w4' | 'last', moved: ['AAAA-MM-DD'] } }
+// { files, next, lastDate, lastName, special: { name, week 'w1'..'w4' | 'last', part 'all' | 'am' | 'pm', moved: ['AAAA-MM-DD'] } }
+// part: o especial vale em todas as vezes do dia, só de manhã (antes do meio-dia) ou só à tarde/noite.
 const WEEKS = ['w1', 'w2', 'w3', 'w4', 'last'];
+const PARTS = ['all', 'am', 'pm'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const safeOrNull = (name) => { try { return name ? safe(name) : null; } catch (e) { return null; } };
 
@@ -208,14 +210,17 @@ function cleanRotation(r) {
     special: {
       name: safeOrNull(sp.name),
       week: WEEKS.includes(sp.week) ? sp.week : 'w1',
+      part: PARTS.includes(sp.part) ? sp.part : 'all',
       moved: [...new Set((Array.isArray(sp.moved) ? sp.moved : []).filter(d => DATE_RE.test(d)))].sort().slice(-24)
     }
   };
 }
 
-// Hoje é o dia do especial?
+// É a vez do especial (dia e parte do dia)?
 function specialDay(special, date) {
   if (!special || !special.name) return false;
+  if (special.part === 'am' && date.getHours() >= 12) return false;
+  if (special.part === 'pm' && date.getHours() < 12) return false;
   const key = dayKey(date);
   const moved = special.moved.find(d => d.slice(0, 7) === key.slice(0, 7));
   if (moved) return moved === key;
@@ -226,7 +231,7 @@ function specialDay(special, date) {
 
 // Qual arquivo toca agora. `advance` (só quando toca pelo horário marcado) anda o rodízio, então
 // a playlist da manhã e a da tarde tocam vídeos diferentes; "Tocar agora" só mostra o da vez sem gastar.
-// No dia do especial ele toca em todas as vezes e o rodízio fica parado.
+// Na vez do especial (dia e parte do dia marcados) o rodízio fica parado.
 function pickRotation(r, date = new Date(), advance = false) {
   if (specialDay(r.special, date)) return { name: r.special.name, changed: null };
   if (!r.files.length) return { name: null, changed: null };
