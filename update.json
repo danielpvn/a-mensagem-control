@@ -1,5 +1,5 @@
 {
-  "version": "2.1.7",
-  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.1.7/A_Mensagem_Control.zip",
-  "notes": "Tema Rodapé com imagem (Hinos e Bíblia): a faixa vai até o fim da tela, sem tira preta, com a letra e o título dentro dela."
+  "version": "2.1.8",
+  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.1.8/A_Mensagem_Control.zip",
+  "notes": "Atualizador sem janelas pretas a partir da próxima versão; nesta atualização, se aparecer uma janela preta, feche-a. Banco online: o login vencido agora é renovado sozinho."
 }
