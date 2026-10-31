@@ -21,7 +21,7 @@ const tfSermons = require('./src/tf-sermons');
 const sounds = require('./src/sounds');
 const { createDesktopShortcut } = require('./src/shortcut');
 
-const CURRENT_VERSION = '2.1.4';
+const CURRENT_VERSION = '2.1.5';
 const PORT = process.env.PORT || 3000;
 
 const app = express();
@@ -183,9 +183,16 @@ const DEFAULT_PRAYER_STYLES = {
 
 // Estilos salvos antes de existir o degradê não têm `bgMode`: mantém o fundo que a pessoa
 // já usava (imagem ou cor) em vez de trocar pelo degradê padrão
+// Imagens de rodapé antigas (JPG com o preto cobrindo a câmera) -> as que têm o preto transparente
+const OLD_FOOTER_IMAGES = {
+  '/backgrounds/hinos_rodape_padrao.jpg': '/img/rodape-hinos.webp',
+  '/backgrounds/biblia_rodape_padrao.jpg': '/img/rodape-biblia.webp'
+};
+
 function loadScreenStyles(key, defaults) {
   const saved = db.getSetting(key, {});
   if (Object.keys(saved).length && !saved.bgMode) saved.bgMode = saved.bgImage ? 'image' : 'color';
+  if (OLD_FOOTER_IMAGES[saved.bgImage]) saved.bgImage = OLD_FOOTER_IMAGES[saved.bgImage];
   return { ...defaults, ...saved };
 }
 
