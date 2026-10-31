@@ -136,6 +136,34 @@ async function checkForUpdate(currentVersion, options = {}) {
   };
 }
 
+// Script que troca os arquivos e reabre o app. Os caminhos vêm por variável de ambiente, porque o
+// .bat é ASCII e o caminho pode ter acento.
+// - Espera todos os processos do app fecharem (até 30 s). Com o app aberto o .exe fica travado e a
+//   cópia falha. O "timeout" não serve aqui: sem teclado ele falha na hora, sem esperar nada.
+// - O robocopy tenta de novo se algum arquivo ainda estiver preso (o xcopy desiste no primeiro erro).
+const UPDATE_SCRIPT = [
+  '@echo off',
+  'title Atualizando A Mensagem Control',
+  'set /a tries=0',
+  ':esperar',
+  'tasklist /FI "IMAGENAME eq %AMC_EXE_NAME%" /NH | find /I "%AMC_EXE_NAME%" > nul',
+  'if errorlevel 1 goto copiar',
+  'set /a tries+=1',
+  'if %tries% geq 30 goto copiar',
+  'ping -n 2 127.0.0.1 > nul',
+  'goto esperar',
+  ':copiar',
+  'robocopy "%AMC_SRC%" "%AMC_DST%" /E /R:15 /W:2 /NP /NFL /NDL /NJH "/LOG:%AMC_LOG%"',
+  'if %errorlevel% geq 8 echo ATUALIZACAO FALHOU, robocopy %errorlevel% >> "%AMC_LOG%"',
+  'start "" "%AMC_EXE%"',
+  'del "%~f0"',
+  ''
+].join('\r\n');
+
+function updateScriptEnv(sourceDir, appDir, exePath, logPath) {
+  return { ...process.env, AMC_SRC: sourceDir, AMC_DST: appDir, AMC_EXE: exePath, AMC_EXE_NAME: path.basename(exePath), AMC_LOG: logPath };
+}
+
 // Baixa, extrai e agenda a troca dos arquivos. Resolve quando o .bat está pronto para rodar;
 // quem chama deve responder ao navegador e então chamar o retorno `launch()`.
 async function prepareUpdate(currentVersion, options = {}) {
@@ -180,23 +208,7 @@ async function prepareUpdate(currentVersion, options = {}) {
     }
   }
 
-  // Script .bat que roda silencioso para substituir os arquivos e reabrir o app
-  const batContent = `@echo off
-title Atualizando A Mensagem Control
-echo Aguardando o aplicativo fechar...
-timeout /t 2 /nobreak > nul
-
-echo Atualizando arquivos em ${appDir}...
-xcopy "${sourceDir}" "${appDir}" /E /I /H /Y /Q > nul
-
-echo Iniciando o aplicativo atualizado...
-start "" "${currentExePath}"
-
-echo Limpando arquivos temporarios...
-del "%~f0"
-`;
-
-  fs.writeFileSync(batPath, batContent, 'ascii');
+  fs.writeFileSync(batPath, UPDATE_SCRIPT, 'ascii');
 
   return function launch() {
     console.log('Iniciando script de atualização e fechando aplicativo...');
@@ -205,7 +217,8 @@ del "%~f0"
     const child = spawn('cmd.exe', ['/c', batPath], {
       detached: true,
       stdio: 'ignore',
-      cwd: tempDir
+      cwd: tempDir,
+      env: updateScriptEnv(sourceDir, appDir, currentExePath, path.join(tempDir, 'amc_update.log'))
     });
     child.unref();
 
@@ -221,4 +234,4 @@ del "%~f0"
   };
 }
 
-module.exports = { checkForUpdate, prepareUpdate, isNewerVersion };
+module.exports = { checkForUpdate, prepareUpdate, isNewerVersion, UPDATE_SCRIPT, updateScriptEnv };
