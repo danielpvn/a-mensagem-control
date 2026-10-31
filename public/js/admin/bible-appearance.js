@@ -36,8 +36,8 @@ const THEMES = [
   },
   {
     name: 'Rodapé com imagem',
-    preview: 'url("/img/rodape-biblia.webp") center / cover, #000',
-    styles: { ...plain, layout: 'fullscreen', position: 'bottom', bgMode: 'image', bgImage: '/img/rodape-biblia.webp', bgColor: 'rgba(0, 0, 0, 0)', textColor: '#ffffff', refColor: '#ffeb07', fontSize: '3.6rem' }
+    preview: 'url("/img/rodape-biblia-2.webp") center / cover, #000',
+    styles: { ...plain, layout: 'fullscreen', position: 'bottom', bgMode: 'image', bgImage: '/img/rodape-biblia-2.webp', bgColor: 'rgba(0, 0, 0, 0)', textColor: '#ffffff', refColor: '#ffeb07', fontSize: '3.6rem' }
   },
   {
     name: 'Faixa (transmissão)',
