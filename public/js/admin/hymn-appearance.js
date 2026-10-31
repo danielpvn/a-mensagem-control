@@ -41,8 +41,8 @@ const THEMES = [
   },
   {
     name: 'Rodapé com imagem',
-    preview: 'url("/img/rodape-hinos.webp") center / cover, #000',
-    styles: { ...plain, layout: 'fullscreen', position: 'bottom', bgMode: 'image', bgImage: '/img/rodape-hinos.webp', bgColor: 'rgba(0, 0, 0, 0)', linesPerSlide: 2, fontSize: '3.4rem', fontFamily: 'Montserrat, sans-serif', textColor: '#ffffff', accentColor: '#e0e7ff', uppercase: false, textOutline: false }
+    preview: 'url("/img/rodape-hinos-2.webp") center / cover, #000',
+    styles: { ...plain, layout: 'fullscreen', position: 'bottom', bgMode: 'image', bgImage: '/img/rodape-hinos-2.webp', bgColor: 'rgba(0, 0, 0, 0)', linesPerSlide: 2, fontSize: '3.4rem', fontFamily: 'Montserrat, sans-serif', textColor: '#ffffff', accentColor: '#e0e7ff', uppercase: false, textOutline: false }
   }
 ];
 
