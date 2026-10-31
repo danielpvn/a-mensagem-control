@@ -81,10 +81,10 @@ function sessionFrom(data, extra = {}) {
 }
 
 // Renova o acesso quando está perto de vencer (o login dura 1 hora; a renovação, meses)
-async function accessToken() {
+async function accessToken(forceRefresh = false) {
   let s = session();
   if (!s) throw new Error('Não conectado.');
-  if (Date.now() > s.expiresAt - 120000) {
+  if (forceRefresh || Date.now() > s.expiresAt - 120000) {
     const data = await authRequest('refresh_token', { refresh_token: s.refreshToken });
     s = { ...s, ...sessionFrom(data, { role: s.role, church: s.church }) };
     saveSession(s);
@@ -94,14 +94,20 @@ async function accessToken() {
 
 async function api(pathAndQuery, { method = 'GET', body, headers = {}, raw = false } = {}) {
   const { url, anonKey } = config();
-  const token = await accessToken();
-  const res = await fetch(`${url}${pathAndQuery}`, {
+  const send = (token) => fetch(`${url}${pathAndQuery}`, {
     method,
     headers: { apikey: anonKey, Authorization: `Bearer ${token}`, ...(body && !raw ? { 'Content-Type': 'application/json' } : {}), ...headers },
     body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
     // Internet travada não pode deixar a sincronização presa para sempre
     signal: AbortSignal.timeout(raw ? 120000 : 45000)
   });
+  let res = await send(await accessToken());
+  // Login vencido antes da hora que o PC calculou (relógio errado, por exemplo): renova e tenta de novo
+  if (res.status === 401) {
+    const text = await res.text().catch(() => '');
+    if (!/PGRST303|JWT expired/i.test(text)) throw new Error(`Banco online respondeu 401: ${text.slice(0, 200)}`);
+    res = await send(await accessToken(true));
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`Banco online respondeu ${res.status}: ${text.slice(0, 200)}`);
