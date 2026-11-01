@@ -36,8 +36,8 @@ const THEMES = [
   },
   {
     name: 'Rodapé com imagem',
-    preview: 'url("/img/rodape-biblia-2.webp") center / cover, #000',
-    styles: { ...plain, layout: 'fullscreen', position: 'bottom', bgMode: 'image', bgImage: '/img/rodape-biblia-2.webp', bgColor: 'rgba(0, 0, 0, 0)', textColor: '#ffffff', refColor: '#ffeb07', fontSize: '3.6rem' }
+    preview: 'url("/img/rodape-biblia-3.webp") center / cover, #000',
+    styles: { ...plain, layout: 'fullscreen', position: 'bottom', bgMode: 'image', bgImage: '/img/rodape-biblia-3.webp', bgColor: 'rgba(0, 0, 0, 0)', textColor: '#ffffff', refColor: '#ffeb07', fontSize: '3.6rem' }
   },
   {
     name: 'Faixa (transmissão)',
@@ -76,10 +76,18 @@ function updateLabels() {
   $('bible-size-val').textContent = input.size.value;
   $('bible-ref-size-val').textContent = input.refSize.value;
   $('bible-speed-val').textContent = `${Number(input.speed.value).toFixed(1)} s`;
+  // Só mostra o que vale agora
+  const full = checkedValue(groups.layout) === 'fullscreen';
+  const showRef = input.showRef.checked;
+  input.showVersion.closest('.switch').hidden = !showRef;
+  groups.refPosition[0].closest('.segmented').hidden = !showRef;
+  input.refSize.closest('.field').hidden = !showRef;
+  input.refColor.closest('.color-field').hidden = !showRef;
+  input.speed.closest('.field').hidden = input.animation.value === 'none';
   // "Texto embaixo" só faz sentido na tela cheia
-  $('bible-position-group').classList.toggle('disabled', checkedValue(groups.layout) !== 'fullscreen');
+  $('bible-position-group').hidden = !full;
   // Transparência só vale para a faixa embaixo
-  $('bible-band-field').hidden = checkedValue(groups.layout) !== 'lower-third';
+  $('bible-band-field').hidden = full;
   $('bible-band-transp-val').textContent = `${input.bandTransp.value}%`;
 }
 

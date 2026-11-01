@@ -189,9 +189,8 @@ const TRANSITIONS = ['none', 'fade', 'black', 'slide', 'zoom'];
 // ---------- Rodízio ----------
 // Item de playlist que toca um arquivo diferente a cada vez que a playlist toca pelo horário, na ordem
 // (ex: domingo de manhã o vídeo 4, à tarde o 5, no outro domingo o 6...),
-// e um "especial" numa semana do mês (ex: o vídeo da Ceia no 1º domingo). Se o especial mudar de
-// data num mês, `moved` guarda a data nova e a semana normal daquele mês volta para o rodízio.
-// { files, next, lastDate, lastName, special: { name, week 'w1'..'w4' | 'last', part 'all' | 'am' | 'pm', moved: ['AAAA-MM-DD'] } }
+// e um "especial" numa semana do mês (ex: o vídeo da Ceia no 1º domingo).
+// { files, next, lastDate, lastName, special: { name, week 'w1'..'w4' | 'last', part 'all' | 'am' | 'pm' } }
 // part: o especial vale em todas as vezes do dia, só de manhã (antes do meio-dia) ou só à tarde/noite.
 const WEEKS = ['w1', 'w2', 'w3', 'w4', 'last'];
 const PARTS = ['all', 'am', 'pm'];
@@ -210,8 +209,7 @@ function cleanRotation(r) {
     special: {
       name: safeOrNull(sp.name),
       week: WEEKS.includes(sp.week) ? sp.week : 'w1',
-      part: PARTS.includes(sp.part) ? sp.part : 'all',
-      moved: [...new Set((Array.isArray(sp.moved) ? sp.moved : []).filter(d => DATE_RE.test(d)))].sort().slice(-24)
+      part: PARTS.includes(sp.part) ? sp.part : 'all'
     }
   };
 }
@@ -221,9 +219,6 @@ function specialDay(special, date) {
   if (!special || !special.name) return false;
   if (special.part === 'am' && date.getHours() >= 12) return false;
   if (special.part === 'pm' && date.getHours() < 12) return false;
-  const key = dayKey(date);
-  const moved = special.moved.find(d => d.slice(0, 7) === key.slice(0, 7));
-  if (moved) return moved === key;
   const day = date.getDate();
   if (special.week === 'last') return day + 7 > new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
   return Math.ceil(day / 7) === Number(special.week.slice(1));

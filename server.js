@@ -21,7 +21,7 @@ const tfSermons = require('./src/tf-sermons');
 const sounds = require('./src/sounds');
 const { createDesktopShortcut } = require('./src/shortcut');
 
-const CURRENT_VERSION = '2.1.8';
+const CURRENT_VERSION = '2.1.9';
 const PORT = process.env.PORT || 3000;
 
 const app = express();
@@ -183,13 +183,13 @@ const DEFAULT_PRAYER_STYLES = {
 
 // Estilos salvos antes de existir o degradê não têm `bgMode`: mantém o fundo que a pessoa
 // já usava (imagem ou cor) em vez de trocar pelo degradê padrão
-// Imagens de rodapé antigas (o JPG com o preto cobrindo a câmera e a 1ª versão com a tira escura embaixo)
-// -> as atuais: preto transparente e faixa até o fim da tela. Arquivo novo = nome novo, por causa do cache do OBS.
+// Versões antigas da faixa de rodapé -> a atual. Arquivo novo = nome novo, por causa do cache do OBS.
+// (O JPG da biblioteca continua salvo como está: quem troca ele pela faixa é o overlay.)
 const OLD_FOOTER_IMAGES = {
-  '/backgrounds/hinos_rodape_padrao.jpg': '/img/rodape-hinos-2.webp',
-  '/img/rodape-hinos.webp': '/img/rodape-hinos-2.webp',
-  '/backgrounds/biblia_rodape_padrao.jpg': '/img/rodape-biblia-2.webp',
-  '/img/rodape-biblia.webp': '/img/rodape-biblia-2.webp'
+  '/img/rodape-hinos.webp': '/img/rodape-hinos-3.webp',
+  '/img/rodape-hinos-2.webp': '/img/rodape-hinos-3.webp',
+  '/img/rodape-biblia.webp': '/img/rodape-biblia-3.webp',
+  '/img/rodape-biblia-2.webp': '/img/rodape-biblia-3.webp'
 };
 
 function loadScreenStyles(key, defaults) {

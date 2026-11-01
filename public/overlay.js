@@ -33,6 +33,13 @@ function hexToRgba(hex, alpha) {
   return `rgba(${parseInt(h.slice(1, 3), 16)}, ${parseInt(h.slice(3, 5), 16)}, ${parseInt(h.slice(5, 7), 16)}, ${alpha})`;
 }
 
+// Os JPG de rodapé da biblioteca têm preto em volta da faixa: na tela vai a versão com o preto
+// transparente, para as pessoas aparecerem em cima e embaixo dela.
+const FOOTER_IMAGES = {
+  '/backgrounds/hinos_rodape_padrao.jpg': '/img/rodape-hinos-3.webp',
+  '/backgrounds/biblia_rodape_padrao.jpg': '/img/rodape-biblia-3.webp'
+};
+
 // Fundo das camadas de tela: cor, degradê (linear ou circular) ou imagem com uma cor por cima.
 // A vinheta escurece de leve as bordas e destaca o texto.
 function backgroundFor(s, fallbackColor) {
@@ -40,7 +47,7 @@ function backgroundFor(s, fallbackColor) {
   const color = s.bgColor || fallbackColor;
   let css = color;
   if (mode === 'image' && s.bgImage) {
-    css = `linear-gradient(${color}, ${color}), url("${s.bgImage}") center / cover no-repeat`;
+    css = `linear-gradient(${color}, ${color}), url("${FOOTER_IMAGES[s.bgImage] || s.bgImage}") center / cover no-repeat`;
   } else if (mode === 'gradient') {
     const alpha = s.gradientOpacity ?? 1;
     const from = hexToRgba(s.gradientFrom || '#0f2027', alpha);
