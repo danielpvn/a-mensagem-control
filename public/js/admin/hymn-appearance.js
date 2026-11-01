@@ -41,8 +41,8 @@ const THEMES = [
   },
   {
     name: 'Rodapé com imagem',
-    preview: 'url("/img/rodape-hinos-2.webp") center / cover, #000',
-    styles: { ...plain, layout: 'fullscreen', position: 'bottom', bgMode: 'image', bgImage: '/img/rodape-hinos-2.webp', bgColor: 'rgba(0, 0, 0, 0)', linesPerSlide: 2, fontSize: '3.4rem', fontFamily: 'Montserrat, sans-serif', textColor: '#ffffff', accentColor: '#e0e7ff', uppercase: false, textOutline: false }
+    preview: 'url("/img/rodape-hinos-3.webp") center / cover, #000',
+    styles: { ...plain, layout: 'fullscreen', position: 'bottom', bgMode: 'image', bgImage: '/img/rodape-hinos-3.webp', bgColor: 'rgba(0, 0, 0, 0)', linesPerSlide: 2, fontSize: '3.4rem', fontFamily: 'Montserrat, sans-serif', textColor: '#ffffff', accentColor: '#e0e7ff', uppercase: false, textOutline: false }
   }
 ];
 
@@ -76,13 +76,22 @@ function updateLabels() {
   $('hymn-size-val').textContent = input.size.value;
   $('hymn-title-size-val').textContent = input.titleSize.value;
   $('hymn-speed-val').textContent = `${Number(input.speed.value).toFixed(1)} s`;
-  input.chorusColor.closest('.color-field').classList.toggle('disabled', !input.chorusOn.checked);
-  input.showNumber.closest('.switch').classList.toggle('disabled', !input.showTitle.checked);
-  input.outlineColor.closest('.color-field').classList.toggle('disabled', !input.outline.checked);
+  // Só mostra o que vale agora
+  const full = checkedValue(layoutRadios) === 'fullscreen';
+  // Na tela cheia aparecem o título e a linha "Estrofe / Coro"; na faixa, só o título
+  const hasTitleLine = input.showTitle.checked || (full && input.showLabel.checked);
+  input.titleSize.closest('.field').hidden = !hasTitleLine;
+  input.showNumber.closest('.switch').hidden = !input.showTitle.checked;
+  input.showLabel.closest('.switch').hidden = !full;
+  // O destaque pinta essas linhas e, na faixa, a borda da caixa
+  input.accentColor.closest('.color-field').hidden = full && !hasTitleLine;
+  input.chorusColor.closest('.color-field').hidden = !input.chorusOn.checked;
+  input.outlineColor.closest('.color-field').hidden = !input.outline.checked;
+  input.speed.closest('.field').hidden = input.animation.value === 'none';
   // "Texto embaixo" só faz sentido na tela cheia
-  $('hymn-position-group').classList.toggle('disabled', checkedValue(layoutRadios) !== 'fullscreen');
+  $('hymn-position-group').hidden = !full;
   // Transparência só vale para a faixa embaixo
-  $('hymn-band-field').hidden = checkedValue(layoutRadios) !== 'lower-third';
+  $('hymn-band-field').hidden = full;
   $('hymn-band-transp-val').textContent = `${input.bandTransp.value}%`;
 }
 
