@@ -159,9 +159,11 @@ body, html {
 .layout-full .screen-text-wrap { flex: 1; align-items: center; }
 
 /* Tela cheia com o texto na parte de baixo (ex: imagem com faixa no rodapé, no telão) */
-.layout-full.text-bottom .screen-box { justify-content: flex-end; padding-bottom: 6.5vh; }
-.layout-full.text-bottom .screen-text-wrap { flex: 0 0 auto; min-height: 14vh; align-items: center; }
+/* A letra (com o título, se tiver) fica centrada no terço de baixo da tela: o meio dele é o meio da faixa */
+.layout-full.text-bottom .screen-box { justify-content: center; padding-top: 66.667vh; padding-bottom: 0; }
+.layout-full.text-bottom .screen-text-wrap { flex: 0 0 auto; align-items: center; }
 .layout-full.text-bottom .screen-title { margin-bottom: 1.5vh; }
+.layout-full.text-bottom .screen-title:empty, .layout-full.text-bottom .screen-label:empty { display: none; }
 
 /* Faixa embaixo: caixa no rodapé, por cima da câmera */
 .layout-lower { align-items: flex-end; padding: 0 1.5% 12px; }
