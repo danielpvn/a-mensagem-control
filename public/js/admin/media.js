@@ -762,7 +762,8 @@ const checkedValue = (list) => (list.find(r => r.checked) || list[0]).value;
 function updateFitOptions() {
   const fit = checkedValue(fitRadios);
   $('media-focus-field').hidden = fit !== 'cover';
-  $('media-bg-field').classList.toggle('disabled', fit !== 'contain');
+  $('media-bg-field').hidden = fit !== 'contain';
+  $('media-duration-range').closest('.field').hidden = $('media-transition').value === 'cut';
   $('media-audio-help').innerHTML = checkedValue(audioRadios) === 'app'
     ? 'O som dos vídeos sai <strong>neste computador</strong> (ligue a saída dele na mesa de som). O OBS mostra o vídeo sem som.'
     : 'O som sai no computador onde o <strong>link do OBS</strong> está aberto. Marque "Controlar áudio via OBS" na fonte Navegador.';
@@ -801,6 +802,7 @@ function setupMediaStyles() {
     });
   };
   ['media-transition', 'media-duration-range', 'media-bg', 'media-end'].forEach(id => $(id).addEventListener('input', send));
+  $('media-transition').addEventListener('input', updateFitOptions);
   [...fitRadios, ...focusRadios, ...audioRadios].forEach(r => r.addEventListener('input', () => {
     updateFitOptions();
     send();

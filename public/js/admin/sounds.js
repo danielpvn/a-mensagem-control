@@ -863,8 +863,6 @@ function renderEditor() {
 
 // ---------- Rodízio (um arquivo diferente a cada vez que toca pelo horário, e um especial no domingo marcado) ----------
 
-const dateBr = (key) => key.split('-').reverse().join('/');
-
 function rotationSummary(r) {
   const next = r.files.length ? soundTitle(r.files[r.next % r.files.length]) : 'nenhum';
   return `${r.files.length} ${r.files.length === 1 ? 'arquivo' : 'arquivos'} · próximo: ${next}${r.special.name ? ` · ${weekName(r)}${r.special.part === 'am' ? ' de manhã' : r.special.part === 'pm' ? ' à tarde' : ''}: ${soundTitle(r.special.name)}` : ''}`;
@@ -968,40 +966,6 @@ function rotationBox(r) {
   special.append(spLabel, spFile, spWeek, spPart);
 
   box.append(head, list, add, special);
-  if (!r.special.name) return box;
-
-  // Mudou de data num mês (ex: a Ceia foi para outro domingo): nesse mês o especial toca só na data marcada
-  const moved = document.createElement('div');
-  moved.className = 'rot-moved';
-  const mvLabel = document.createElement('span');
-  mvLabel.textContent = 'Mudou de data num mês? Marque o dia:';
-  const mvDate = document.createElement('input');
-  mvDate.type = 'date';
-  const mvBtn = document.createElement('button');
-  mvBtn.type = 'button';
-  mvBtn.className = 'btn btn-secondary btn-sm';
-  mvBtn.textContent = 'Marcar';
-  mvBtn.onclick = () => {
-    if (!mvDate.value) return;
-    r.special.moved = [...r.special.moved.filter(d => d.slice(0, 7) !== mvDate.value.slice(0, 7)), mvDate.value].sort();
-    redraw();
-  };
-  moved.append(mvLabel, mvDate, mvBtn);
-  const today = dayKey(new Date());
-  r.special.moved.filter(d => d >= today.slice(0, 7)).forEach(d => {
-    const chip = document.createElement('span');
-    chip.className = 'rot-date';
-    chip.textContent = `${dateBr(d)} (no lugar do ${weekName(r).replace(' do mês', '')} desse mês)`;
-    const x = document.createElement('button');
-    x.type = 'button';
-    x.className = 'btn-x small';
-    x.title = 'Desmarcar';
-    x.textContent = '×';
-    x.onclick = () => { r.special.moved = r.special.moved.filter(m => m !== d); redraw(); };
-    chip.appendChild(x);
-    moved.appendChild(chip);
-  });
-  box.appendChild(moved);
   return box;
 }
 
@@ -1024,7 +988,7 @@ function setupPlaylists() {
   $('btn-pl-add').onclick = () => { if ($('pl-add-select').value) addToPlaylist($('pl-add-select').value); };
   $('btn-pl-rotation').onclick = () => {
     if (!plEditing) return;
-    plEditing.items.push({ rotation: { files: [], next: 0, lastDate: null, lastName: null, special: { name: null, week: 'w1', part: 'all', moved: [] } }, volume: 1 });
+    plEditing.items.push({ rotation: { files: [], next: 0, lastDate: null, lastName: null, special: { name: null, week: 'w1', part: 'all' } }, volume: 1 });
     renderEditor();
   };
   $('pl-transition').onchange = renderEditor;
