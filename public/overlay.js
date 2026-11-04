@@ -24,6 +24,21 @@ function transitionTimeout(animationType) {
   return 300;
 }
 
+// Tempo escolhido em segundos; 0 (ou o antigo "Sem transição" na lista de efeitos) = nenhuma
+const transitionSeconds = (s) => s.animationType === 'none' ? 0 : Math.max(0, Number(s.transitionTime ?? 0.4) || 0);
+// Duração escolhida em relação à padrão de 0,4 s
+const speedOf = (s) => Math.min(5, Math.max(0.25, transitionSeconds(s) / 0.4));
+// Onde a transição vale: 'all', 'inout' (só ao entrar e sair) ou 'between' (só na troca de parágrafo/estrofe/versículo)
+const scopeOf = (s) => ['inout', 'between'].includes(s.transitionScope) ? s.transitionScope : 'all';
+
+// Faz a mudança na hora, sem a transição do CSS
+function instantly(el, change) {
+  el.style.transition = 'none';
+  change();
+  void el.offsetWidth;
+  el.style.transition = '';
+}
+
 function outlineShadow(color, size) {
   return `-${size}px -${size}px 0 ${color}, ${size}px -${size}px 0 ${color}, -${size}px ${size}px 0 ${color}, ${size}px ${size}px 0 ${color}, 0px 2px 4px rgba(0,0,0,0.5)`;
 }
@@ -76,8 +91,10 @@ let isCleared = true;
 
 // Update text content with nice out-and-in animation
 function updateContent(useTransition = true) {
+  const scope = scopeOf(styleConfig || {});
   if (isCleared) {
-    overlayBox.classList.add('hidden');
+    const hide = () => overlayBox.classList.add('hidden');
+    if (scope === 'between') instantly(overlayBox, hide); else hide();
     return;
   }
 
@@ -94,16 +111,21 @@ function updateContent(useTransition = true) {
   }
 
   const render = () => {
+    if (isCleared) return; // a tela foi limpa no meio da troca
     overlayTitle.textContent = titleStr;
     overlayText.textContent = currentParagraphText;
     overlayTitle.style.display = titleStr ? 'block' : 'none';
     overlayBox.classList.remove('hidden');
   };
 
-  if (useTransition && !overlayBox.classList.contains('hidden')) {
+  const visible = !overlayBox.classList.contains('hidden');
+  if (useTransition && visible && scope !== 'inout') {
     // Já visível: esconde, troca o texto e mostra de novo para uma transição suave
     overlayBox.classList.add('hidden');
-    setTimeout(render, transitionTimeout(styleConfig.animationType));
+    setTimeout(render, transitionTimeout(messageAnimation()) * speedOf(styleConfig));
+  } else if (useTransition && !visible && scope === 'between') {
+    // Transição só entre parágrafos: entra na hora
+    instantly(overlayBox, render);
   } else {
     render();
   }
@@ -140,15 +162,18 @@ function applyStyles() {
   }
 
   overlayBox.classList.remove(...ANIMATION_CLASSES);
-  overlayBox.classList.add(`anim-${styleConfig.animationType || 'slide-up'}`);
+  overlayBox.classList.add(`anim-${messageAnimation()}`);
+  overlayBox.style.setProperty('--anim-speed', speedOf(styleConfig));
 
   if (!isCleared) {
     updateContent(false);
   }
 }
 
-// Duração escolhida (segundos) em relação à padrão de 0,4 s
-const speedOf = (s) => Math.min(5, Math.max(0.25, (Number(s.transitionTime) || 0.4) / 0.4));
+// Efeito da Mensagem; com tempo 0 vira "sem transição"
+function messageAnimation() {
+  return transitionSeconds(styleConfig) === 0 ? 'none' : (styleConfig.animationType || 'slide-up');
+}
 
 // ================= Camadas de tela (Hinos e Bíblia) =================
 // Tela cheia ou faixa embaixo, fundo em cor (com transparência) ou imagem, texto que
@@ -212,6 +237,10 @@ function createScreenLayer(prefix, { content, look }) {
       render(slide);
       box.classList.remove('hidden');
       layer.classList.remove('hidden');
+    } else if (key !== shownKey && look(styles).scope === 'inout') {
+      // Transição só ao entrar e sair: troca a tela na hora
+      render(slide);
+      box.classList.remove('hidden');
     } else if (key !== shownKey) {
       // Troca de tela: o fundo fica, só o texto faz a transição
       box.classList.add('hidden');
@@ -267,6 +296,8 @@ function createScreenLayer(prefix, { content, look }) {
     box.classList.add(`anim-${l.animationType || 'fade'}`);
     // Sem transição: o fundo da tela cheia também aparece e some na hora
     layer.classList.toggle('no-anim', l.animationType === 'none');
+    // Transição só entre as telas: a camada entra e sai na hora
+    layer.classList.toggle('no-fade', l.scope === 'between');
 
     const slide = currentSlide();
     if (slide) render(slide);
@@ -311,8 +342,9 @@ const hymnLayer = createScreenLayer('hymn', {
     textShadow: s.textOutline ? outlineShadow(s.outlineColor || '#000000', 2) : '0 3px 10px rgba(0,0,0,0.45)',
     background: backgroundFor(s, 'rgba(5, 8, 20, 0.9)'),
     position: s.position,
-    animationType: s.animationType,
-    speed: speedOf(s)
+    animationType: transitionSeconds(s) === 0 ? 'none' : s.animationType,
+    speed: speedOf(s),
+    scope: scopeOf(s)
   })
 });
 
@@ -339,8 +371,9 @@ const bibleLayer = createScreenLayer('bible', {
     textShadow: s.textShadow === false ? 'none' : '0 4px 14px rgba(0,0,0,0.6)',
     background: backgroundFor(s, 'rgba(0, 0, 0, 1)'),
     position: s.position,
-    animationType: s.animationType,
-    speed: speedOf(s)
+    animationType: transitionSeconds(s) === 0 ? 'none' : s.animationType,
+    speed: speedOf(s),
+    scope: scopeOf(s)
   })
 });
 
@@ -356,6 +389,14 @@ let mediaRequest = 0;       // ignora carregamentos que ficaram velhos
 let lastPlayback = {};
 
 const mediaDuration = () => Math.max(0, Number(mediaStyles.duration ?? 0.6));
+// Tempo da transição da mídia: 0 no corte seco; o "Onde usar" zera a entrada/saída ou a troca entre mídias
+function mediaMs(entering) {
+  if (mediaStyles.transition === 'cut') return 0;
+  const scope = mediaStyles.scope || 'all';
+  if (entering && scope === 'between') return 0;
+  if (!entering && scope === 'inout') return 0;
+  return mediaDuration() * 1000;
+}
 // O som sai aqui (OBS) a não ser que o operador tenha escolhido o computador do app.
 // A prévia do painel nunca toca som.
 const soundHere = () => !PREVIEW && (mediaStyles.audioOutput || 'obs') !== 'app';
@@ -634,7 +675,7 @@ function hideMediaLayer() {
   if (!mediaShown) return;
   const leaving = mediaShown;
   mediaShown = null;
-  const ms = mediaStyles.transition === 'cut' ? 0 : mediaDuration() * 1000;
+  const ms = mediaMs(true);
   mediaLayer.style.transition = `opacity ${ms}ms ease`;
   mediaLayer.classList.add('hidden');
   if (leaving.player) leaving.player.pause();
@@ -675,8 +716,8 @@ async function updateMedia(m) {
   }
 
   const type = mediaStyles.transition || 'crossfade';
-  const ms = type === 'cut' ? 0 : mediaDuration() * 1000;
   const layerWasHidden = mediaLayer.classList.contains('hidden');
+  const ms = mediaMs(layerWasHidden);
   mediaShown = { key: itemKey(item), token: playback.token, seekId: playback.seek ? playback.seek.id : 0, slot: incoming, el, player };
   applyPlayback(mediaShown, lastPlayback, false);
   if (outgoing && outgoing.player) outgoing.player.pause();
@@ -745,9 +786,12 @@ function applyLowerThirdStyles() {
     .split(' ')
     .filter(c => !c.startsWith('pos-') && !c.startsWith('look-') && !c.startsWith('lt-anim-'))
     .join(' ');
-  ltLayer.classList.add(`pos-${s.position || 'bottom-left'}`, `look-${s.look || 'modern'}`, `lt-anim-${s.animation || 'slide'}`);
+  // Velocidade 0 = sem transição (aparece e some na hora)
+  const speed = Math.max(0, Number(s.speed ?? 1) || 0);
+  const animation = speed === 0 ? 'none' : (s.animation || 'slide');
+  ltLayer.classList.add(`pos-${s.position || 'bottom-left'}`, `look-${s.look || 'modern'}`, `lt-anim-${animation}`);
   ltLayer.style.setProperty('--lt-scale', s.scale || 1);
-  ltLayer.style.setProperty('--lt-speed', s.speed || 1);
+  ltLayer.style.setProperty('--lt-speed', speed || 1);
   ltLayer.style.setProperty('--lt-name', s.nameColor || '#ffffff');
   ltLayer.style.setProperty('--lt-subtitle', s.subtitleColor || '#cbd5e1');
   ltLayer.style.setProperty('--lt-accent', s.accentColor || '#3b82f6');
@@ -1125,6 +1169,8 @@ function connect() {
       switch (data.type) {
         case 'init':
           styleConfig = data.payload.styles;
+          // Ao conectar a caixa entra direto: a página pode ter recarregado com a mensagem no ar, e o texto não pode piscar
+          overlayBox.style.transition = 'none';
           applyStyles();
           hymnLayer.setStyles(data.payload.hymnStyles || {});
           bibleLayer.setStyles(data.payload.bibleStyles || {});
@@ -1138,6 +1184,8 @@ function connect() {
           readingStyles = data.payload.readingStyles || {};
           applyReadingStyles();
           applyState(data.payload, false); // sem transição ao conectar
+          void overlayBox.offsetWidth;
+          overlayBox.style.transition = '';
           break;
 
         case 'update-content':

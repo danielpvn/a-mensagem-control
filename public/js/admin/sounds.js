@@ -4,6 +4,7 @@
 // No celular ou no navegador só aparece o aviso.
 import { $, toast, confirmDialog } from './ui.js';
 import * as ws from './ws.js';
+import { timeLabel } from './transition.js';
 import { makeSortable, moveItem } from './sortable.js';
 
 const CAN_PLAY = /Electron/.test(navigator.userAgent);
@@ -724,7 +725,8 @@ function renderPlaylists() {
     const meta = document.createElement('span');
     const own = schedules.filter(s => s.playlist === p.id);
     const uses = own.length;
-    meta.textContent = `Transição: ${TRANSITION_NAMES[p.transition] || p.transition}${p.transition !== 'none' ? ` (${String(p.transitionTime).replace('.', ',')} s)` : ''}`;
+    const cut = p.transition === 'none' || Number(p.transitionTime) === 0;
+    meta.textContent = `Transição: ${cut ? TRANSITION_NAMES.none : `${TRANSITION_NAMES[p.transition] || p.transition} (${String(p.transitionTime).replace('.', ',')} s)`}`;
     // Quando ela começa sozinha
     const starts = document.createElement('span');
     const next = own.map(s => nextFire(s)).filter(Boolean).sort((a, b) => a - b)[0];
@@ -788,8 +790,9 @@ function savePlaylists(list) {
 function openEditor(p) {
   plEditing = p ? JSON.parse(JSON.stringify(p)) : { id: newId(), name: '', items: [], transition: 'fade', transitionTime: 1, isNew: true };
   $('pl-name').value = plEditing.name;
-  $('pl-transition').value = plEditing.transition;
-  $('pl-time').value = plEditing.transitionTime;
+  // Antes o corte seco era uma transição da lista; agora é o tempo no zero
+  $('pl-transition').value = plEditing.transition === 'none' ? 'fade' : plEditing.transition;
+  $('pl-time').value = plEditing.transition === 'none' ? 0 : plEditing.transitionTime;
   $('pl-editor').hidden = false;
   $('btn-pl-new').hidden = true;
   $('btn-pl-save').textContent = plEditing.isNew ? 'Criar playlist' : 'Salvar playlist';
@@ -806,10 +809,16 @@ function closeEditor() {
   renderSounds();
 }
 
+// Tempo da transição da playlist; no zero é corte seco e o tipo de transição não vale
+function updatePlTime() {
+  const cut = Number($('pl-time').value) === 0;
+  $('pl-time-val').textContent = timeLabel($('pl-time').value, 'Corte seco');
+  $('pl-transition').closest('.field').hidden = cut;
+}
+
 function renderEditor() {
   if (!plEditing) return;
-  $('pl-time-field').hidden = $('pl-transition').value === 'none';
-  $('pl-time-val').textContent = `${Number($('pl-time').value).toFixed(1).replace('.', ',')} s`;
+  updatePlTime();
   const box = $('pl-items');
   box.innerHTML = '';
   $('pl-count').textContent = plEditing.items.length ? `${plEditing.items.length} ${plEditing.items.length === 1 ? 'item' : 'itens'}` : '';
@@ -992,7 +1001,7 @@ function setupPlaylists() {
     renderEditor();
   };
   $('pl-transition').onchange = renderEditor;
-  $('pl-time').oninput = () => { $('pl-time-val').textContent = `${Number($('pl-time').value).toFixed(1).replace('.', ',')} s`; };
+  $('pl-time').oninput = updatePlTime;
   makeSortable($('pl-items'), '.pl-item', (from, to) => {
     if (!plEditing) return;
     plEditing.items = moveItem(plEditing.items, from, to);

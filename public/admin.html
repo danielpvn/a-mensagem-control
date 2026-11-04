@@ -7,7 +7,7 @@
   <link rel="icon" href="assets/favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="assets/favicon.png">
   <link rel="stylesheet" href="fonts.css">
-  <link rel="stylesheet" href="admin.css?v=2.1.22">
+  <link rel="stylesheet" href="admin.css?v=2.1.23">
 </head>
 <body>
   <div class="app">
@@ -17,7 +17,7 @@
         <img src="assets/logo.svg" alt="" class="brand-logo">
         <div class="brand-text">
           <strong>A MENSAGEM</strong>
-          <span>CONTROL <em id="app-version" class="version-tag">v2.1.9</em></span>
+          <span>CONTROL <em id="app-version" class="version-tag">v2.1.10</em></span>
         </div>
       </div>
 
@@ -200,7 +200,11 @@
                 <input type="range" id="style-title-size-slider" min="0.8" max="2.5" step="0.05" value="1.1">
               </div>
               <div class="field">
-                <label for="style-animation">Transição</label>
+                <div class="field-row"><label for="style-speed">Tempo da transição</label><output id="style-speed-val">0,4 s</output></div>
+                <input type="range" id="style-speed" min="0" max="2" step="0.1" value="0.4" title="Arraste até o começo para ficar sem transição">
+              </div>
+              <div class="field">
+                <label for="style-animation">Efeito da transição</label>
                 <select id="style-animation">
                   <option value="slide-up">Deslizar para cima</option>
                   <option value="slide-down">Deslizar para baixo</option>
@@ -210,8 +214,15 @@
                   <option value="zoom-in">Zoom suave</option>
                   <option value="blur">Desfoque</option>
                   <option value="clip-reveal">Cortina</option>
-                  <option value="none">Sem transição</option>
                 </select>
+              </div>
+              <div class="field">
+                <label>Onde usar a transição</label>
+                <div class="segmented segmented-3" role="radiogroup" aria-label="Onde usar a transição">
+                  <label><input type="radio" name="style-scope" value="all" checked><span>Tudo</span></label>
+                  <label><input type="radio" name="style-scope" value="inout"><span>Entrada e saída</span></label>
+                  <label><input type="radio" name="style-scope" value="between"><span>Entre parágrafos</span></label>
+                </div>
               </div>
             </fieldset>
 
@@ -391,19 +402,26 @@
                 <input type="range" id="hymn-title-size" min="0.6" max="3" step="0.05" value="1.25">
               </div>
               <div class="field">
-                <label for="hymn-animation">Transição entre estrofes</label>
+                <div class="field-row"><label for="hymn-speed">Tempo da transição</label><output id="hymn-speed-val">0,4 s</output></div>
+                <input type="range" id="hymn-speed" min="0" max="2" step="0.1" value="0.4" title="Arraste até o começo para ficar sem transição">
+              </div>
+              <div class="field">
+                <label for="hymn-animation">Efeito da transição</label>
                 <select id="hymn-animation">
                   <option value="fade">Esvanecer rápido</option>
                   <option value="fade-slow">Esvanecer lento</option>
                   <option value="slide-up">Deslizar para cima</option>
                   <option value="zoom-in">Zoom suave</option>
                   <option value="blur">Desfoque</option>
-                  <option value="none">Sem transição</option>
                 </select>
               </div>
               <div class="field">
-                <div class="field-row"><label for="hymn-speed">Duração da transição</label><output id="hymn-speed-val">0.4 s</output></div>
-                <input type="range" id="hymn-speed" min="0.1" max="2" step="0.1" value="0.4">
+                <label>Onde usar a transição</label>
+                <div class="segmented segmented-3" role="radiogroup" aria-label="Onde usar a transição">
+                  <label><input type="radio" name="hymn-scope" value="all" checked><span>Tudo</span></label>
+                  <label><input type="radio" name="hymn-scope" value="inout"><span>Entrada e saída</span></label>
+                  <label><input type="radio" name="hymn-scope" value="between"><span>Entre estrofes</span></label>
+                </div>
               </div>
             </fieldset>
 
@@ -446,6 +464,10 @@
               <input type="search" id="bible-search" placeholder="jo 3 16, sl 23 ou palavras do versículo..." autocomplete="off" spellcheck="false">
             </label>
             <p class="muted small" id="bible-search-hint">Ex.: <em>jo 3 16</em>, <em>1co 13 4-7</em>, <em>amou o mundo</em>. <kbd>Enter</kbd> deixa pronto.</p>
+            <div id="bible-favorites" class="bible-favorites" hidden>
+              <div class="browser-section">Favoritos</div>
+              <div id="bible-favorites-list" class="fav-list"></div>
+            </div>
             <div id="bible-results" class="bible-results">
               <div class="empty">Carregando a Bíblia...</div>
             </div>
@@ -495,6 +517,10 @@
                 <label class="announce-end muted small">até o versículo
                   <select id="bible-announce-end"><option value="">—</option></select>
                 </label>
+                <button id="btn-bible-favorite" class="btn btn-secondary btn-sm" title="Guardar esta passagem nos favoritos">
+                  <svg viewBox="0 0 24 24"><path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9Z"/></svg>
+                  <span id="btn-bible-favorite-label">Favoritar</span>
+                </button>
                 <button id="btn-bible-announce" class="btn btn-secondary btn-sm" title="Mostra no telão o anúncio da leitura com a passagem escolhida">
                   <svg viewBox="0 0 24 24"><path d="M3 5.5C5.5 4.2 8.8 4.2 12 6.2c3.2-2 6.5-2 9-.7V19c-2.5-1.3-5.8-1.3-9 .7-3.2-2-6.5-2-9-.7Z"/><path d="M12 6.2V19.7"/></svg>
                   <span id="btn-bible-announce-label">Anunciar leitura</span>
@@ -600,19 +626,26 @@
                 <label class="color-field"><input type="color" id="bible-ref-color" value="#ffeb07"><span>Referência</span></label>
               </div>
               <div class="field">
-                <label for="bible-animation">Transição</label>
+                <div class="field-row"><label for="bible-speed">Tempo da transição</label><output id="bible-speed-val">0,4 s</output></div>
+                <input type="range" id="bible-speed" min="0" max="2" step="0.1" value="0.4" title="Arraste até o começo para ficar sem transição">
+              </div>
+              <div class="field">
+                <label for="bible-animation">Efeito da transição</label>
                 <select id="bible-animation">
                   <option value="fade">Esvanecer rápido</option>
                   <option value="fade-slow">Esvanecer lento</option>
                   <option value="slide-up">Deslizar para cima</option>
                   <option value="zoom-in">Zoom suave</option>
                   <option value="blur">Desfoque</option>
-                  <option value="none">Sem transição</option>
                 </select>
               </div>
               <div class="field">
-                <div class="field-row"><label for="bible-speed">Duração da transição</label><output id="bible-speed-val">0.4 s</output></div>
-                <input type="range" id="bible-speed" min="0.1" max="2" step="0.1" value="0.4">
+                <label>Onde usar a transição</label>
+                <div class="segmented segmented-3" role="radiogroup" aria-label="Onde usar a transição">
+                  <label><input type="radio" name="bible-scope" value="all" checked><span>Tudo</span></label>
+                  <label><input type="radio" name="bible-scope" value="inout"><span>Entrada e saída</span></label>
+                  <label><input type="radio" name="bible-scope" value="between"><span>Entre versículos</span></label>
+                </div>
               </div>
             </fieldset>
 
@@ -847,18 +880,25 @@
             <fieldset>
               <legend>Transição</legend>
               <div class="field">
+                <div class="field-row"><label for="media-duration-range">Tempo da transição</label><output id="media-duration-val">0,6 s</output></div>
+                <input type="range" id="media-duration-range" min="0" max="2" step="0.1" value="0.6" title="Arraste até o começo para ficar corte seco">
+              </div>
+              <div class="field">
                 <label for="media-transition">Efeito</label>
                 <select id="media-transition">
                   <option value="crossfade">Dissolver (uma na outra)</option>
                   <option value="fade-black">Passar pelo preto</option>
-                  <option value="cut">Corte seco (sem transição)</option>
                   <option value="slide">Deslizar</option>
                   <option value="zoom">Zoom suave</option>
                 </select>
               </div>
               <div class="field">
-                <div class="field-row"><label for="media-duration-range">Duração da transição</label><output id="media-duration-val">0.6 s</output></div>
-                <input type="range" id="media-duration-range" min="0.2" max="2" step="0.1" value="0.6">
+                <label>Onde usar a transição</label>
+                <div class="segmented segmented-3" role="radiogroup" aria-label="Onde usar a transição">
+                  <label><input type="radio" name="media-scope" value="all" checked><span>Tudo</span></label>
+                  <label><input type="radio" name="media-scope" value="inout"><span>Entrada e saída</span></label>
+                  <label><input type="radio" name="media-scope" value="between"><span>Entre mídias</span></label>
+                </div>
               </div>
             </fieldset>
 
@@ -1012,6 +1052,10 @@
                 </select>
               </div>
               <div class="field">
+                <div class="field-row"><label for="lt-speed">Tempo da transição</label><output id="lt-speed-val">0,6 s</output></div>
+                <input type="range" id="lt-speed" min="0" max="1.5" step="0.1" value="0.6" title="Arraste até o começo para ficar sem transição">
+              </div>
+              <div class="field">
                 <label for="lt-animation">Efeito de entrada e saída</label>
                 <select id="lt-animation">
                   <option value="slide">Deslizar do lado</option>
@@ -1024,16 +1068,7 @@
                   <option value="expand">Abrir do centro</option>
                   <option value="flip">Girar (placa)</option>
                   <option value="stagger">Em etapas (caixa, nome, subtítulo)</option>
-                  <option value="none">Sem transição (aparece e some na hora)</option>
                 </select>
-              </div>
-              <div class="field">
-                <label>Velocidade</label>
-                <div class="segmented segmented-3" role="radiogroup" aria-label="Velocidade">
-                  <label><input type="radio" name="lt-speed" value="0.6"><span>Rápida</span></label>
-                  <label><input type="radio" name="lt-speed" value="1" checked><span>Normal</span></label>
-                  <label><input type="radio" name="lt-speed" value="1.7"><span>Lenta</span></label>
-                </div>
               </div>
               <button type="button" id="btn-lt-preview" class="btn btn-secondary btn-sm" title="Mostra o efeito só nesta prévia; não vai para o OBS">Ver o efeito (só na prévia)</button>
               <div class="field">
@@ -1081,6 +1116,10 @@
                 </select>
               </div>
               <div class="field">
+                <div class="field-row"><label for="sp-speed">Tempo da transição</label><output id="sp-speed-val">0,6 s</output></div>
+                <input type="range" id="sp-speed" min="0" max="1.5" step="0.1" value="0.6" title="Arraste até o começo para ficar sem transição">
+              </div>
+              <div class="field">
                 <label for="sp-animation">Efeito de entrada e saída</label>
                 <select id="sp-animation">
                   <option value="slide">Deslizar do lado</option>
@@ -1093,16 +1132,7 @@
                   <option value="expand">Abrir do centro</option>
                   <option value="flip">Girar (placa)</option>
                   <option value="stagger">Em etapas (caixa, nome, subtítulo)</option>
-                  <option value="none">Sem transição (aparece e some na hora)</option>
                 </select>
-              </div>
-              <div class="field">
-                <label>Velocidade</label>
-                <div class="segmented segmented-3" role="radiogroup" aria-label="Velocidade">
-                  <label><input type="radio" name="sp-speed" value="0.6"><span>Rápida</span></label>
-                  <label><input type="radio" name="sp-speed" value="1" checked><span>Normal</span></label>
-                  <label><input type="radio" name="sp-speed" value="1.7"><span>Lenta</span></label>
-                </div>
               </div>
               <button type="button" id="btn-sp-preview" class="btn btn-secondary btn-sm" title="Mostra o efeito só nesta prévia; não vai para o OBS">Ver o efeito (só na prévia)</button>
               <div class="field">
@@ -1308,6 +1338,10 @@
                       <label for="pl-name">Nome da playlist</label>
                       <input type="text" id="pl-name" maxlength="60" placeholder="Ex: Antes do culto" autocomplete="off">
                     </div>
+                    <div class="field" id="pl-time-field">
+                      <div class="field-row"><label for="pl-time">Tempo da transição</label><output id="pl-time-val">1,0 s</output></div>
+                      <input type="range" id="pl-time" min="0" max="5" step="0.1" value="1" title="Arraste até o começo para ficar corte seco">
+                    </div>
                     <div class="field">
                       <label for="pl-transition">Transição</label>
                       <select id="pl-transition">
@@ -1315,12 +1349,7 @@
                         <option value="black">Passar pelo preto</option>
                         <option value="slide">Deslizar</option>
                         <option value="zoom">Aproximar</option>
-                        <option value="none">Corte seco (sem transição)</option>
                       </select>
-                    </div>
-                    <div class="field" id="pl-time-field">
-                      <div class="field-row"><label for="pl-time">Tempo da transição</label><output id="pl-time-val">1,0 s</output></div>
-                      <input type="range" id="pl-time" min="0.2" max="5" step="0.1" value="1">
                     </div>
                   </div>
                   <div class="field">
@@ -1486,7 +1515,7 @@
 
           <div class="card">
             <h2>Sobre</h2>
-            <p class="muted">A Mensagem Control <strong id="about-version">v2.1.9</strong></p>
+            <p class="muted">A Mensagem Control <strong id="about-version">v2.1.10</strong></p>
             <p class="muted small">Feito para as equipes de mídia das igrejas do Tabernáculo da Fé.</p>
             <button id="btn-check-update" class="btn btn-secondary btn-sm">Verificar atualizações</button>
             <p id="update-status" class="muted small"></p>
@@ -1630,6 +1659,6 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script type="module" src="js/admin/main.js?v=2.1.22"></script>
+  <script type="module" src="js/admin/main.js?v=2.1.23"></script>
 </body>
 </html>

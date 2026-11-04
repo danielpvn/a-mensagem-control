@@ -21,7 +21,7 @@ const tfSermons = require('./src/tf-sermons');
 const sounds = require('./src/sounds');
 const { createDesktopShortcut } = require('./src/shortcut');
 
-const CURRENT_VERSION = '2.1.9';
+const CURRENT_VERSION = '2.1.10';
 const PORT = process.env.PORT || 3000;
 
 const app = express();
@@ -53,6 +53,8 @@ const DEFAULT_MESSAGE_STYLES = {
   bgColor: 'rgba(10, 15, 30, 0.85)',
   accentColor: '#2563eb',
   animationType: 'slide-up',
+  transitionTime: 0.4,           // segundos; 0 = sem transição
+  transitionScope: 'all',        // 'all' (tudo), 'inout' (só entrada e saída) ou 'between' (só entre parágrafos)
   alignment: 'center',
   showTitle: true,
   showParagraphNumber: true,
@@ -76,7 +78,8 @@ const DEFAULT_HYMN_STYLES = {
   textOutline: false,
   outlineColor: '#000000',
   animationType: 'fade',
-  transitionTime: 0.4,           // segundos da troca de tela
+  transitionTime: 0.4,           // segundos da troca de tela; 0 = sem transição
+  transitionScope: 'all',        // 'all' (tudo), 'inout' (só entrada e saída) ou 'between' (só entre estrofes)
   chorusColorOn: false,          // coro com cor própria
   chorusColor: '#fde68a',
   linesPerSlide: 4,
@@ -118,12 +121,14 @@ const DEFAULT_BIBLE_STYLES = {
   bgVignette: true,
   textShadow: true,
   animationType: 'fade',
-  transitionTime: 0.4
+  transitionTime: 0.4,           // 0 = sem transição
+  transitionScope: 'all'         // 'all' (tudo), 'inout' (só entrada e saída) ou 'between' (só entre versículos)
 };
 
 const DEFAULT_MEDIA_STYLES = {
-  transition: 'crossfade',       // 'crossfade', 'fade-black', 'cut', 'slide', 'zoom'
-  duration: 0.6,                 // segundos
+  transition: 'crossfade',       // 'crossfade', 'fade-black', 'slide', 'zoom' ('cut' antigo = duração 0)
+  duration: 0.6,                 // segundos; 0 = corte seco
+  scope: 'all',                  // 'all' (tudo), 'inout' (só entrada e saída) ou 'between' (só entre uma mídia e outra)
   fit: 'blur',                   // 'blur' (inteira, laterais com a própria foto desfocada), 'contain' (inteira, com bordas) ou 'cover' (preenche a tela)
   focus: 'center',               // ao preencher: parte que aparece ('top', 'center', 'bottom')
   bgColor: '#000000',            // cor das bordas
@@ -142,7 +147,7 @@ const DEFAULT_LT_STYLES = {
   accentColor: '#3b82f6',
   bgColor: 'rgba(10, 15, 30, 0.85)',
   animation: 'slide',            // 'slide', 'rise', 'drop', 'fade', 'zoom', 'blur', 'reveal', 'expand', 'flip', 'stagger'
-  speed: 1,                      // multiplicador da duração (0.6 rápida, 1 normal, 1.7 lenta)
+  speed: 1,                      // multiplicador da duração (1 = 0,6 s); 0 = sem transição
   autoHide: 8                    // segundos; 0 = só esconde quando o operador mandar
 };
 
@@ -233,6 +238,8 @@ let globalState = {
   hymnStyles: loadScreenStyles('styles.hymn', DEFAULT_HYMN_STYLES),
   // Lista de hinos que vão ser cantados no culto (na ordem)
   hymnPlaylist: db.getSetting('hymnPlaylist', []),
+  // Passagens favoritas da Bíblia (ex: as leituras da Santa Ceia): { id, book, bookName, chapter, verse, end }
+  bibleFavorites: db.getSetting('bibleFavorites', []),
 
   // Bíblia: capítulo aberto, dividido em telas (versículos longos vêm em mais de uma tela)
   bible: {
@@ -601,6 +608,26 @@ function setHymnPlaylist(items) {
     .filter(h => Number.isInteger(h.id) && h.id > 0 && !seen.has(h.id) && seen.add(h.id))
     .slice(0, 60);
   db.setSetting('hymnPlaylist', globalState.hymnPlaylist);
+  broadcastContent();
+}
+
+// Favoritos da Bíblia: só neste computador, na ordem em que o operador deixou
+function setBibleFavorites(items) {
+  const { books } = require('./src/bible-books');
+  const seen = new Set();
+  globalState.bibleFavorites = (Array.isArray(items) ? items : [])
+    .map(f => {
+      const book = books.find(b => b.id === Number(f && f.book));
+      const chapter = Number(f && f.chapter);
+      const verse = Number(f && f.verse) || null;
+      const end = verse && Number(f.end) > verse ? Number(f.end) : null;
+      return book && Number.isInteger(chapter) && chapter > 0
+        ? { id: `${book.id}:${chapter}:${verse || ''}:${end || ''}`, book: book.id, bookName: book.name, chapter, verse, end }
+        : null;
+    })
+    .filter(f => f && !seen.has(f.id) && seen.add(f.id))
+    .slice(0, 40);
+  db.setSetting('bibleFavorites', globalState.bibleFavorites);
   broadcastContent();
 }
 
@@ -1330,6 +1357,9 @@ wss.on('connection', (ws, req) => {
           break;
         case 'hymn-playlist':
           setHymnPlaylist(payload.items);
+          break;
+        case 'bible-favorites':
+          setBibleFavorites(payload.items);
           break;
         case 'update-hymn-styles':
           updateHymnStyles(payload);

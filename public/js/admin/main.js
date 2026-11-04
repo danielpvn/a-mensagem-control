@@ -12,6 +12,7 @@ import { setupMedia, mediaControls } from './media.js';
 import { setupLowerThird, toggleLowerThird } from './lowerthird.js';
 import { setupPrayer } from './prayer.js';
 import { setupReading } from './reading.js';
+import { setupBibleFavorites } from './bible-favorites.js';
 import { setupSpecial } from './special.js';
 import { setupSounds } from './sounds.js';
 import { setupAppearance } from './appearance.js';
@@ -115,6 +116,7 @@ setupMedia();
 setupLowerThird();
 setupPrayer();
 setupReading();
+setupBibleFavorites(); // depois da leitura: usa a passagem que ela acabou de montar
 setupSpecial();
 setupSounds();
 setupConfig();

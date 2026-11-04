@@ -1,6 +1,7 @@
 // Aparência da Bíblia no OBS/telão. Tudo vai ao vivo e fica salvo no banco.
 import { $ } from './ui.js';
 import * as ws from './ws.js';
+import { timeLabel, savedTime, savedEffect, scopeRadios, checkedScope, setScope } from './transition.js';
 import { refreshBackgrounds, backgroundExists } from './backgrounds.js';
 import { createBackgroundEditor, gradientCss } from './background-editor.js';
 
@@ -70,12 +71,14 @@ const groups = {
 const checkedValue = (list) => (list.find(r => r.checked) || list[0]).value;
 const setChecked = (list, value) => list.forEach(r => { r.checked = r.value === value; });
 
+const scope = scopeRadios('bible-scope');
+
 let editor = null;
 
 function updateLabels() {
   $('bible-size-val').textContent = input.size.value;
   $('bible-ref-size-val').textContent = input.refSize.value;
-  $('bible-speed-val').textContent = `${Number(input.speed.value).toFixed(1)} s`;
+  $('bible-speed-val').textContent = timeLabel(input.speed.value);
   // Só mostra o que vale agora
   const full = checkedValue(groups.layout) === 'fullscreen';
   const showRef = input.showRef.checked;
@@ -83,7 +86,10 @@ function updateLabels() {
   groups.refPosition[0].closest('.segmented').hidden = !showRef;
   input.refSize.closest('.field').hidden = !showRef;
   input.refColor.closest('.color-field').hidden = !showRef;
-  input.speed.closest('.field').hidden = input.animation.value === 'none';
+  // Sem transição (tempo 0): o efeito e o "onde usar" não valem
+  const noTransition = Number(input.speed.value) === 0;
+  input.animation.closest('.field').hidden = noTransition;
+  scope[0].closest('.field').hidden = noTransition;
   // "Texto embaixo" só faz sentido na tela cheia
   $('bible-position-group').hidden = !full;
   // Transparência só vale para a faixa embaixo
@@ -108,6 +114,7 @@ function gatherStyles() {
     refColor: input.refColor.value,
     animationType: input.animation.value,
     transitionTime: Number(input.speed.value),
+    transitionScope: checkedScope(scope),
     bandTransparency: Number(input.bandTransp.value)
   };
 }
@@ -127,8 +134,9 @@ function fillInputs(styles) {
   input.refSize.value = parseFloat(styles.refSize) || 1.8;
   input.textColor.value = styles.textColor || '#ffffff';
   input.refColor.value = styles.refColor || '#ffeb07';
-  input.animation.value = styles.animationType || 'fade';
-  input.speed.value = styles.transitionTime ?? 0.4;
+  input.animation.value = savedEffect(styles, 'fade');
+  input.speed.value = savedTime(styles);
+  setScope(scope, styles.transitionScope);
   input.bandTransp.value = styles.bandTransparency ?? 0;
   updateLabels();
   editor.fill(styles);
@@ -163,14 +171,14 @@ export function setupBibleAppearance() {
   });
   refreshBackgrounds().then(renderThemes);
 
-  const allControls = [...Object.values(input), ...Object.values(groups).flat(), ...editor.controls];
+  const allControls = [...Object.values(input), ...Object.values(groups).flat(), ...scope, ...editor.controls];
   ws.on('init', (state) => fillInputs(state.bibleStyles));
   ws.on('update-bible-style', (styles) => {
     // Não atrapalha quem está arrastando um controle neste painel
     if (!allControls.includes(document.activeElement)) fillInputs(styles);
   });
 
-  [...Object.values(input), ...Object.values(groups).flat()].forEach(control => {
+  [...Object.values(input), ...Object.values(groups).flat(), ...scope].forEach(control => {
     control.addEventListener('input', () => {
       updateLabels();
       ws.send('update-bible-styles', gatherStyles());
