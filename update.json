@@ -1,5 +1,5 @@
 {
-  "version": "2.1.9",
-  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.1.9/A_Mensagem_Control.zip",
-  "notes": "Tema Rodapé com imagem: faixa solta com bordas suaves e a letra centrada. 10 temas prontos na Mensagem. Aparência mostra só os ajustes que valem. Rodízio sem o \"mudou de data\". Anúncio da leitura sem a quebra na faixa. Depois de atualizar, clique em \"Atualizar cache da página atual\" no OBS."
+  "version": "2.1.10",
+  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.1.10/A_Mensagem_Control.zip",
+  "notes": "Favoritos na aba Bíblia: guarde as passagens que a igreja repete (como as da Santa Ceia) e abra com um clique. Transição com \"Sem transição\" no começo do controle de tempo, e a opção de usar a transição só na entrada e saída ou só entre parágrafos, estrofes, versículos e mídias. No OBS, a caixa da Mensagem não pisca mais vazia ao trocar de câmera. Depois de atualizar, clique em \"Atualizar cache da página atual\" no OBS."
 }
