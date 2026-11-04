@@ -249,7 +249,7 @@ function cleanPlaylist(raw) {
     name: String((raw && raw.name) || '').trim().slice(0, 60) || 'Playlist',
     items,
     transition: TRANSITIONS.includes(raw && raw.transition) ? raw.transition : 'fade',
-    transitionTime: Number.isFinite(time) ? Math.min(5, Math.max(0.2, time)) : 1
+    transitionTime: Number.isFinite(time) ? Math.min(5, Math.max(0, time)) : 1 // 0 = corte seco
   };
 }
 

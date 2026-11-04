@@ -1,6 +1,7 @@
 // Aparência dos hinos no OBS. Mesmo esquema do painel da Mensagem: tudo vai ao vivo e fica salvo.
 import { $ } from './ui.js';
 import * as ws from './ws.js';
+import { timeLabel, savedTime, savedEffect, scopeRadios, checkedScope, setScope } from './transition.js';
 import { refreshBackgrounds, backgroundExists } from './backgrounds.js';
 import { createBackgroundEditor, gradientCss } from './background-editor.js';
 
@@ -69,13 +70,15 @@ const layoutRadios = [...document.querySelectorAll('input[name="hymn-layout"]')]
 const positionRadios = [...document.querySelectorAll('input[name="hymn-position"]')];
 const checkedValue = (list) => (list.find(r => r.checked) || list[0]).value;
 
+const scope = scopeRadios('hymn-scope');
+
 let editor = null;
 
 function updateLabels() {
   $('hymn-lines-val').textContent = input.lines.value;
   $('hymn-size-val').textContent = input.size.value;
   $('hymn-title-size-val').textContent = input.titleSize.value;
-  $('hymn-speed-val').textContent = `${Number(input.speed.value).toFixed(1)} s`;
+  $('hymn-speed-val').textContent = timeLabel(input.speed.value);
   // Só mostra o que vale agora
   const full = checkedValue(layoutRadios) === 'fullscreen';
   // Na tela cheia aparecem o título e a linha "Estrofe / Coro"; na faixa, só o título
@@ -87,7 +90,10 @@ function updateLabels() {
   input.accentColor.closest('.color-field').hidden = full && !hasTitleLine;
   input.chorusColor.closest('.color-field').hidden = !input.chorusOn.checked;
   input.outlineColor.closest('.color-field').hidden = !input.outline.checked;
-  input.speed.closest('.field').hidden = input.animation.value === 'none';
+  // Sem transição (tempo 0): o efeito e o "onde usar" não valem
+  const noTransition = Number(input.speed.value) === 0;
+  input.animation.closest('.field').hidden = noTransition;
+  scope[0].closest('.field').hidden = noTransition;
   // "Texto embaixo" só faz sentido na tela cheia
   $('hymn-position-group').hidden = !full;
   // Transparência só vale para a faixa embaixo
@@ -105,6 +111,7 @@ function gatherStyles() {
     titleSize: `${input.titleSize.value}rem`,
     animationType: input.animation.value,
     transitionTime: Number(input.speed.value),
+    transitionScope: checkedScope(scope),
     bandTransparency: Number(input.bandTransp.value),
     textColor: input.textColor.value,
     chorusColor: input.chorusColor.value,
@@ -127,8 +134,9 @@ function fillInputs(styles) {
   input.font.value = styles.fontFamily || 'Montserrat, sans-serif';
   input.size.value = parseFloat(styles.fontSize) || 4.2;
   input.titleSize.value = parseFloat(styles.titleSize) || 1.25;
-  input.animation.value = styles.animationType || 'fade';
-  input.speed.value = styles.transitionTime ?? 0.4;
+  input.animation.value = savedEffect(styles, 'fade');
+  input.speed.value = savedTime(styles);
+  setScope(scope, styles.transitionScope);
   input.bandTransp.value = styles.bandTransparency ?? 0;
   input.textColor.value = styles.textColor || '#ffffff';
   input.chorusColor.value = styles.chorusColor || '#fde68a';
@@ -173,14 +181,14 @@ export function setupHymnAppearance() {
   });
   refreshBackgrounds().then(renderThemes);
 
-  const allControls = [...Object.values(input), ...layoutRadios, ...positionRadios, ...editor.controls];
+  const allControls = [...Object.values(input), ...layoutRadios, ...positionRadios, ...scope, ...editor.controls];
   ws.on('init', (state) => fillInputs(state.hymnStyles));
   ws.on('update-hymn-style', (styles) => {
     // Não atrapalha quem está arrastando um controle neste painel
     if (!allControls.includes(document.activeElement)) fillInputs(styles);
   });
 
-  [...Object.values(input), ...layoutRadios, ...positionRadios].forEach(control => {
+  [...Object.values(input), ...layoutRadios, ...positionRadios, ...scope].forEach(control => {
     control.addEventListener('input', () => {
       updateLabels();
       ws.send('update-hymn-styles', gatherStyles());

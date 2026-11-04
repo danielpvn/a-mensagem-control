@@ -41,16 +41,20 @@ body, html {
   padding: 14px 32px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
   color: #ffffff;
+  /* --anim-speed: tempo escolhido no painel em relação ao padrão de 0,4 s */
   transition: 
-    opacity 0.4s cubic-bezier(0.25, 1, 0.5, 1),
-    transform 0.4s cubic-bezier(0.25, 1, 0.5, 1),
-    clip-path 0.5s cubic-bezier(0.25, 1, 0.5, 1),
-    filter 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+    opacity calc(0.4s * var(--anim-speed, 1)) cubic-bezier(0.25, 1, 0.5, 1),
+    transform calc(0.4s * var(--anim-speed, 1)) cubic-bezier(0.25, 1, 0.5, 1),
+    clip-path calc(0.5s * var(--anim-speed, 1)) cubic-bezier(0.25, 1, 0.5, 1),
+    filter calc(0.4s * var(--anim-speed, 1)) cubic-bezier(0.25, 1, 0.5, 1),
     background 0.3s ease,
     border-radius 0.3s ease,
     padding 0.3s ease;
   will-change: transform, opacity, clip-path, filter;
 }
+
+/* Escondida desde o carregamento: o efeito (.anim-*) só chega com os estilos, e sem isso a caixa vazia pisca no OBS */
+.overlay-box.hidden { opacity: 0; }
 
 .overlay-title {
   font-size: 0.85rem;
@@ -399,7 +403,7 @@ body, html {
 }
 .anim-fade-slow {
   opacity: 1;
-  transition-duration: 0.8s;
+  transition-duration: calc(0.8s * var(--anim-speed, 1));
 }
 
 /* Vídeo do YouTube ocupando a tela (sem receber cliques) */
@@ -695,6 +699,7 @@ body, html {
 .anim-none, .anim-none.hidden { transition: none !important; }
 .anim-none.hidden { opacity: 0; }
 .screen-layer.no-anim, .screen-layer.no-anim .screen-box { transition: none !important; }
+.screen-layer.no-fade { transition: none !important; }
 .lt-anim-none .lt-box, .lt-anim-none .lt-name, .lt-anim-none .lt-subtitle { transition: none !important; }
 .lt-anim-none.hidden .lt-box { opacity: 0; }
 .reading-layer.no-anim *, .reading-layer.no-anim { animation: none !important; transition: none !important; }

@@ -2,6 +2,7 @@
 // prévia com zoom e ponto de início, controles do vídeo no ar e onde o som sai.
 import { $, toast, confirmDialog } from './ui.js';
 import * as ws from './ws.js';
+import { timeLabel } from './transition.js';
 import { makeSortable, moveItem } from './sortable.js';
 import { playerFor, youtubeErrorText } from '../shared/players.js';
 
@@ -756,6 +757,7 @@ const localAudio = (() => {
 const fitRadios = [...document.querySelectorAll('input[name="media-fit"]')];
 const focusRadios = [...document.querySelectorAll('input[name="media-focus"]')];
 const audioRadios = [...document.querySelectorAll('input[name="media-audio"]')];
+const scopeRadios = [...document.querySelectorAll('input[name="media-scope"]')];
 const checkedValue = (list) => (list.find(r => r.checked) || list[0]).value;
 
 // Mostra só o que vale para o ajuste escolhido
@@ -763,7 +765,11 @@ function updateFitOptions() {
   const fit = checkedValue(fitRadios);
   $('media-focus-field').hidden = fit !== 'cover';
   $('media-bg-field').hidden = fit !== 'contain';
-  $('media-duration-range').closest('.field').hidden = $('media-transition').value === 'cut';
+  // Corte seco (tempo 0): o efeito e o "onde usar" não valem
+  const cut = Number($('media-duration-range').value) === 0;
+  $('media-transition').closest('.field').hidden = cut;
+  scopeRadios[0].closest('.field').hidden = cut;
+  $('media-duration-val').textContent = timeLabel($('media-duration-range').value, 'Corte seco');
   $('media-audio-help').innerHTML = checkedValue(audioRadios) === 'app'
     ? 'O som dos vídeos sai <strong>neste computador</strong> (ligue a saída dele na mesa de som). O OBS mostra o vídeo sem som.'
     : 'O som sai no computador onde o <strong>link do OBS</strong> está aberto. Marque "Controlar áudio via OBS" na fonte Navegador.';
@@ -777,9 +783,11 @@ function fillMediaStyles(s) {
     renderControls();
     localAudio.sync();
   }
-  $('media-transition').value = previewStyle.transition || 'crossfade';
-  $('media-duration-range').value = previewStyle.duration ?? 0.6;
-  $('media-duration-val').textContent = `${Number(previewStyle.duration ?? 0.6).toFixed(1)} s`;
+  // Antes o corte seco era um efeito da lista; agora é o tempo no zero
+  const cut = previewStyle.transition === 'cut';
+  $('media-transition').value = cut ? 'crossfade' : (previewStyle.transition || 'crossfade');
+  $('media-duration-range').value = cut ? 0 : (previewStyle.duration ?? 0.6);
+  scopeRadios.forEach(r => { r.checked = r.value === (previewStyle.scope || 'all'); });
   fitRadios.forEach(r => { r.checked = r.value === (previewStyle.fit || 'blur'); });
   focusRadios.forEach(r => { r.checked = r.value === (previewStyle.focus || 'center'); });
   audioRadios.forEach(r => { r.checked = r.value === audioOutput(); });
@@ -790,10 +798,11 @@ function fillMediaStyles(s) {
 
 function setupMediaStyles() {
   const send = () => {
-    $('media-duration-val').textContent = `${Number($('media-duration-range').value).toFixed(1)} s`;
+    updateFitOptions();
     ws.send('update-media-styles', {
       transition: $('media-transition').value,
       duration: Number($('media-duration-range').value),
+      scope: checkedValue(scopeRadios),
       fit: checkedValue(fitRadios),
       focus: checkedValue(focusRadios),
       bgColor: $('media-bg').value,
@@ -802,8 +811,7 @@ function setupMediaStyles() {
     });
   };
   ['media-transition', 'media-duration-range', 'media-bg', 'media-end'].forEach(id => $(id).addEventListener('input', send));
-  $('media-transition').addEventListener('input', updateFitOptions);
-  [...fitRadios, ...focusRadios, ...audioRadios].forEach(r => r.addEventListener('input', () => {
+  [...fitRadios, ...focusRadios, ...audioRadios, ...scopeRadios].forEach(r => r.addEventListener('input', () => {
     updateFitOptions();
     send();
   }));

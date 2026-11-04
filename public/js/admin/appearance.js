@@ -1,6 +1,7 @@
 // Painel "Aparência": estilos do texto da Mensagem no OBS. O servidor salva no banco.
 import { $ } from './ui.js';
 import * as ws from './ws.js';
+import { timeLabel, savedTime, savedEffect, scopeRadios, checkedScope, setScope } from './transition.js';
 
 const rgba = (r, g, b, a) => `rgba(${r}, ${g}, ${b}, ${a})`;
 // Tudo que um tema define, para um tema não herdar o resto do anterior.
@@ -26,6 +27,7 @@ const input = {
   size: $('style-size-slider'),
   titleSize: $('style-title-size-slider'),
   animation: $('style-animation'),
+  speed: $('style-speed'),
   textColor: $('style-text-color'),
   accentColor: $('style-accent-color'),
   bgColor: $('style-bg-color-picker'),
@@ -36,6 +38,7 @@ const input = {
   telao: $('style-telao-mode'),
   outline: $('style-text-outline')
 };
+const scope = scopeRadios('style-scope');
 
 function hexToRgba(hex, alpha) {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -57,6 +60,11 @@ function updateLabels() {
   $('size-slider-val').textContent = input.size.value;
   $('title-size-slider-val').textContent = input.titleSize.value;
   $('opacity-val').textContent = `${input.bgOpacity.value}%`;
+  $('style-speed-val').textContent = timeLabel(input.speed.value);
+  // Sem transição (tempo 0): o efeito e o "onde usar" não valem
+  const noTransition = Number(input.speed.value) === 0;
+  input.animation.closest('.field').hidden = noTransition;
+  scope[0].closest('.field').hidden = noTransition;
   // Só mostra o que vale agora
   input.outlineColor.closest('.color-field').hidden = !input.outline.checked;
   // O tamanho do título vale para o título e para o número do parágrafo
@@ -96,6 +104,8 @@ function gatherStyles() {
     accentColor: input.accentColor.value,
     bgColor: hexToRgba(input.bgColor.value, Number(input.bgOpacity.value) / 100),
     animationType: input.animation.value,
+    transitionTime: Number(input.speed.value),
+    transitionScope: checkedScope(scope),
     showTitle: input.showTitle.checked,
     showParagraphNumber: input.showNumber.checked,
     telaoMode: input.telao.checked,
@@ -110,7 +120,9 @@ function fillInputs(styles) {
   input.font.value = styles.fontFamily || 'Outfit, sans-serif';
   input.size.value = parseFloat(styles.fontSize) || 2.6;
   input.titleSize.value = parseFloat(styles.titleSize) || 1.1;
-  input.animation.value = styles.animationType || 'slide-up';
+  input.animation.value = savedEffect(styles, 'slide-up');
+  input.speed.value = savedTime(styles);
+  setScope(scope, styles.transitionScope);
   input.textColor.value = styles.textColor || '#ffffff';
   input.accentColor.value = styles.accentColor || '#2563eb';
   input.outlineColor.value = styles.outlineColor || '#000000';
@@ -129,12 +141,12 @@ export function setupAppearance() {
   ws.on('init', (state) => fillInputs(state.styles));
   ws.on('update-style', (styles) => {
     // Não atrapalha quem está arrastando um controle neste painel
-    if (!Object.values(input).includes(document.activeElement)) {
+    if (![...Object.values(input), ...scope].includes(document.activeElement)) {
       fillInputs(styles);
     }
   });
 
-  Object.values(input).forEach(control => {
+  [...Object.values(input), ...scope].forEach(control => {
     control.addEventListener('input', () => {
       updateLabels();
       ws.send('update-styles', gatherStyles());
