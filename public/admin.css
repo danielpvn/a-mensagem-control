@@ -1374,6 +1374,18 @@ fieldset.collapsed > :not(legend) { display: none !important; }
 .announce-end { display: flex; align-items: center; gap: 6px; }
 .announce-end select { width: auto; padding: 4px 8px; }
 #btn-bible-announce svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+#btn-bible-favorite svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+#btn-bible-favorite.is-on svg { fill: #f2b632; stroke: #f2b632; }
+
+/* Aba Bíblia: favoritos em cima da busca */
+.bible-favorites { flex-shrink: 0; margin-bottom: 8px; }
+.fav-list { display: flex; flex-wrap: wrap; gap: 4px; max-height: 128px; overflow-y: auto; }
+.fav-item { display: flex; align-items: stretch; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--field); overflow: hidden; }
+.fav-item:hover { border-color: var(--border-strong); }
+.fav-item.active { background: var(--accent-soft); border-color: rgba(59, 130, 246, 0.45); }
+.fav-open { border: 0; background: none; color: var(--text); font: inherit; font-size: 0.82rem; font-weight: 600; padding: 6px 2px 6px 9px; cursor: pointer; }
+.fav-remove { border: 0; background: none; color: var(--text-3); font-size: 1rem; line-height: 1; padding: 0 8px; cursor: pointer; }
+.fav-remove:hover { color: var(--text); }
 #btn-bible-announce.is-live { background: var(--live-soft); color: #fecaca; border-color: rgba(239, 68, 68, 0.4); }
 
 /* Aba Culto: louvor especial (fora do hinário) */

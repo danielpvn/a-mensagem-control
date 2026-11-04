@@ -8,6 +8,7 @@ let serviceReading = '';
 let bible = null;
 let styles = {};
 let startKey = '';  // livro:capítulo:versículo de início (o "até" volta a zero quando muda)
+let pendingEnd = null; // favorito aberto: { key, end } para já marcar o "até o versículo"
 
 const PRESETS = {
   dark: { bandColor: '#11151c', borderColor: '#c99a2e', textColor: '#ffffff' },
@@ -67,7 +68,27 @@ function renderEndOptions() {
     option.textContent = v;
     select.appendChild(option);
   });
-  select.value = endFromSearch(start);
+  if (pendingEnd && pendingEnd.key === key) {
+    select.value = pendingEnd.end || '';
+    pendingEnd = null;
+  } else {
+    select.value = endFromSearch(start);
+  }
+}
+
+// Passagem escolhida agora (para os favoritos): { book, chapter, verse, end }
+export function currentPassage() {
+  if (!bible || !bible.book) return null;
+  const verse = startVerse();
+  const end = Number($('bible-announce-end').value) || null;
+  return { book: bible.book, chapter: bible.chapter, verse, end: verse && end > verse ? end : null };
+}
+
+// Ao abrir um favorito, o "até o versículo" já vem marcado
+export function presetEnd(fav) {
+  pendingEnd = fav.verse ? { key: `${fav.book}:${fav.chapter}:${fav.verse}`, end: fav.end } : null;
+  startKey = '';
+  renderBar();
 }
 
 function renderBar() {

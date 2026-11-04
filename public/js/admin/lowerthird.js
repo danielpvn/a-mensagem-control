@@ -2,6 +2,10 @@
 // A faixa é a mesma do louvor especial (special.js), cada um com o seu visual.
 import { $, toast, confirmDialog, previewInPanel } from './ui.js';
 import * as ws from './ws.js';
+import { timeLabel } from './transition.js';
+
+// Velocidade 1 da faixa = 0,6 s (o controle mostra em segundos; 0 = sem transição)
+const LT_BASE_SECONDS = 0.6;
 
 let preachers = [];
 let selectedId = null;
@@ -157,14 +161,16 @@ function parseRgba(rgbaStr) {
 export function setupLtStyleControls({ prefix, type, stateKey, preview, defaults = {} }) {
   const id = (name) => $(`${prefix}-${name}`);
   const lookRadios = [...document.querySelectorAll(`input[name="${prefix}-look"]`)];
-  const speedRadios = [...document.querySelectorAll(`input[name="${prefix}-speed"]`)];
-  const inputs = ['autohide', 'position', 'animation', 'font', 'scale', 'name-color', 'subtitle-color', 'accent-color', 'bg-color', 'bg-opacity'].map(id);
+  const inputs = ['autohide', 'position', 'speed', 'animation', 'font', 'scale', 'name-color', 'subtitle-color', 'accent-color', 'bg-color', 'bg-opacity'].map(id);
 
   const fill = (s) => {
     if (!s || inputs.includes(document.activeElement)) return;
     id('autohide').value = String(s.autoHide ?? 8);
     id('position').value = s.position || 'bottom-left';
-    id('animation').value = s.animation || 'slide';
+    // Antes "Sem transição" era um efeito da lista; agora é o tempo no zero
+    id('animation').value = s.animation && s.animation !== 'none' ? s.animation : 'slide';
+    id('speed').value = s.animation === 'none' ? 0 : Math.round((s.speed ?? 1) * LT_BASE_SECONDS * 10) / 10;
+    updateSpeed();
     id('font').value = s.fontFamily || 'Montserrat, sans-serif';
     id('scale').value = s.scale ?? 1;
     id('scale-val').textContent = `${Math.round((s.scale ?? 1) * 100)}%`;
@@ -176,12 +182,17 @@ export function setupLtStyleControls({ prefix, type, stateKey, preview, defaults
     id('bg-opacity').value = opacity;
     id('opacity-val').textContent = `${opacity}%`;
     lookRadios.forEach(r => { r.checked = r.value === (s.look || 'modern'); });
-    speedRadios.forEach(r => { r.checked = Number(r.value) === Number(s.speed || 1); });
   };
+
+  function updateSpeed() {
+    id('speed-val').textContent = timeLabel(id('speed').value);
+    id('animation').closest('.field').hidden = Number(id('speed').value) === 0;
+  }
 
   const send = () => {
     id('scale-val').textContent = `${Math.round(Number(id('scale').value) * 100)}%`;
     id('opacity-val').textContent = `${id('bg-opacity').value}%`;
+    updateSpeed();
     ws.send(`update-${type}-styles`, {
       autoHide: Number(id('autohide').value),
       position: id('position').value,
@@ -193,16 +204,16 @@ export function setupLtStyleControls({ prefix, type, stateKey, preview, defaults
       accentColor: id('accent-color').value,
       bgColor: hexToRgba(id('bg-color').value, Number(id('bg-opacity').value) / 100),
       look: (lookRadios.find(r => r.checked) || lookRadios[0]).value,
-      speed: Number((speedRadios.find(r => r.checked) || speedRadios[1]).value)
+      speed: Math.round(Number(id('speed').value) / LT_BASE_SECONDS * 100) / 100
     });
   };
 
   ws.on('init', (state) => fill(state[stateKey]));
   ws.on(`update-${type}-style`, fill);
-  [...inputs, ...lookRadios, ...speedRadios].forEach(input => input.addEventListener('input', send));
+  [...inputs, ...lookRadios].forEach(input => input.addEventListener('input', send));
   // "Ver o efeito" e trocar efeito/velocidade/estilo mostram como fica só na prévia do painel
   $(`btn-${prefix}-preview`).onclick = preview;
-  [id('animation'), ...speedRadios, ...lookRadios].forEach(input => input.addEventListener('change', () => setTimeout(preview, 250)));
+  [id('animation'), id('speed'), ...lookRadios].forEach(input => input.addEventListener('change', () => setTimeout(preview, 250)));
   $(`btn-${prefix}-reset`).onclick = () => ws.send(`reset-${type}-styles`);
 }
 
