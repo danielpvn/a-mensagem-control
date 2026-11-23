@@ -1,6 +1,6 @@
 // Overlay do OBS / Telão: caixa da Mensagem (rodapé) e as camadas de Hinos e Bíblia.
 import { screenLabel } from './js/shared/hymn-text.js';
-import { playerFor, youtubeErrorText } from './js/shared/players.js?v=2.1.29';
+import { playerFor, youtubeErrorText } from './js/shared/players.js?v=2.1.30';
 
 const wsUrl = `ws://${window.location.host}`;
 const reconnectInterval = 3000;
@@ -1298,6 +1298,10 @@ function connect() {
 
   ws.onclose = () => {
     setTimeout(connect, reconnectInterval);
+  };
+  // O overlay do OBS (não as prévias do painel) avisa que está aberto: o painel mostra "OBS conectado"
+  ws.onopen = () => {
+    if (!PREVIEW) ws.send(JSON.stringify({ type: 'obs-hello' }));
   };
 
   ws.onmessage = (event) => {

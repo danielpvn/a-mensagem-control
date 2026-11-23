@@ -13,6 +13,7 @@ const media = require('./src/media');
 const feedback = require('./src/feedback');
 const { cleanShortcuts, DEFAULT_SHORTCUTS } = require('./public/js/shared/shortcuts.js');
 const auth = require('./src/auth');
+const network = require('./src/network');
 const sync = require('./src/sync');
 
 // Primeira vez neste PC: traz a Bíblia e os fundos da pasta da igreja, se existirem
@@ -23,7 +24,7 @@ const tfSermons = require('./src/tf-sermons');
 const sounds = require('./src/sounds');
 const { createDesktopShortcut } = require('./src/shortcut');
 
-const CURRENT_VERSION = '2.1.11-beta.1';
+const CURRENT_VERSION = '2.1.11-beta.2';
 const PORT = process.env.PORT || 3000;
 
 const app = express();
@@ -1378,9 +1379,23 @@ function checkAdminConnections() {
   }
 }
 
+// Overlays do OBS conectados (sem ?preview): o painel mostra "OBS conectado" e de qual computador
+function obsStatus() {
+  const clients = [];
+  wss.clients.forEach(client => {
+    if (client.readyState !== WebSocket.OPEN || !client.isObs) return;
+    clients.push({ ip: client.obsIp, local: client.obsLocal, name: client.obsLocal ? network.hostname() : network.nameFor(client.obsIp, broadcastObsStatus) });
+  });
+  return { clients };
+}
+function broadcastObsStatus() {
+  broadcast('obs-status', obsStatus());
+}
+
 wss.on('connection', (ws, req) => {
   ws.canControl = auth.isAuthorized(req);
   ws.send(JSON.stringify({ type: 'init', payload: globalState }));
+  ws.send(JSON.stringify({ type: 'obs-status', payload: obsStatus() }));
 
   ws.on('message', (messageStr) => {
     try {
@@ -1390,6 +1405,14 @@ wss.on('connection', (ws, req) => {
       // Andamento do vídeo vem do overlay (que pode estar num PC sem PIN)
       if (data.type === 'media-progress') {
         onMediaProgress(payload);
+        return;
+      }
+      // O overlay do OBS se apresenta (vale sem PIN: o OBS pode estar em outro PC)
+      if (data.type === 'obs-hello') {
+        ws.isObs = true;
+        ws.obsIp = network.cleanAddress(req.socket.remoteAddress);
+        ws.obsLocal = auth.isLocal(req);
+        broadcastObsStatus();
         return;
       }
       // Fim do som que tocou no OBS (o painel volta para "Nada tocando")
@@ -1597,15 +1620,19 @@ wss.on('connection', (ws, req) => {
 
   ws.on('close', () => {
     setTimeout(checkAdminConnections, 2000);
+    if (ws.isObs) setTimeout(broadcastObsStatus, 100);
   });
 });
 
 // Endereços para abrir o painel em outro aparelho da mesma rede (celular, notebook)
 function getLanUrls() {
   const urls = [];
-  Object.values(os.networkInterfaces()).forEach(list => {
+  // Pula placas virtuais (WSL, Hyper-V, VirtualBox...) e endereço sem rede (169.254): só confundem o operador
+  const virtual = /vEthernet|WSL|Hyper-V|VirtualBox|VMware|Loopback|Bluetooth|Docker/i;
+  Object.entries(os.networkInterfaces()).forEach(([name, list]) => {
+    if (virtual.test(name)) return;
     (list || []).forEach(net => {
-      if (net.family === 'IPv4' && !net.internal) {
+      if (net.family === 'IPv4' && !net.internal && !net.address.startsWith('169.254.')) {
         urls.push(`http://${net.address}:${PORT}`);
       }
     });
@@ -1614,7 +1641,22 @@ function getLanUrls() {
 }
 
 app.get('/api/info', (req, res) => {
-  res.json({ version: CURRENT_VERSION, port: PORT, lanUrls: getLanUrls() });
+  res.json({ version: CURRENT_VERSION, port: PORT, lanUrls: getLanUrls(), hostname: network.hostname() });
+});
+
+// Link curto para o OBS (fácil de digitar no outro computador): /obs -> overlay
+app.get('/obs', (req, res) => {
+  const q = req.originalUrl.indexOf('?');
+  res.redirect(`/overlay.html${q >= 0 ? req.originalUrl.slice(q) : ''}`);
+});
+
+// Firewall do Windows: a porta precisa estar liberada para o OBS de outro PC abrir o link
+app.get('/api/firewall', async (req, res) => {
+  res.json(await network.firewallStatus());
+});
+app.post('/api/firewall', async (req, res) => {
+  if (!auth.isLocal(req)) return res.status(403).json({ error: 'Só dá para liberar no computador do programa.' });
+  res.json(await network.allowFirewall(PORT));
 });
 
 // API: Listar sermões disponíveis

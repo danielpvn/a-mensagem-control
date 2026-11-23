@@ -7,7 +7,7 @@
   <link rel="icon" href="assets/favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="assets/favicon.png">
   <link rel="stylesheet" href="fonts.css">
-  <link rel="stylesheet" href="admin.css?v=2.1.29">
+  <link rel="stylesheet" href="admin.css?v=2.1.30">
 </head>
 <body>
   <div class="app">
@@ -26,7 +26,7 @@
         </svg>
         <div class="brand-text">
           <strong>A MENSAGEM</strong>
-          <span>CONTROL <em id="app-version" class="version-tag">v2.1.11-beta.1</em></span>
+          <span>CONTROL <em id="app-version" class="version-tag">v2.1.11-beta.2</em></span>
         </div>
       </div>
 
@@ -78,6 +78,7 @@
           <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m9 9 6 6M15 9l-6 6"/></svg>
           Limpar tela
         </button>
+        <button id="obs-chip" class="obs-chip" type="button" title="Procurando o OBS..."><span class="obs-chip-dot"></span>OBS</button>
         <span id="cloud-dot" class="cloud-dot" hidden title="Banco online"></span>
         <span id="ws-status" class="conn is-off" title="Desconectado do servidor"></span>
       </div>
@@ -1001,6 +1002,7 @@
                 <label title="O som sai neste computador (onde o app está aberto)"><input type="radio" name="media-audio" value="app"><span>Neste computador</span></label>
               </div>
               <p class="muted small" id="media-audio-help"></p>
+              <div class="obs-warn" data-obs-warn="media" hidden>O OBS está em outro computador: com o som <strong>neste computador</strong> ele não vai para a transmissão. <button type="button" class="btn btn-secondary btn-sm">Mandar o som pelo OBS</button></div>
             </fieldset>
 
             <fieldset>
@@ -1533,6 +1535,7 @@
                 <label title="O som sai neste computador (onde o programa está aberto)"><input type="radio" name="sound-output" value="app" checked><span>Neste computador</span></label>
                 <label title="O som sai no OBS, junto com o overlay (link do overlay aberto)"><input type="radio" name="sound-output" value="obs"><span>No OBS</span></label>
               </div>
+              <div class="obs-warn" data-obs-warn="sound" hidden>O OBS está em outro computador: com o som <strong>neste computador</strong> ele não vai para a transmissão. <button type="button" class="btn btn-secondary btn-sm">Mandar o som pelo OBS</button></div>
             </div>
             <div class="now-playing" id="now-playing">
               <span class="muted small">Tocando agora</span>
@@ -1556,11 +1559,28 @@
         <div class="config-grid">
           <div class="card">
             <h2>Link para o OBS</h2>
-            <p class="muted">No OBS: <strong>Fontes → + → Navegador</strong>, cole o link abaixo e use largura <strong>1920</strong> e altura <strong>1080</strong>.</p>
+            <p class="muted">No OBS: <strong>Fontes → + → Navegador</strong>, cole o link e use largura <strong>1920</strong> e altura <strong>1080</strong>.</p>
+            <div class="obs-now" id="obs-now"></div>
+            <h3 class="obs-sub">OBS neste computador</h3>
             <div class="copy-field">
               <input type="text" id="obs-url" readonly value="http://localhost:3000/overlay.html">
               <button class="btn btn-secondary btn-sm" data-copy="obs-url">Copiar</button>
             </div>
+            <h3 class="obs-sub">OBS em outro computador</h3>
+            <p class="muted small">Os dois computadores precisam estar na mesma rede (de preferência com cabo). Use o link com o <strong>nome do computador</strong>: ele continua valendo quando o roteador reinicia e o número (IP) muda.</p>
+            <div class="copy-field">
+              <input type="text" id="obs-url-name" readonly value="">
+              <button class="btn btn-secondary btn-sm" data-copy="obs-url-name">Copiar</button>
+            </div>
+            <details class="obs-ip-links">
+              <summary>O link com o nome não abriu? Use o número (IP)</summary>
+              <div id="obs-ip-urls" class="lan-urls"></div>
+            </details>
+            <div class="obs-firewall" id="obs-firewall" hidden>
+              <span id="obs-firewall-text" class="muted small"></span>
+              <button type="button" id="btn-obs-firewall" class="btn btn-secondary btn-sm">Liberar no Firewall</button>
+            </div>
+            <p class="muted small">No outro computador, marque <strong>"Controlar áudio via OBS"</strong> na fonte Navegador e escolha <strong>"No OBS"</strong> no som dos vídeos e dos agendamentos, senão o som toca aqui e não vai para a transmissão.</p>
             <p class="muted small">Depois de atualizar o app, clique em <strong>"Atualizar cache da página atual"</strong> nas propriedades da fonte Navegador do OBS.</p>
           </div>
 
@@ -1676,7 +1696,7 @@
 
           <div class="card">
             <h2>Sobre</h2>
-            <p class="muted">A Mensagem Control <strong id="about-version">v2.1.11-beta.1</strong></p>
+            <p class="muted">A Mensagem Control <strong id="about-version">v2.1.11-beta.2</strong></p>
             <p class="muted small">Feito para as equipes de mídia das igrejas do Tabernáculo da Fé.</p>
             <button id="btn-check-update" class="btn btn-secondary btn-sm">Verificar atualizações</button>
             <p id="update-status" class="muted small"></p>
@@ -1854,6 +1874,6 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script type="module" src="js/admin/main.js?v=2.1.29"></script>
+  <script type="module" src="js/admin/main.js?v=2.1.30"></script>
 </body>
 </html>

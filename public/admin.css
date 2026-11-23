@@ -1617,3 +1617,20 @@ fieldset.collapsed > :not(legend) { display: none !important; }
 .reading-new-look { margin-top: 6px; width: 100%; }
 .reading-custom { border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); padding: 10px; margin: 4px 0 10px; display: grid; gap: 8px; }
 .btn-danger-text { color: #ff7b7b; }
+
+/* ---------- OBS em outro computador ---------- */
+.obs-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 99px; border: 1px solid var(--border); background: var(--field); color: var(--text-3); font: inherit; font-size: 0.74rem; font-weight: 700; letter-spacing: 0.04em; cursor: pointer; white-space: nowrap; }
+.obs-chip-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); }
+.obs-chip.is-on { color: #6ee7b7; border-color: rgba(16, 185, 129, 0.45); }
+.obs-chip.is-on .obs-chip-dot { background: var(--success); }
+.obs-sub { margin: 14px 0 6px; font-size: 0.82rem; color: var(--text-2); }
+.obs-now { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 8px; background: var(--field); font-size: 0.8rem; }
+.obs-now .ok { color: #6ee7b7; font-weight: 600; }
+.obs-now .off { color: var(--armed); font-weight: 600; }
+.obs-ip-links { margin-top: 6px; }
+.obs-ip-links summary { cursor: pointer; color: var(--text-3); font-size: 0.78rem; padding: 4px 0; }
+.obs-firewall { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; padding: 8px 10px; border-radius: 8px; border: 1px dashed rgba(245, 158, 11, 0.5); }
+.obs-firewall.is-ok { border-color: rgba(16, 185, 129, 0.45); }
+.obs-warn { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.4); color: #fcd34d; font-size: 0.78rem; line-height: 1.4; }
+.obs-warn .btn { margin-top: 6px; display: block; }
+@media (max-width: 900px) { .obs-chip { display: none; } }
