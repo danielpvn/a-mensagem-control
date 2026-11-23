@@ -1,7 +1,8 @@
 // Anúncio da leitura bíblica (aba Bíblia): a passagem vem do capítulo/versículo escolhido na própria
 // aba (sem digitar). O anúncio também vira a leitura do culto, que vai embaixo do nome do pregador.
-import { $, previewInPanel } from './ui.js';
+import { $, previewInPanel, confirmDialog } from './ui.js';
 import * as ws from './ws.js';
+import { createBackgroundPicker } from './backgrounds.js';
 
 let announce = { visible: false };
 let serviceReading = '';
@@ -25,6 +26,98 @@ const LOOKS = {
   line: { fontFamily: "'Lora', serif", textColor: '#ffffff', bandColor: '#000000', borderColor: '#f2b632' }
 };
 const HAS_BACKGROUND = ['bible3d', 'card', 'light'];
+
+// Estilos criados pelo operador (state.readingLooks): imagem dele + onde vai a passagem
+let looks = [];
+let lookTimer = null;
+const isCustom = (look) => String(look || '').startsWith('custom:');
+const currentLook = () => looks.find(l => `custom:${l.id}` === styles.look) || null;
+const checked = (name) => (document.querySelector(`input[name="${name}"]:checked`) || {}).value;
+const setChecked = (name, value) => {
+  const radio = document.querySelector(`input[name="${name}"][value="${value}"]`);
+  if (radio) radio.checked = true;
+};
+
+function renderLookOptions() {
+  const select = $('reading-look');
+  select.querySelectorAll('optgroup[data-custom]').forEach(g => g.remove());
+  if (looks.length) {
+    const group = document.createElement('optgroup');
+    group.label = 'Estilos criados aqui';
+    group.dataset.custom = '1';
+    looks.forEach(l => {
+      const option = document.createElement('option');
+      option.value = `custom:${l.id}`;
+      option.textContent = l.name;
+      group.appendChild(option);
+    });
+    select.appendChild(group);
+  }
+  select.value = styles.look || 'photo';
+}
+
+function fillCustomEditor() {
+  const l = currentLook();
+  $('reading-custom-field').hidden = !l;
+  if (!l) return;
+  const editing = $('reading-custom-field').contains(document.activeElement);
+  if (!editing) {
+    $('reading-custom-name').value = l.name;
+    setChecked('reading-custom-format', l.format);
+    setChecked('reading-custom-align', l.align);
+    $('reading-custom-y').value = l.textY;
+    $('reading-custom-w').value = l.textWidth;
+    $('reading-custom-band').value = l.bandHeight ?? 30;
+  }
+  $('reading-custom-band-field').hidden = l.format === 'full';
+  $('reading-custom-band-val').textContent = `${$('reading-custom-band').value}%`;
+  $('reading-custom-y-val').textContent = `${$('reading-custom-y').value}%`;
+  $('reading-custom-w-val').textContent = `${$('reading-custom-w').value}%`;
+  $('reading-custom-hint').textContent = l.format === 'full'
+    ? 'Tela cheia: uma imagem 1920x1080 feita no computador. Sem imagem, usa a cor de fundo.'
+    : 'Faixa embaixo: uma imagem larga (ex: 1920x400; PNG com fundo transparente fica melhor). Sem imagem, usa a cor de fundo.';
+  if (customPicker) customPicker.render();
+}
+
+// Muda o estilo criado que está escolhido (os controles deslizantes mandam com um pequeno atraso)
+function changeLook(partial, wait = 0) {
+  const l = currentLook();
+  if (!l) return;
+  Object.assign(l, partial);
+  renderLookOptions();
+  fillCustomEditor();
+  clearTimeout(lookTimer);
+  lookTimer = setTimeout(() => ws.send('reading-looks', { items: looks }), wait);
+}
+
+// A prévia "Como vai ficar" manda o que foi arrastado (passagem, faixa)
+export function editCurrentLook(partial) {
+  // Sai do campo do nome (se estiver nele) para os controles mostrarem o que foi arrastado
+  if ($('reading-custom-field').contains(document.activeElement)) document.activeElement.blur();
+  changeLook(partial);
+}
+
+// Imagem larga escolhida para a faixa: a altura da faixa segue a proporção dela
+function bandHeightFor(url) {
+  const img = new Image();
+  img.onload = () => {
+    const l = currentLook();
+    if (!l || l.format === 'full' || l.image !== url || !img.naturalWidth) return;
+    const pct = Math.round(img.naturalHeight / img.naturalWidth * 1920 / 1080 * 100);
+    changeLook({ bandHeight: pct >= 70 ? 30 : Math.max(8, pct) });
+  };
+  img.src = url;
+}
+
+function createLook() {
+  const id = `l${Date.now().toString(36)}`;
+  const look = { id, name: `Estilo ${looks.length + 1}`, image: null, format: 'band', align: 'center', textY: 50, textWidth: 80 };
+  ws.send('reading-looks', { items: [...looks, look] });
+  ws.send('update-reading-styles', { look: `custom:${id}`, fontFamily: 'Montserrat, sans-serif', textColor: '#ffffff', bandColor: '#11151c', borderColor: '#f2c46b' });
+  setTimeout(() => { $('reading-custom-name').focus(); $('reading-custom-name').select(); }, 400);
+}
+
+let customPicker = null;
 
 // ---------- Passagem escolhida na aba Bíblia ----------
 
@@ -76,6 +169,11 @@ function renderEndOptions() {
   }
 }
 
+// Texto que o anúncio mostraria agora (para a prévia "Como vai ficar")
+export function announceText() {
+  return currentRef() || serviceReading || 'Efésios 4:11';
+}
+
 // Passagem escolhida agora (para os favoritos): { book, chapter, verse, end }
 export function currentPassage() {
   if (!bible || !bible.book) return null;
@@ -115,10 +213,14 @@ function fillStyles(s) {
   $('reading-autohide').value = String(styles.autoHide ?? 0);
   $('reading-anim').value = styles.animation === 'none' ? 'none' : 'normal';
   const look = styles.look || 'photo';
-  $('reading-look').value = look;
+  renderLookOptions();
+  fillCustomEditor();
   $('reading-label-field').hidden = look === 'bible3d';
+  // Tela cheia: dá para trocar a imagem da Bíblia por uma feita no computador
+  $('reading-image-field').hidden = look !== 'full';
+  if (imagePicker) imagePicker.render();
   $('reading-presets').hidden = look !== 'bible3d';
-  $('reading-band-color').parentElement.hidden = !HAS_BACKGROUND.includes(look);
+  $('reading-band-color').parentElement.hidden = !HAS_BACKGROUND.includes(look) && !isCustom(look);
   $('reading-border-name').textContent = look === 'bible3d' ? 'Borda' : 'Detalhes';
   if (document.activeElement !== $('reading-label')) $('reading-label').value = styles.label ?? 'LEITURA BÍBLICA';
   if (styleInputs.includes(document.activeElement)) return;
@@ -146,8 +248,47 @@ function previewAnimation() {
   previewInPanel({ type: 'preview-reading', text: currentRef() || serviceReading || 'Efésios 4:11' });
 }
 
+let imagePicker = null;
+
 export function setupReading() {
+  imagePicker = createBackgroundPicker($('reading-image-picker'), {
+    getValue: () => styles.fullImage || null,
+    onSelect: (url) => ws.send('update-reading-styles', { fullImage: url })
+  });
+  customPicker = createBackgroundPicker($('reading-custom-picker'), {
+    getValue: () => (currentLook() || {}).image || null,
+    onSelect: (url) => { changeLook({ image: url }); if (url) bandHeightFor(url); setTimeout(previewAnimation, 400); }
+  });
+  $('btn-reading-new-look').onclick = createLook;
+  $('reading-custom-name').addEventListener('input', (e) => changeLook({ name: e.target.value }, 500));
+  document.querySelectorAll('input[name="reading-custom-format"], input[name="reading-custom-align"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      // Escolher um lado tira a posição arrastada na prévia
+      const align = checked('reading-custom-align');
+      const l = currentLook();
+      changeLook({ format: checked('reading-custom-format'), align, ...(l && l.align !== align ? { textX: null } : {}) });
+      setTimeout(previewAnimation, 300);
+    });
+  });
+  $('reading-custom-y').addEventListener('input', (e) => changeLook({ textY: Number(e.target.value) }, 120));
+  $('reading-custom-w').addEventListener('input', (e) => changeLook({ textWidth: Number(e.target.value) }, 120));
+  $('reading-custom-band').addEventListener('input', (e) => changeLook({ bandHeight: Number(e.target.value) }, 120));
+  $('btn-reading-custom-delete').onclick = async () => {
+    const l = currentLook();
+    if (!l) return;
+    const ok = await confirmDialog({ title: 'Apagar estilo', text: `Apagar o estilo "${l.name}"? O anúncio volta para "Faixa com a Bíblia e a luz".`, okLabel: 'Apagar', danger: true });
+    if (ok) ws.send('reading-looks', { items: looks.filter(x => x.id !== l.id) });
+  };
+
   const onState = (state) => {
+    if (Array.isArray(state.readingLooks) && JSON.stringify(state.readingLooks) !== JSON.stringify(looks)) {
+      // Não atrapalha quem está digitando o nome ou arrastando um controle do estilo
+      if (!$('reading-custom-field').contains(document.activeElement)) {
+        looks = state.readingLooks.map(l => ({ ...l }));
+        renderLookOptions();
+        fillCustomEditor();
+      }
+    }
     announce = state.readingAnnounce || announce;
     serviceReading = state.serviceReading || '';
     bible = state.bible || bible;

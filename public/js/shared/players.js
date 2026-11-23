@@ -30,10 +30,12 @@ export function loadYouTubeApi() {
 const clampVolume = (v) => Math.min(1, Math.max(0, Number(v ?? 1)));
 
 // Vídeo de arquivo. "ready" resolve quando o primeiro quadro (no ponto de início) já pode aparecer.
-export function filePlayer(url, { start = 0, muted = true } = {}) {
+// Com `bufferSeconds`, espera também ter esse tanto carregado na frente: na primeira vez o arquivo
+// ainda não está no cache do disco, e começar com o primeiro quadro só fazia o vídeo engasgar no início.
+export function filePlayer(url, { start = 0, muted = true, bufferSeconds = 0, preload = 'auto' } = {}) {
   const video = document.createElement('video');
   video.playsInline = true;
-  video.preload = 'auto';
+  video.preload = preload;
   video.muted = muted;
   video.src = url;
   const ended = [];
@@ -43,8 +45,29 @@ export function filePlayer(url, { start = 0, muted = true } = {}) {
     video.addEventListener('loadedmetadata', () => {
       if (start > 0 && start < (video.duration || Infinity)) video.currentTime = start;
     }, { once: true });
-    const done = () => resolve();
-    video.addEventListener(start > 0 ? 'seeked' : 'loadeddata', done, { once: true });
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    // Segundos já carregados a partir do ponto atual
+    const ahead = () => {
+      const t = video.currentTime;
+      for (let i = 0; i < video.buffered.length; i++) {
+        if (video.buffered.start(i) <= t + 0.1 && video.buffered.end(i) >= t) return video.buffered.end(i) - t;
+      }
+      return 0;
+    };
+    let firstFrame = false;
+    const check = () => {
+      if (!firstFrame) return;
+      const left = (video.duration || Infinity) - video.currentTime;
+      if (bufferSeconds <= 0 || ahead() >= Math.min(bufferSeconds, left - 0.1) || video.readyState >= 4) done();
+    };
+    video.addEventListener(start > 0 ? 'seeked' : 'loadeddata', () => { firstFrame = true; check(); }, { once: true });
+    video.addEventListener('progress', check);
+    video.addEventListener('canplaythrough', check);
     video.addEventListener('error', done, { once: true });
     setTimeout(done, 6000);
   });
@@ -105,19 +128,28 @@ export function youtubePlayer(videoId, { start = 0, muted = true, autoplay = tru
         fs: 0,
         rel: 0,
         iv_load_policy: 3,
+        cc_load_policy: 0, // sem legenda (o YouTube liga sozinho em alguns vídeos)
+        // Idioma do player em português: com o navegador do OBS em inglês, o YouTube ligava a
+        // legenda sozinho porque o vídeo é em outra língua que a do navegador
+        hl: 'pt-BR',
+        cc_lang_pref: 'pt',
         playsinline: 1,
         start: Math.floor(start)
       },
       events: {
         onReady: () => {
           isReady = true;
+          hideCaptions();
           if (muteWanted) player.mute(); else player.unMute();
           player.setVolume(Math.round(volumeWanted * 100));
           if (!autoplay) finish();
           setTimeout(finish, 4000); // não espera para sempre se o vídeo demorar a começar
         },
         onStateChange: (e) => {
-          if (e.data === YT.PlayerState.PLAYING) finish();
+          if (e.data === YT.PlayerState.PLAYING) {
+            hideCaptions();
+            finish();
+          }
           if (e.data === YT.PlayerState.ENDED) ended.forEach(cb => cb());
         },
         onError: (e) => {
@@ -129,6 +161,21 @@ export function youtubePlayer(videoId, { start = 0, muted = true, autoplay = tru
   })).catch(() => {
     errors.forEach(cb => cb('offline'));
   });
+
+  // Legendas: o cc_load_policy nem sempre basta (vídeo com legenda marcada pelo dono, idioma do PC)
+  function hideCaptions() {
+    const off = () => {
+      try {
+        player.setOption('captions', 'track', {});
+        player.unloadModule('captions');
+        player.unloadModule('cc');
+      } catch (err) { /* versão do player sem esses módulos */ }
+    };
+    off();
+    // O módulo de legenda às vezes carrega um pouco depois de começar a tocar
+    setTimeout(off, 800);
+    setTimeout(off, 2500);
+  }
 
   const call = (fn) => { if (player && isReady) fn(player); };
   return {

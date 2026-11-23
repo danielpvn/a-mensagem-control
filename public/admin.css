@@ -122,7 +122,17 @@ kbd {
 }
 
 .brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-.brand-logo { height: 36px; width: auto; }
+.brand-logo { height: 36px; width: 36px; flex-shrink: 0; overflow: visible; }
+/* Detalhe escondido: com algo na tela do OBS, a bolinha da logo acende e pulsa como um "gravando" */
+.brand-rec { transform-origin: 60px 50px; transition: filter 0.4s ease; }
+.brand-logo.is-on-air .brand-rec { animation: brand-rec-glow 1.8s ease-in-out infinite; }
+@keyframes brand-rec-glow {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(255, 90, 75, 0.7)) brightness(1.05); transform: scale(1); }
+  50% { filter: drop-shadow(0 0 9px rgba(255, 90, 75, 1)) drop-shadow(0 0 16px rgba(255, 70, 60, 0.6)) brightness(1.3); transform: scale(1.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand-logo.is-on-air .brand-rec { animation: none; filter: drop-shadow(0 0 7px rgba(255, 90, 75, 0.95)) brightness(1.25); }
+}
 .brand-text { display: flex; flex-direction: column; line-height: 1.1; }
 .brand-text strong { font-size: 0.95rem; letter-spacing: 2px; }
 .brand-text span { font-size: 0.7rem; letter-spacing: 3px; color: var(--text-2); display: flex; align-items: center; gap: 6px; }
@@ -379,6 +389,39 @@ fieldset.collapsed > :not(legend) { display: none !important; }
   grid-template-columns: minmax(230px, 290px) minmax(0, 1fr) minmax(250px, 310px);
   gap: 12px;
 }
+/* Mídia: abas Arquivos/YouTube; pastas em grade (como no explorador); entra e volta */
+.media-source { margin-bottom: 10px; flex-shrink: 0; }
+.media-folders-view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.folders-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.new-folder-form { display: flex; gap: 6px; margin-bottom: 8px; }
+.new-folder-form input { flex: 1; min-width: 0; }
+.folder-grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); align-content: start; gap: 6px; margin: 0 -6px; padding: 0 6px 6px; }
+.folder-card { --folder-color: #e8b34b; position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 6px 9px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--field); color: var(--text); font: inherit; cursor: pointer; text-align: center; }
+.folder-card:hover { background: var(--field-hover); border-color: var(--border-strong); }
+.folder-card.live { border-color: rgba(34, 197, 94, 0.6); }
+.folder-icon { width: 46px; height: 46px; flex-shrink: 0; fill: var(--folder-color); stroke: rgba(0, 0, 0, 0.25); stroke-width: 0.5; }
+.folder-name { width: 100%; font-size: 0.82rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-count { font-size: 0.72rem; color: var(--text-3); }
+.folder-live-dot { position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25); }
+.media-folder-view { display: flex; flex-direction: column; flex-shrink: 0; }
+.folder-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.folder-bar .btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
+.folder-bar-icon { --folder-color: #e8b34b; line-height: 0; }
+.folder-bar-icon .folder-icon { width: 26px; height: 26px; }
+.folder-bar-name { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.folder-bar-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-bar-tools { display: flex; gap: 2px; }
+.folder-action { width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 6px; background: none; color: var(--text-3); cursor: pointer; }
+.folder-action svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; }
+.folder-color-btn svg { fill: var(--folder-color); stroke: none; }
+.folder-action:hover { background: var(--field-hover); color: var(--text); }
+.folder-delete:hover { color: var(--danger, #ef4444); }
+.media-youtube-view { flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.folder-color-menu { position: fixed; z-index: 60; display: grid; grid-template-columns: repeat(5, 26px); gap: 6px; padding: 8px; background: var(--card-solid); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45); }
+.folder-swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.folder-swatch.active { border-color: #fff; }
+.folder-swatch-custom { position: relative; background: conic-gradient(#ef4444, #f59e0b, #22c55e, #3b82f6, #a855f7, #ef4444); overflow: hidden; }
+.folder-swatch-custom input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
 /* ---------- Biblioteca ---------- */
 
@@ -426,6 +469,15 @@ fieldset.collapsed > :not(legend) { display: none !important; }
 .badge-soft { background: var(--accent-soft); color: var(--accent); }
 
 .monitor-body { display: flex; gap: 14px; align-items: stretch; }
+/* Duas prévias lado a lado: o que está no OBS e como o próximo vai ficar (sem ir para o OBS) */
+.two-stages .stage-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.two-stages .stage { width: min(100%, calc(30vh * 16 / 9)); align-self: center; }
+.stage-next { outline: 1px dashed rgba(245, 158, 11, 0.55); outline-offset: -1px; }
+/* Culto e Bíblia: dá para arrastar o nome/a passagem na prévia "Como vai ficar" */
+.stage-next iframe[data-next="culto"], .stage-next iframe[data-next="bible"] { pointer-events: auto; }
+.drag-hint { margin: 6px 0 0; font-size: 0.74rem; }
+.stage-tag { position: absolute; top: 8px; left: 8px; z-index: 2; padding: 2px 8px; border-radius: 6px; background: rgba(0, 0, 0, 0.6); color: #fcd34d; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; pointer-events: none; }
+.two-stages .next-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .stage {
   position: relative;
@@ -849,6 +901,54 @@ fieldset.collapsed > :not(legend) { display: none !important; }
 .import-summary .import-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .import-summary .import-item .btn-x { font-size: 1.1rem; line-height: 1; padding: 0 4px; }
 
+/* ---------- Sugestões e problemas ---------- */
+.btn-feedback { position: relative; gap: 6px; }
+.btn-feedback svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+.count-badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger, #ef4444); color: #fff; font-size: 0.7rem; font-weight: 700; line-height: 18px; text-align: center; }
+.feedback-card { width: min(560px, 94vw); display: flex; flex-direction: column; gap: 12px; }
+.feedback-card textarea { resize: vertical; min-height: 110px; }
+.feedback-drop { padding: 14px; }
+.feedback-drop.dragging { border-color: var(--accent); background: var(--accent-soft); }
+.feedback-files { display: flex; flex-direction: column; gap: 6px; }
+.feedback-file { display: flex; align-items: center; gap: 10px; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--field); }
+.feedback-thumb { width: 56px; height: 40px; object-fit: cover; border-radius: 6px; background: #000; flex-shrink: 0; }
+.feedback-file-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.feedback-file-info strong { font-size: 0.84rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feedback-inbox-card { grid-column: span 2; }
+.feedback-inbox-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; max-height: 620px; overflow-y: auto; }
+.feedback-item { padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--field); }
+.feedback-item.is-novo { border-color: rgba(59, 130, 246, 0.5); }
+.feedback-item.is-resolvido { opacity: 0.65; }
+.feedback-item-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.feedback-kind { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 7px; border-radius: 6px; }
+.kind-sugestao { background: rgba(34, 197, 94, 0.18); color: #86efac; }
+.kind-problema { background: rgba(239, 68, 68, 0.18); color: #fca5a5; }
+.feedback-status { margin-left: auto; font-size: 0.72rem; color: var(--text-3); }
+.status-novo { color: #93c5fd; font-weight: 700; }
+.feedback-text { margin: 8px 0; white-space: pre-wrap; font-size: 0.9rem; }
+.feedback-media { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.feedback-media img, .feedback-media video { width: 150px; height: 96px; object-fit: cover; border-radius: 6px; background: #000; display: block; }
+.feedback-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+@media (max-width: 760px) { .feedback-inbox-card { grid-column: auto; } .btn-feedback-label { display: none; } }
+
+/* Subtítulo dentro de um grupo de ajustes e seletor de assunto da aparência (aba Culto) */
+.group-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-3); padding: 10px 0 0; border-top: 1px solid var(--border); margin-top: 4px; }
+.appearance-switch { margin-bottom: 10px; flex-shrink: 0; }
+
+/* ---------- Atalhos de teclado (Configurações) ---------- */
+.shortcut-list { display: flex; flex-direction: column; gap: 2px; margin: 4px 0 8px; }
+.shortcut-group { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-3); padding: 10px 0 4px; }
+.shortcut-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 0; border-top: 1px solid var(--border); }
+.shortcut-info { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.shortcut-info strong { font-size: 0.88rem; }
+.shortcut-keys { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 4px; }
+.key-chip { display: inline-flex; align-items: center; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--field); overflow: hidden; }
+.key-chip kbd { border: 0; background: none; padding: 3px 4px 3px 8px; font-size: 0.78rem; }
+.key-remove { border: 0; background: none; color: var(--text-3); cursor: pointer; padding: 0 7px 0 3px; font-size: 0.95rem; line-height: 1; }
+.key-remove:hover { color: var(--text); }
+.key-add.is-waiting { border-color: var(--accent); color: var(--text); animation: key-wait 1s ease-in-out infinite alternate; }
+@keyframes key-wait { from { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } to { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.35); } }
+
 /* ---------- Bíblia ---------- */
 
 .bible-results { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin: 0 -6px; padding: 0 6px; }
@@ -1251,6 +1351,7 @@ fieldset.collapsed > :not(legend) { display: none !important; }
   .library { max-height: 38vh; }
   .monitor-body { flex-direction: column; }
   .stage { width: 100%; }
+  .two-stages .stage-col { flex: none; }
   .reader .paragraphs-list, .hymn-slides { max-height: 55vh; }
   .appearance { grid-template-columns: minmax(0, 1fr); }
   .config-grid { grid-template-columns: minmax(0, 1fr); }
@@ -1510,3 +1611,9 @@ fieldset.collapsed > :not(legend) { display: none !important; }
 .now-playing-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .now-playing-actions .btn { flex: 1; }
 .sound-row .pl-plus { width: 26px; height: 26px; }
+
+
+/* Anúncio da leitura: estilo criado pelo operador */
+.reading-new-look { margin-top: 6px; width: 100%; }
+.reading-custom { border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); padding: 10px; margin: 4px 0 10px; display: grid; gap: 8px; }
+.btn-danger-text { color: #ff7b7b; }

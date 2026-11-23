@@ -2,6 +2,7 @@
 // aprovar os pedidos de acesso das outras igrejas. Também a bolinha de nuvem no topo.
 import { $, toast, confirmDialog } from './ui.js';
 import * as ws from './ws.js';
+import { checkFeedbackOwner } from './feedback.js';
 
 const LABELS = {
   off: ['Desligado', 'badge-off'],
@@ -23,6 +24,7 @@ const ROLE_NAMES = {
 let lastRequests = 0;
 let showingSignup = false;
 let currentRole = null;
+let lastLogin = null; // entrou/saiu com outro login: confere de novo se é o dono do app (caixinha de sugestões)
 
 function timeAgo(iso) {
   if (!iso) return '';
@@ -33,6 +35,9 @@ function timeAgo(iso) {
 }
 
 function render(s) {
+  const login = s.loggedIn ? s.email : '';
+  if (lastLogin !== null && login !== lastLogin) checkFeedbackOwner();
+  lastLogin = login;
   if (!s) return;
   const state = s.loggedIn ? s.state : 'off';
   const [label, cls] = LABELS[state] || LABELS.off;

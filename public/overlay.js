@@ -1,6 +1,6 @@
 // Overlay do OBS / Telão: caixa da Mensagem (rodapé) e as camadas de Hinos e Bíblia.
 import { screenLabel } from './js/shared/hymn-text.js';
-import { playerFor, youtubeErrorText } from './js/shared/players.js';
+import { playerFor, youtubeErrorText } from './js/shared/players.js?v=2.1.29';
 
 const wsUrl = `ws://${window.location.host}`;
 const reconnectInterval = 3000;
@@ -158,7 +158,11 @@ function applyStyles() {
     overlayBox.style.background = '#000000';
   } else {
     overlayContainer.classList.remove('telao-mode');
-    overlayBox.style.background = styleConfig.bgColor;
+    // Cor com transparência, degradê ou imagem (o mesmo editor de fundo dos hinos)
+    const bg = backgroundFor(styleConfig, 'rgba(10, 15, 30, 0.85)');
+    overlayBox.style.background = bg.css;
+    overlayBox.style.backgroundSize = bg.size;
+    overlayBox.classList.toggle('bg-animated', bg.animate);
   }
 
   overlayBox.classList.remove(...ANIMATION_CLASSES);
@@ -387,6 +391,11 @@ let mediaStyles = {};
 let mediaShown = null;      // { key, token, seekId, start, loop, slot, el, player }
 let mediaRequest = 0;       // ignora carregamentos que ficaram velhos
 let lastPlayback = {};
+let lastProgress = null;    // último tempo que o OBS mandou (as prévias escondidas usam para voltar no ponto certo)
+
+// Prévia do painel numa aba que não está aberta: não toca o vídeo. Eram até 5 prévias escondidas
+// lendo o mesmo arquivo junto com o OBS, e na primeira vez isso fazia o vídeo engasgar.
+const previewHidden = () => PREVIEW && !!window.frameElement && window.frameElement.getClientRects().length === 0;
 
 const mediaDuration = () => Math.max(0, Number(mediaStyles.duration ?? 0.6));
 // Tempo da transição da mídia: 0 no corte seco; o "Onde usar" zera a entrada/saída ou a troca entre mídias
@@ -613,8 +622,28 @@ function applyPlayback(shown, playback, restart) {
     shown.seekId = seekId;
     if (!restart) player.seek(playback.seek.time);
   }
-  if (playback.playing) player.play();
+  if (playback.playing && !previewHidden()) player.play();
   else player.pause();
+}
+
+// Prévias: a aba ficou visível com o vídeo no ar -> volta a tocar no ponto do OBS; escondeu -> pausa
+if (PREVIEW) {
+  let wasHidden = previewHidden();
+  setInterval(() => {
+    const hidden = previewHidden();
+    if (hidden === wasHidden) return;
+    wasHidden = hidden;
+    const player = mediaShown && mediaShown.player;
+    if (!player) return;
+    if (hidden) {
+      player.pause();
+    } else if (lastPlayback.playing) {
+      if (lastProgress && lastProgress.token === mediaShown.token && !lastProgress.paused) {
+        player.seek(lastProgress.currentTime + (Date.now() - lastProgress.at) / 1000);
+      }
+      player.play();
+    }
+  }, 700);
 }
 
 function createMediaElement(item, playback, token) {
@@ -624,7 +653,9 @@ function createMediaElement(item, playback, token) {
     img.alt = '';
     return { el: img, player: null, ready: img.decode().catch(() => {}) };
   }
-  const player = playerFor(item, { start: playback.start || 0, muted: true });
+  const player = playerFor(item, PREVIEW
+    ? { start: playback.start || 0, muted: true, preload: previewHidden() ? 'metadata' : 'auto' }
+    : { start: playback.start || 0, muted: true, bufferSeconds: 3 });
   player.onEnded(() => {
     const shown = mediaShown;
     if (!shown || shown.player !== player) return;
@@ -784,20 +815,32 @@ function applyLowerThirdStyles() {
   const s = ltKind === 'special' ? specialStyles : ltStyles;
   ltLayer.className = ltLayer.className
     .split(' ')
-    .filter(c => !c.startsWith('pos-') && !c.startsWith('look-') && !c.startsWith('lt-anim-'))
+    .filter(c => !c.startsWith('pos-') && !c.startsWith('anchor-') && !c.startsWith('look-') && !c.startsWith('lt-anim-'))
     .join(' ');
   // Velocidade 0 = sem transição (aparece e some na hora)
   const speed = Math.max(0, Number(s.speed ?? 1) || 0);
   const animation = speed === 0 ? 'none' : (s.animation || 'slide');
   ltLayer.classList.add(`pos-${s.position || 'bottom-left'}`, `look-${s.look || 'modern'}`, `lt-anim-${animation}`);
+  if (s.position === 'custom') setLtPlace(s);
   ltLayer.style.setProperty('--lt-scale', s.scale || 1);
+  ltLayer.style.setProperty('--lt-name-size', s.nameSize || 1);
+  ltLayer.style.setProperty('--lt-sub-size', s.subtitleSize || 1);
   ltLayer.style.setProperty('--lt-speed', speed || 1);
   ltLayer.style.setProperty('--lt-name', s.nameColor || '#ffffff');
   ltLayer.style.setProperty('--lt-subtitle', s.subtitleColor || '#cbd5e1');
   ltLayer.style.setProperty('--lt-accent', s.accentColor || '#3b82f6');
-  ltLayer.style.setProperty('--lt-bg', s.bgColor || 'rgba(10, 15, 30, 0.85)');
+  ltLayer.style.setProperty('--lt-bg', backgroundFor(s, 'rgba(10, 15, 30, 0.85)').css);
   ltLayer.style.fontFamily = s.fontFamily || 'Montserrat, sans-serif';
   liftLowerThird();
+}
+
+// Lugar livre (arrastado na prévia): lado preso + x/y em % da tela
+function setLtPlace(p) {
+  const anchor = ['left', 'center', 'right'].includes(p.posAnchor) ? p.posAnchor : 'left';
+  ltLayer.classList.remove('anchor-left', 'anchor-center', 'anchor-right');
+  ltLayer.classList.add(`anchor-${anchor}`);
+  ltLayer.style.setProperty('--lt-x', `${Number(p.posX ?? 6)}%`);
+  ltLayer.style.setProperty('--lt-y', `${Number(p.posY ?? 80)}%`);
 }
 
 // Se a caixa da Mensagem ou uma faixa de hino/Bíblia estiver no rodapé, o nome sobe para não cobrir
@@ -827,7 +870,15 @@ function useLtKind(kind) {
 }
 
 function previewLowerThird(name, subtitle, kind) {
-  if (ltState && ltState.visible) return; // já está no ar
+  if (ltState && ltState.visible) {
+    // Na prévia "Como vai ficar" o nome já aparece: tira e põe de novo para ver o efeito
+    if (NEXT && (ltState.kind || 'preacher') === kind) {
+      clearTimeout(ltPreviewTimer);
+      ltLayer.classList.add('hidden');
+      ltPreviewTimer = setTimeout(() => ltLayer.classList.remove('hidden'), 1300);
+    }
+    return; // no OBS agora: já está no ar
+  }
   useLtKind(kind);
   ltPreviewing = true;
   clearTimeout(ltPreviewTimer);
@@ -948,6 +999,9 @@ function fitReadingText() {
   } else if (look === 'full') {
     const ref = document.querySelector('.rd-full-ref');
     shrinkToWidth(ref, ref.parentElement.clientWidth * 0.96);
+  } else if (look.startsWith('custom:')) {
+    const ref = document.querySelector('.rd-custom-ref');
+    shrinkToWidth(ref, document.querySelector('.rd-custom-text').clientWidth * 0.98);
   } else {
     // Cartão, faixa clara e só linha: a caixa inteira cabe em 92% da tela
     const flat = document.querySelector('.rd-flat');
@@ -979,9 +1033,49 @@ function applyReadingStyles() {
   readingLabel.textContent = label;
   document.querySelectorAll('.rd-label-any').forEach(el => { el.textContent = label; });
   readingLayer.className = readingLayer.className.split(' ').filter(c => !c.startsWith('look-')).join(' ');
-  readingLayer.classList.add(`look-${s.look || 'photo'}`);
+  const custom = String(s.look || '').startsWith('custom:');
+  readingLayer.classList.add(custom ? 'look-custom' : `look-${s.look || 'photo'}`);
+  applyCustomLook();
   readingLayer.classList.toggle('no-anim', s.animation === 'none');
+  // Tela cheia com imagem própria (enviada no painel); sem ela, a imagem da Bíblia que vem com o app
+  const fullBg = document.querySelector('.rd-full-bg');
+  if (fullBg) fullBg.style.backgroundImage = s.fullImage ? `url("${s.fullImage}")` : '';
   fitReadingText();
+}
+
+// Estilo criado pelo operador (state.readingLooks): imagem, formato e onde vai a passagem
+let readingLooks = [];
+let customLookKey = '';
+function applyCustomLook() {
+  const look = String(readingStyles.look || '');
+  const l = look.startsWith('custom:') ? readingLooks.find(x => `custom:${x.id}` === look) : null;
+  const key = JSON.stringify(l);
+  if (key === customLookKey) return;
+  customLookKey = key;
+  if (!l) return;
+  const box = document.querySelector('.rd-custom');
+  const img = box.querySelector('.rd-custom-img');
+  box.classList.toggle('fmt-full', l.format === 'full');
+  box.classList.toggle('fmt-band', l.format !== 'full');
+  box.classList.toggle('no-img', !l.image);
+  img.onload = fitReadingText;
+  if (l.image) {
+    if (img.getAttribute('src') !== l.image) img.src = l.image;
+  } else img.removeAttribute('src');
+  box.dataset.align = l.align;
+  setCustomTextPlace(l);
+  box.style.setProperty('--ch', `${l.bandHeight || 30}vh`);
+  fitReadingText();
+}
+
+// Centro da área do texto: o arrastado na prévia (textX) ou o lado escolhido
+function setCustomTextPlace(l) {
+  const box = document.querySelector('.rd-custom');
+  const w = Number(l.textWidth) || 80;
+  const x = l.textX != null ? Number(l.textX) : l.align === 'left' ? 4 + w / 2 : l.align === 'right' ? 96 - w / 2 : 50;
+  box.style.setProperty('--cx', `${x}%`);
+  box.style.setProperty('--cy', `${l.textY}%`);
+  box.style.setProperty('--cw', `${w}%`);
 }
 
 let readingLast = null;        // último estado do servidor (para voltar depois de uma prévia)
@@ -1011,6 +1105,10 @@ function playReadingOut(after) {
 
 function updateReading(state) {
   readingLast = state;
+  if (Array.isArray(state.readingLooks)) {
+    readingLooks = state.readingLooks;
+    applyCustomLook();
+  }
   const announce = state.readingAnnounce || {};
   const text = state.serviceReading || '';
   if (announce.visible && text) {
@@ -1134,7 +1232,47 @@ function onAir(content) {
   return { ...content, ...content.air, slides: [content.air.slide], slideIndex: 0, isCleared: false };
 }
 
+// Segunda prévia do painel ("Como vai ficar", ?preview=1&next=...): mostra só o próximo item
+// da aba (que o painel manda por postMessage), com o estilo de agora. Nada disso vai para o OBS.
+const NEXT = PREVIEW ? new URLSearchParams(window.location.search).get('next') : null;
+let nextItem = null;
+let nextLastState = null;
+
+function nextView(state) {
+  const view = {
+    ...state,
+    isCleared: true,
+    messageAir: null,
+    soundNow: null,
+    hymn: { ...state.hymn, isCleared: true, air: null },
+    bible: { ...state.bible, isCleared: true, air: null },
+    media: { ...state.media, isCleared: true },
+    prayer: { ...state.prayer, visible: false },
+    lowerThird: { ...(state.lowerThird || {}), visible: false },
+    readingAnnounce: { ...(state.readingAnnounce || {}), visible: false }
+  };
+  const it = nextItem;
+  if (!it) return view;
+  if (NEXT === 'message') return { ...view, isCleared: false, messageAir: it };
+  if (NEXT === 'hymn') return { ...view, hymn: { ...state.hymn, isCleared: false, air: it } };
+  if (NEXT === 'bible' && it.part === 'reading') {
+    return { ...view, serviceReading: it.text, readingAnnounce: { visible: true, token: 'next' } };
+  }
+  if (NEXT === 'bible') return { ...view, bible: { ...state.bible, isCleared: false, air: it } };
+  if (NEXT === 'culto' && it.part === 'prayer') {
+    return { ...view, prayer: { visible: it.names.length > 0, title: it.title, names: it.names } };
+  }
+  if (NEXT === 'culto' && it.name) {
+    return { ...view, lowerThird: { visible: true, name: it.name, subtitle: it.subtitle || '', kind: it.part === 'sp' ? 'special' : 'preacher', token: 0 } };
+  }
+  return view;
+}
+
 function applyState(state, useTransition) {
+  if (NEXT) {
+    nextLastState = state;
+    state = nextView(state);
+  }
   updateSchedule(state, !useTransition);
   // Mostra só o que foi para o ar (o operador pode estar navegando por outra mensagem/hino/capítulo)
   const air = state.messageAir;
@@ -1210,6 +1348,10 @@ function connect() {
           applyMediaStyles();
           break;
 
+        case 'media-progress':
+          if (PREVIEW) lastProgress = { ...data.payload, at: Date.now() };
+          break;
+
         case 'update-prayer-style':
           prayerStyles = { ...prayerStyles, ...data.payload };
           applyPrayerStyles();
@@ -1238,12 +1380,190 @@ function connect() {
   };
 }
 
+// ================= Ajustar arrastando (só na prévia "Como vai ficar" do Culto e da Bíblia) =================
+// Arrasta o nome do pregador/louvor e a passagem dos estilos criados, puxa o canto para o tamanho
+// e a borda de cima da faixa para a altura. Só manda para o painel quando solta (o painel manda
+// para o servidor, e aí vale também no OBS).
+const clampNum = (v, min, max) => Math.min(max, Math.max(min, v));
+const round1 = (v) => Math.round(v * 10) / 10;
+
+function postEdit(target, changes) {
+  window.parent.postMessage({ type: 'preview-edit', target, changes }, window.location.origin);
+}
+
+function addHandle(el, name) {
+  const handle = document.createElement('div');
+  handle.className = `edit-handle edit-${name}`;
+  handle.dataset.handle = name;
+  el.appendChild(handle);
+}
+
+// start(evento, alça) devolve { move(ev), end() } ou null (não é com ele)
+function dragOn(el, start) {
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    const handle = e.target.closest('.edit-handle');
+    const drag = start(e, handle ? handle.dataset.handle : 'move');
+    if (!drag) return;
+    e.preventDefault();
+    e.stopPropagation();
+    el.setPointerCapture(e.pointerId);
+    document.documentElement.classList.add('editing');
+    let moved = false;
+    const onMove = (ev) => {
+      if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 3) return;
+      moved = true;
+      drag.move(ev);
+    };
+    const onUp = () => {
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onUp);
+      el.removeEventListener('pointercancel', onUp);
+      document.documentElement.classList.remove('editing');
+      if (moved) drag.end();
+    };
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
+  });
+}
+
+function setupLtEditing() {
+  const box = ltLayer.querySelector('.lt-box');
+  addHandle(box, 'size');
+  dragOn(box, (e, handle) => {
+    const special = ltKind === 'special';
+    const s = special ? specialStyles : ltStyles;
+    const target = special ? 'sp' : 'lt';
+    const r = box.getBoundingClientRect();
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    if (handle === 'size') {
+      // Tamanho pela distância do canto de cima do nome até o mouse
+      const startScale = Number(s.scale) || 1;
+      const startDist = Math.max(30, Math.hypot(e.clientX - r.left, e.clientY - r.top));
+      let scale = startScale;
+      return {
+        move: (ev) => {
+          scale = clampNum(startScale * Math.hypot(ev.clientX - r.left, ev.clientY - r.top) / startDist, 0.6, 1.8);
+          ltLayer.style.setProperty('--lt-scale', scale);
+        },
+        end: () => {
+          s.scale = Math.round(scale * 100) / 100;
+          postEdit(target, { scale: s.scale });
+        }
+      };
+    }
+    let place = null;
+    return {
+      move: (ev) => {
+        const left = clampNum(r.left + ev.clientX - e.clientX, 0, W - r.width);
+        const top = clampNum(r.top + ev.clientY - e.clientY, 0, H - r.height);
+        const center = left + r.width / 2;
+        // Perto da esquerda fica preso pela esquerda, perto da direita pela direita, no meio pelo centro
+        const anchor = center < W * 0.38 ? 'left' : center > W * 0.62 ? 'right' : 'center';
+        const x = anchor === 'left' ? left : anchor === 'right' ? W - left - r.width : center;
+        place = { position: 'custom', posAnchor: anchor, posX: round1(x / W * 100), posY: round1((top + r.height / 2) / H * 100) };
+        ltLayer.classList.remove(...[...ltLayer.classList].filter(c => c.startsWith('pos-')));
+        ltLayer.classList.add('pos-custom');
+        setLtPlace(place);
+        ltLayer.style.setProperty('--lt-lift', '0px');
+      },
+      end: () => {
+        if (!place) return;
+        Object.assign(s, place);
+        postEdit(target, place);
+      }
+    };
+  });
+}
+
+function currentCustomLook() {
+  const look = String(readingStyles.look || '');
+  return look.startsWith('custom:') ? readingLooks.find(x => `custom:${x.id}` === look) : null;
+}
+
+function setupReadingEditing() {
+  const box = document.querySelector('.rd-custom');
+  const text = box.querySelector('.rd-custom-text');
+  addHandle(text, 'size');
+  addHandle(box, 'band');
+  dragOn(text, (e, handle) => {
+    const l = currentCustomLook();
+    if (!l) return null;
+    const b = box.getBoundingClientRect();
+    const r = text.getBoundingClientRect();
+    if (handle === 'size') {
+      // Tamanho da letra (o mesmo "Tamanho" do anúncio) pela distância do centro da passagem
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const startScale = Number(readingStyles.scale) || 1;
+      const startDist = Math.max(30, Math.hypot(e.clientX - cx, e.clientY - cy));
+      let scale = startScale;
+      return {
+        move: (ev) => {
+          scale = clampNum(startScale * Math.hypot(ev.clientX - cx, ev.clientY - cy) / startDist, 0.5, 2);
+          readingLayer.style.setProperty('--rd-scale', scale);
+          fitReadingText();
+        },
+        end: () => {
+          readingStyles.scale = Math.round(scale * 100) / 100;
+          postEdit('reading', { scale: readingStyles.scale });
+        }
+      };
+    }
+    let place = null;
+    return {
+      move: (ev) => {
+        const x = (r.left + r.width / 2 + ev.clientX - e.clientX - b.left) / b.width * 100;
+        const y = (r.top + r.height / 2 + ev.clientY - e.clientY - b.top) / b.height * 100;
+        place = { textX: round1(clampNum(x, 0, 100)), textY: round1(clampNum(y, 5, 95)) };
+        setCustomTextPlace({ ...l, ...place });
+      },
+      end: () => {
+        if (!place) return;
+        Object.assign(l, place);
+        customLookKey = JSON.stringify(l);
+        postEdit('reading-look', place);
+      }
+    };
+  });
+  dragOn(box, (e, handle) => {
+    const l = currentCustomLook();
+    if (handle !== 'band' || !l || l.format === 'full') return null;
+    let height = null;
+    return {
+      move: (ev) => {
+        height = Math.round(clampNum((window.innerHeight - ev.clientY) / window.innerHeight * 100, 8, 100));
+        box.style.setProperty('--ch', `${height}vh`);
+        fitReadingText();
+      },
+      end: () => {
+        if (height == null) return;
+        l.bandHeight = height;
+        customLookKey = JSON.stringify(l);
+        postEdit('reading-look', { bandHeight: height });
+      }
+    };
+  });
+}
+
+if (NEXT === 'culto' || NEXT === 'bible') {
+  document.documentElement.classList.add('edit-on');
+  if (NEXT === 'culto') setupLtEditing();
+  else setupReadingEditing();
+}
+
 // O painel pede para ver uma animação só na prévia dele (nunca chega no OBS)
 if (PREVIEW) {
   window.addEventListener('message', (event) => {
     if (event.origin !== window.location.origin || !event.data) return;
     if (event.data.type === 'preview-reading') previewReading(event.data.text);
     if (event.data.type === 'preview-lt') previewLowerThird(event.data.name, event.data.subtitle, event.data.kind);
+    if (event.data.type === 'preview-next' && NEXT) {
+      nextItem = event.data.item || null;
+      if (nextLastState) applyState(nextLastState, true);
+    }
   });
 }
 

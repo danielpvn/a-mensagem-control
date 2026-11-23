@@ -7,17 +7,26 @@
   <link rel="icon" href="assets/favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="assets/favicon.png">
   <link rel="stylesheet" href="fonts.css">
-  <link rel="stylesheet" href="admin.css?v=2.1.23">
+  <link rel="stylesheet" href="admin.css?v=2.1.29">
 </head>
 <body>
   <div class="app">
     <!-- Barra superior: marca, abas e o que está no ar -->
     <header class="topbar">
       <div class="brand">
-        <img src="assets/logo.svg" alt="" class="brand-logo">
+        <!-- Logo dentro da página (não <img>) para a bolinha poder brilhar quando há algo na tela -->
+        <svg id="brand-logo" class="brand-logo" viewBox="0 0 120 120" aria-hidden="true">
+          <defs>
+            <linearGradient id="amc-azul" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#6AA2FF"/><stop offset="1" stop-color="#3470F0"/></linearGradient>
+            <linearGradient id="amc-rec" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF6A5C"/><stop offset="1" stop-color="#D93A30"/></linearGradient>
+            <mask id="amc-furo"><rect width="120" height="120" fill="#fff"/><circle cx="60" cy="50" r="28" fill="#000"/></mask>
+          </defs>
+          <path d="M0 16 Q0 0 16 0 H104 Q120 0 120 16 V120 L60 88 L0 120 Z" fill="url(#amc-azul)" mask="url(#amc-furo)"/>
+          <circle class="brand-rec" cx="60" cy="50" r="17" fill="url(#amc-rec)"/>
+        </svg>
         <div class="brand-text">
           <strong>A MENSAGEM</strong>
-          <span>CONTROL <em id="app-version" class="version-tag">v2.1.10</em></span>
+          <span>CONTROL <em id="app-version" class="version-tag">v2.1.11-beta.1</em></span>
         </div>
       </div>
 
@@ -57,8 +66,13 @@
           <span class="live-dot"></span>
           <span id="live-label">Tela limpa</span>
         </div>
-        <button id="lt-chip" class="lt-chip" hidden title="O nome do pregador está na tela. Clique para esconder (N).">
+        <button id="lt-chip" class="lt-chip" hidden title="O nome do pregador está na tela. Clique para esconder.">
           <span class="lt-chip-dot"></span><span id="lt-chip-label">Nome no ar</span>
+        </button>
+        <button id="btn-feedback" class="btn btn-secondary btn-sm btn-feedback" title="Mandar uma sugestão de melhoria ou avisar de um problema no app">
+          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg>
+          <span class="btn-feedback-label">Sugestões</span>
+          <span id="feedback-new-badge" class="count-badge" hidden></span>
         </button>
         <button id="btn-panic" class="btn btn-danger btn-panic" title="Tira tudo da tela imediatamente">
           <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m9 9 6 6M15 9l-6 6"/></svg>
@@ -106,13 +120,20 @@
                 <h3>Prévia do OBS</h3>
                 <span class="badge badge-off" data-monitor-badge>Tela limpa</span>
               </div>
-              <div class="monitor-body">
-                <div class="stage" data-stage>
-                  <iframe src="overlay.html?preview=1" title="Prévia do overlay" tabindex="-1"></iframe>
+              <div class="monitor-body two-stages">
+                <div class="stage-col">
+                  <div class="stage" data-stage>
+                    <iframe src="overlay.html?preview=1" title="Prévia do overlay" tabindex="-1"></iframe>
+                  </div>
+                  <span class="next-label">No OBS agora</span>
                 </div>
-                <div class="next-preview">
+                <div class="stage-col">
+                  <div class="stage stage-next" data-stage>
+                    <iframe src="overlay.html?preview=1&amp;next=message" title="Como vai ficar" tabindex="-1" data-next="message"></iframe>
+                    <span class="stage-tag">Não está no ar</span>
+                  </div>
                   <span id="next-label" class="next-label">Próximo</span>
-                  <p id="next-text">—</p>
+                  <p id="next-text" hidden>—</p>
                 </div>
               </div>
             </div>
@@ -161,7 +182,7 @@
                   <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
                 </button>
               </div>
-              <p class="hint"><kbd>Espaço</kbd> <kbd>→</kbd> próximo · <kbd>←</kbd> anterior · <kbd>Esc</kbd> <kbd>B</kbd> exibir/ocultar · <kbd>Enter</kbd> buscar</p>
+              <p class="hint" data-hint="next:próximo|prev:anterior|toggle:exibir/ocultar|search:buscar"></p>
             </div>
           </section>
 
@@ -182,7 +203,7 @@
               <legend>Texto</legend>
               <div class="field">
                 <label for="style-font">Fonte</label>
-                <select id="style-font">
+                <select id="style-font" data-font-select>
                   <option value="Outfit, sans-serif">Outfit (moderna)</option>
                   <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
                   <option value="'Lora', serif">Lora (elegante, com serifa)</option>
@@ -199,6 +220,10 @@
                 <div class="field-row"><label for="style-title-size-slider">Tamanho do título</label><output id="title-size-slider-val">1.1</output></div>
                 <input type="range" id="style-title-size-slider" min="0.8" max="2.5" step="0.05" value="1.1">
               </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Transição</legend>
               <div class="field">
                 <div class="field-row"><label for="style-speed">Tempo da transição</label><output id="style-speed-val">0,4 s</output></div>
                 <input type="range" id="style-speed" min="0" max="2" step="0.1" value="0.4" title="Arraste até o começo para ficar sem transição">
@@ -231,13 +256,13 @@
               <div class="color-grid">
                 <label class="color-field"><input type="color" id="style-text-color" value="#ffffff"><span>Letra</span></label>
                 <label class="color-field"><input type="color" id="style-accent-color" value="#2563eb"><span>Destaque</span></label>
-                <label class="color-field"><input type="color" id="style-bg-color-picker" value="#0a0f1e"><span>Fundo</span></label>
                 <label class="color-field"><input type="color" id="style-outline-color" value="#000000"><span>Contorno</span></label>
               </div>
-              <div class="field">
-                <div class="field-row"><label for="style-bg-opacity">Opacidade do fundo</label><output id="opacity-val">85%</output></div>
-                <input type="range" id="style-bg-opacity" min="0" max="100" value="85">
-              </div>
+            </fieldset>
+
+            <fieldset id="style-bg-group">
+              <legend>Fundo da caixa</legend>
+              <div id="style-bg-editor"></div>
             </fieldset>
 
             <fieldset>
@@ -297,13 +322,20 @@
                 <h3>Prévia do OBS</h3>
                 <span class="badge badge-off" data-monitor-badge>Tela limpa</span>
               </div>
-              <div class="monitor-body">
-                <div class="stage" data-stage>
-                  <iframe src="overlay.html?preview=1" title="Prévia do overlay" tabindex="-1"></iframe>
+              <div class="monitor-body two-stages">
+                <div class="stage-col">
+                  <div class="stage" data-stage>
+                    <iframe src="overlay.html?preview=1" title="Prévia do overlay" tabindex="-1"></iframe>
+                  </div>
+                  <span class="next-label">No OBS agora</span>
                 </div>
-                <div class="next-preview">
+                <div class="stage-col">
+                  <div class="stage stage-next" data-stage>
+                    <iframe src="overlay.html?preview=1&amp;next=hymn" title="Como vai ficar" tabindex="-1" data-next="hymn"></iframe>
+                    <span class="stage-tag">Não está no ar</span>
+                  </div>
                   <span id="hymn-next-label" class="next-label">Próximo</span>
-                  <p id="hymn-next-text">—</p>
+                  <p id="hymn-next-text" hidden>—</p>
                 </div>
               </div>
             </div>
@@ -344,7 +376,7 @@
                   <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
                 </button>
               </div>
-              <p class="hint"><kbd>Enter</kbd> buscar · <kbd>Espaço</kbd> <kbd>→</kbd> próxima · <kbd>←</kbd> anterior · <kbd>Esc</kbd> <kbd>B</kbd> exibir/ocultar</p>
+              <p class="hint" data-hint="search:buscar|next:próxima|prev:anterior|toggle:exibir/ocultar"></p>
             </div>
           </section>
 
@@ -384,7 +416,7 @@
               <legend>Texto</legend>
               <div class="field">
                 <label for="hymn-font">Fonte</label>
-                <select id="hymn-font">
+                <select id="hymn-font" data-font-select>
                   <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
                   <option value="Outfit, sans-serif">Outfit (moderna)</option>
                   <option value="'Lora', serif">Lora (elegante, com serifa)</option>
@@ -401,6 +433,26 @@
                 <div class="field-row"><label for="hymn-title-size">Tamanho do título</label><output id="hymn-title-size-val">1.25</output></div>
                 <input type="range" id="hymn-title-size" min="0.6" max="3" step="0.05" value="1.25">
               </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Cores</legend>
+              <div class="color-grid">
+                <label class="color-field"><input type="color" id="hymn-text-color" value="#ffffff"><span>Letra</span></label>
+                <label class="color-field"><input type="color" id="hymn-chorus-color" value="#fde68a"><span>Coro</span></label>
+                <label class="color-field"><input type="color" id="hymn-accent-color" value="#93c5fd"><span>Destaque</span></label>
+                <label class="color-field"><input type="color" id="hymn-outline-color" value="#000000"><span>Contorno</span></label>
+              </div>
+              <label class="switch"><input type="checkbox" id="hymn-chorus-on"><span class="switch-ui"></span>Coro com cor diferente</label>
+            </fieldset>
+
+            <fieldset>
+              <legend>Fundo</legend>
+              <div id="hymn-bg-editor"></div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Transição</legend>
               <div class="field">
                 <div class="field-row"><label for="hymn-speed">Tempo da transição</label><output id="hymn-speed-val">0,4 s</output></div>
                 <input type="range" id="hymn-speed" min="0" max="2" step="0.1" value="0.4" title="Arraste até o começo para ficar sem transição">
@@ -423,22 +475,6 @@
                   <label><input type="radio" name="hymn-scope" value="between"><span>Entre estrofes</span></label>
                 </div>
               </div>
-            </fieldset>
-
-            <fieldset>
-              <legend>Cores</legend>
-              <div class="color-grid">
-                <label class="color-field"><input type="color" id="hymn-text-color" value="#ffffff"><span>Letra</span></label>
-                <label class="color-field"><input type="color" id="hymn-chorus-color" value="#fde68a"><span>Coro</span></label>
-                <label class="color-field"><input type="color" id="hymn-accent-color" value="#93c5fd"><span>Destaque</span></label>
-                <label class="color-field"><input type="color" id="hymn-outline-color" value="#000000"><span>Contorno</span></label>
-              </div>
-              <label class="switch"><input type="checkbox" id="hymn-chorus-on"><span class="switch-ui"></span>Coro com cor diferente</label>
-            </fieldset>
-
-            <fieldset>
-              <legend>Fundo</legend>
-              <div id="hymn-bg-editor"></div>
             </fieldset>
 
             <fieldset>
@@ -480,13 +516,20 @@
                 <h3>Prévia do OBS</h3>
                 <span class="badge badge-off" data-monitor-badge>Tela limpa</span>
               </div>
-              <div class="monitor-body">
-                <div class="stage" data-stage>
-                  <iframe src="overlay.html?preview=1" title="Prévia do overlay" tabindex="-1"></iframe>
+              <div class="monitor-body two-stages">
+                <div class="stage-col">
+                  <div class="stage" data-stage>
+                    <iframe src="overlay.html?preview=1" title="Prévia do overlay" tabindex="-1"></iframe>
+                  </div>
+                  <span class="next-label">No OBS agora</span>
                 </div>
-                <div class="next-preview">
+                <div class="stage-col">
+                  <div class="stage stage-next" data-stage>
+                    <iframe src="overlay.html?preview=1&amp;next=bible" title="Como vai ficar" tabindex="-1" data-next="bible"></iframe>
+                    <span class="stage-tag">Não está no ar</span>
+                  </div>
                   <span id="bible-next-label" class="next-label">Próximo</span>
-                  <p id="bible-next-text">—</p>
+                  <p id="bible-next-text" hidden>—</p>
                 </div>
               </div>
             </div>
@@ -544,7 +587,7 @@
                   <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
                 </button>
               </div>
-              <p class="hint"><kbd>Enter</kbd> buscar · <kbd>Espaço</kbd> <kbd>→</kbd> próximo versículo · <kbd>←</kbd> anterior · <kbd>Esc</kbd> <kbd>B</kbd> exibir/ocultar</p>
+              <p class="hint" data-hint="search:buscar|next:próximo versículo|prev:anterior|toggle:exibir/ocultar"></p>
             </div>
           </section>
 
@@ -552,15 +595,19 @@
           <aside class="card appearance" id="bible-appearance">
             <div class="card-head">
               <h2>Aparência</h2>
-              <button id="btn-bible-reset-styles" class="btn btn-text btn-sm">Restaurar padrão</button>
+              <button id="btn-bible-reset-styles" class="btn btn-text btn-sm" data-look-part="screen" title="Volta a aparência dos versículos para o padrão">Restaurar padrão</button>
+            </div>
+            <div class="segmented appearance-switch" role="tablist" aria-label="O que ajustar">
+              <label><input type="radio" name="bible-look-part" value="screen" checked><span>Versículos</span></label>
+              <label><input type="radio" name="bible-look-part" value="reading"><span>Anúncio da leitura</span></label>
             </div>
 
-            <fieldset>
+            <fieldset data-look-part="screen">
               <legend>Temas prontos</legend>
               <div class="theme-grid" id="bible-themes"></div>
             </fieldset>
 
-            <fieldset>
+            <fieldset data-look-part="screen">
               <legend>Formato</legend>
               <div class="segmented" role="radiogroup" aria-label="Formato">
                 <label><input type="radio" name="bible-layout" value="fullscreen" checked><span>Tela cheia</span></label>
@@ -576,11 +623,11 @@
               </div>
             </fieldset>
 
-            <fieldset>
+            <fieldset data-look-part="screen">
               <legend>Texto</legend>
               <div class="field">
                 <label for="bible-font">Fonte</label>
-                <select id="bible-font">
+                <select id="bible-font" data-font-select>
                   <option value="'Crimson Pro', serif">Crimson Pro (bíblica, com serifa)</option>
                   <option value="'Lora', serif">Lora (elegante, com serifa)</option>
                   <option value="'Playfair Display', serif">Playfair Display (tradicional)</option>
@@ -605,7 +652,7 @@
               <label class="switch"><input type="checkbox" id="bible-shadow" checked><span class="switch-ui"></span>Sombra nas letras</label>
             </fieldset>
 
-            <fieldset>
+            <fieldset data-look-part="screen">
               <legend>Referência</legend>
               <label class="switch"><input type="checkbox" id="bible-show-ref" checked><span class="switch-ui"></span>Mostrar "João 3:16"</label>
               <label class="switch"><input type="checkbox" id="bible-show-version"><span class="switch-ui"></span>Mostrar "(ACF)"</label>
@@ -619,12 +666,20 @@
               </div>
             </fieldset>
 
-            <fieldset>
+            <fieldset data-look-part="screen">
               <legend>Cores</legend>
               <div class="color-grid color-grid-2">
                 <label class="color-field"><input type="color" id="bible-text-color" value="#ffffff"><span>Letra</span></label>
                 <label class="color-field"><input type="color" id="bible-ref-color" value="#ffeb07"><span>Referência</span></label>
               </div>
+            </fieldset>
+
+            <fieldset data-look-part="screen">
+              <legend>Fundo</legend>
+              <div id="bible-bg-editor"></div>
+            </fieldset>
+            <fieldset data-look-part="screen">
+              <legend>Transição</legend>
               <div class="field">
                 <div class="field-row"><label for="bible-speed">Tempo da transição</label><output id="bible-speed-val">0,4 s</output></div>
                 <input type="range" id="bible-speed" min="0" max="2" step="0.1" value="0.4" title="Arraste até o começo para ficar sem transição">
@@ -649,11 +704,7 @@
               </div>
             </fieldset>
 
-            <fieldset>
-              <legend>Fundo</legend>
-              <div id="bible-bg-editor"></div>
-            </fieldset>
-            <fieldset>
+            <fieldset data-look-part="reading">
               <legend>Anúncio da leitura</legend>
               <div class="field">
                 <label for="reading-look">Estilo</label>
@@ -665,6 +716,48 @@
                   <option value="light">Faixa clara</option>
                   <option value="line">Só texto e linha</option>
                 </select>
+                <button type="button" id="btn-reading-new-look" class="btn btn-secondary btn-sm reading-new-look" title="Cria um estilo novo com uma imagem sua (feita no computador)">+ Criar estilo novo</button>
+              </div>
+              <!-- Estilo criado pelo operador: imagem dele + onde vai a passagem -->
+              <div id="reading-custom-field" class="reading-custom" hidden>
+                <div class="field">
+                  <label for="reading-custom-name">Nome do estilo</label>
+                  <input type="text" id="reading-custom-name" maxlength="40" autocomplete="off">
+                </div>
+                <div class="field">
+                  <label>Formato</label>
+                  <div class="segmented" role="radiogroup" aria-label="Formato do estilo">
+                    <label><input type="radio" name="reading-custom-format" value="band" checked><span>Faixa embaixo</span></label>
+                    <label><input type="radio" name="reading-custom-format" value="full"><span>Tela cheia</span></label>
+                  </div>
+                </div>
+                <div class="field" id="reading-custom-band-field">
+                  <div class="field-row"><label for="reading-custom-band">Altura da faixa</label><output id="reading-custom-band-val">30%</output></div>
+                  <input type="range" id="reading-custom-band" min="8" max="100" step="1" value="30">
+                </div>
+                <div class="field">
+                  <label>Imagem</label>
+                  <div id="reading-custom-picker" class="bg-picker"></div>
+                  <p class="muted small" id="reading-custom-hint"></p>
+                </div>
+                <div class="field">
+                  <label>Onde fica a passagem</label>
+                  <div class="segmented" role="radiogroup" aria-label="Lado da passagem">
+                    <label><input type="radio" name="reading-custom-align" value="left"><span>Esquerda</span></label>
+                    <label><input type="radio" name="reading-custom-align" value="center" checked><span>Centro</span></label>
+                    <label><input type="radio" name="reading-custom-align" value="right"><span>Direita</span></label>
+                  </div>
+                </div>
+                <div class="field">
+                  <div class="field-row"><label for="reading-custom-y">Altura da passagem</label><output id="reading-custom-y-val">50%</output></div>
+                  <input type="range" id="reading-custom-y" min="5" max="95" step="1" value="50">
+                </div>
+                <div class="field">
+                  <div class="field-row"><label for="reading-custom-w">Largura da área do texto</label><output id="reading-custom-w-val">80%</output></div>
+                  <input type="range" id="reading-custom-w" min="20" max="100" step="1" value="80">
+                </div>
+                <p class="muted small drag-hint">Dica: na prévia "Como vai ficar" dá para arrastar a passagem, puxar o canto dela para mudar o tamanho da letra e puxar a borda de cima da faixa.</p>
+                <button type="button" id="btn-reading-custom-delete" class="btn btn-text btn-sm btn-danger-text">Apagar este estilo</button>
               </div>
               <div class="field">
                 <label for="reading-anim">Animação</label>
@@ -674,6 +767,11 @@
                 </select>
               </div>
               <button type="button" id="btn-reading-preview" class="btn btn-secondary btn-sm" title="Toca a entrada e a saída só nesta prévia; não vai para o OBS">Ver a animação (só na prévia)</button>
+              <div class="field" id="reading-image-field" hidden>
+                <label>Imagem da tela cheia</label>
+                <div id="reading-image-picker" class="bg-picker"></div>
+                <p class="muted small">"Nenhuma" usa a imagem da Bíblia que vem com o app. Dá para enviar uma imagem feita no computador (1920x1080).</p>
+              </div>
               <div class="field" id="reading-label-field">
                 <label for="reading-label">Texto de cima</label>
                 <input type="text" id="reading-label" maxlength="40" placeholder="LEITURA BÍBLICA" autocomplete="off">
@@ -687,7 +785,7 @@
               </div>
               <div class="field">
                 <label for="reading-font">Fonte da passagem</label>
-                <select id="reading-font">
+                <select id="reading-font" data-font-select>
                   <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
                   <option value="Outfit, sans-serif">Outfit (moderna)</option>
                   <option value="'Crimson Pro', serif">Crimson Pro (com serifa)</option>
@@ -721,40 +819,68 @@
       </section>
       <section class="panel" data-panel="midia">
         <div class="workspace">
-          <!-- Pastas e arquivos -->
+          <!-- Mídias: abas Arquivos (pastas, como no explorador) e YouTube -->
           <aside class="card library media-library" id="media-library">
             <div class="card-head">
               <h2>Mídias</h2>
-              <div class="head-actions">
-                <button id="btn-media-new-folder" class="btn btn-secondary btn-sm" title="Criar uma pasta com nome (ex: Santa Ceia)">Nova pasta</button>
+            </div>
+            <div class="segmented media-source" role="tablist" aria-label="De onde vem a mídia">
+              <label><input type="radio" name="media-source" value="local" checked><span>Arquivos</span></label>
+              <label><input type="radio" name="media-source" value="youtube"><span>YouTube</span></label>
+            </div>
+
+            <!-- Arquivos: começa com as pastas; clicar entra na pasta -->
+            <div id="media-folders-view" class="media-folders-view">
+              <div class="folders-head">
+                <span class="muted small">Pastas</span>
+                <button id="btn-media-new-folder" class="btn btn-secondary btn-sm" title="Criar uma pasta com nome (ex: Santa Ceia)">+ Nova pasta</button>
               </div>
+              <form id="media-new-folder-form" class="new-folder-form" hidden>
+                <input type="text" id="media-new-folder-name" placeholder="Nome (ex: Santa Ceia)" maxlength="60">
+                <button type="submit" class="btn btn-primary btn-sm">Criar</button>
+              </form>
+              <nav id="media-folder-list" class="folder-grid" aria-label="Pastas de mídia"></nav>
             </div>
-            <div class="folder-row">
-              <select id="media-folder" aria-label="Pasta de mídias"></select>
-              <button id="btn-media-delete-folder" class="btn btn-ghost-danger btn-sm" title="Apagar esta pasta e tudo dentro dela">
-                <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
-              </button>
+
+            <div id="media-folder-view" class="media-folder-view" hidden>
+              <div class="folder-bar">
+                <button type="button" id="btn-media-back" class="btn btn-secondary btn-sm" title="Voltar para todas as pastas">
+                  <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+                  Pastas
+                </button>
+                <span id="media-folder-icon" class="folder-bar-icon"></span>
+                <div class="folder-bar-name">
+                  <strong id="media-folder-title">Geral</strong>
+                  <span id="media-folder-count" class="muted small"></span>
+                </div>
+                <span id="media-folder-tools" class="folder-bar-tools"></span>
+              </div>
+              <label class="dropzone media-drop" id="media-drop">
+                <input type="file" id="media-files" accept="image/*,video/*,.mov,.m4v" multiple>
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>
+                <strong>Enviar fotos e vídeos</strong>
+                <span class="muted small">ou arraste para cá (também funciona pelo celular)</span>
+              </label>
+              <div id="media-uploads" class="media-uploads"></div>
             </div>
-            <form id="media-new-folder-form" class="folder-row" hidden>
-              <input type="text" id="media-new-folder-name" placeholder="Nome da pasta (ex: Santa Ceia)" maxlength="60">
-              <button type="submit" class="btn btn-primary btn-sm">Criar</button>
-            </form>
-            <label class="dropzone media-drop" id="media-drop">
-              <input type="file" id="media-files" accept="image/*,video/*,.mov,.m4v" multiple>
-              <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>
-              <strong>Enviar fotos e vídeos</strong>
-              <span class="muted small">ou arraste para cá (também funciona pelo celular)</span>
-            </label>
-            <form id="media-yt-form" class="folder-row yt-form">
-              <svg viewBox="0 0 24 24" class="yt-icon"><path d="M2.5 17a24 24 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.6 49.6 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24 24 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.6 49.6 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>
-              <input type="url" id="media-yt-url" placeholder="Link do YouTube" autocomplete="off">
-              <button type="submit" class="btn btn-secondary btn-sm">Adicionar</button>
-            </form>
-            <div id="media-uploads" class="media-uploads"></div>
-            <div id="media-grid" class="media-grid">
+
+            <!-- YouTube: link e os vídeos do YouTube guardados na pasta escolhida -->
+            <div id="media-youtube-view" class="media-youtube-view" hidden>
+              <div class="field">
+                <label for="media-yt-folder">Guardar e mostrar da pasta</label>
+                <select id="media-yt-folder"></select>
+              </div>
+              <form id="media-yt-form" class="folder-row yt-form">
+                <svg viewBox="0 0 24 24" class="yt-icon"><path d="M2.5 17a24 24 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.6 49.6 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24 24 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.6 49.6 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>
+                <input type="url" id="media-yt-url" placeholder="Cole o link do YouTube" autocomplete="off">
+                <button type="submit" class="btn btn-secondary btn-sm">Adicionar</button>
+              </form>
+            </div>
+
+            <div id="media-grid" class="media-grid" hidden>
               <div class="empty">Nenhuma mídia nesta pasta ainda.</div>
             </div>
-            <p class="muted small media-grid-hint">Arraste as mídias para mudar a ordem.</p>
+            <p class="muted small media-grid-hint" id="media-grid-hint" hidden>Arraste as mídias para mudar a ordem.</p>
           </aside>
 
           <!-- Centro: prévia + controles -->
@@ -857,7 +983,7 @@
                   <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
                 </button>
               </div>
-              <p class="hint"><kbd>Espaço</kbd> <kbd>→</kbd> próxima · <kbd>←</kbd> anterior · <kbd>Esc</kbd> <kbd>B</kbd> exibir/ocultar · <kbd>N</kbd> nome do pregador</p>
+              <p class="hint" data-hint="next:próxima|prev:anterior|toggle:exibir/ocultar|lowerThird:nome do pregador"></p>
             </div>
           </section>
 
@@ -952,7 +1078,7 @@
               </div>
             </form>
             <div id="lt-list" class="lt-list"></div>
-            <button id="btn-lt-toggle" class="btn btn-primary btn-lt-toggle" disabled>Mostrar nome <kbd>N</kbd></button>
+            <button id="btn-lt-toggle" class="btn btn-primary btn-lt-toggle" disabled>Mostrar nome <kbd data-key-of="lowerThird">N</kbd></button>
             <div class="field">
               <label for="lt-autohide">Esconder sozinho depois de</label>
               <select id="lt-autohide">
@@ -963,7 +1089,7 @@
                 <option value="20">20 segundos</option>
               </select>
             </div>
-            <p class="muted small">A tecla <kbd>N</kbd> mostra e esconde o nome em qualquer aba.</p>
+            <p class="muted small" data-key-sentence="lowerThird">A tecla <kbd data-key-of="lowerThird">N</kbd> mostra e esconde o nome em qualquer aba.</p>
 
             <!-- Louvor especial: alguém canta um louvor fora do hinário (solo, dupla, trio ou grupo) -->
             <div class="culto-reading culto-special">
@@ -997,13 +1123,20 @@
                 <h3>Prévia do OBS</h3>
                 <span class="badge badge-off" data-monitor-badge>Tela limpa</span>
               </div>
-              <div class="monitor-body">
-                <div class="stage" data-stage>
-                  <iframe src="overlay.html?preview=1" title="Prévia do overlay" tabindex="-1"></iframe>
+              <div class="monitor-body two-stages">
+                <div class="stage-col">
+                  <div class="stage" data-stage>
+                    <iframe src="overlay.html?preview=1" title="Prévia do overlay" tabindex="-1"></iframe>
+                  </div>
+                  <span class="next-label">No OBS agora</span>
                 </div>
-                <div class="next-preview">
-                  <span class="next-label">Pedidos de oração</span>
-                  <p id="prayer-summary">Nenhum nome ainda.</p>
+                <div class="stage-col">
+                  <div class="stage stage-next" data-stage>
+                    <iframe src="overlay.html?preview=1&amp;next=culto" title="Como vai ficar" tabindex="-1" data-next="culto"></iframe>
+                    <span class="stage-tag">Não está no ar</span>
+                  </div>
+                  <span id="culto-next-label" class="next-label">Como vai ficar</span>
+                  <p id="prayer-summary" hidden>Nenhum nome ainda.</p>
                 </div>
               </div>
             </div>
@@ -1033,8 +1166,13 @@
             <div class="card-head">
               <h2>Aparência</h2>
             </div>
+            <div class="segmented segmented-3 appearance-switch" role="tablist" aria-label="O que ajustar">
+              <label><input type="radio" name="culto-look-part" value="lt" checked><span>Pregador</span></label>
+              <label><input type="radio" name="culto-look-part" value="sp"><span>Louvor</span></label>
+              <label><input type="radio" name="culto-look-part" value="prayer"><span>Pedidos</span></label>
+            </div>
 
-            <fieldset>
+            <fieldset data-look-part="lt">
               <legend>Nome do pregador</legend>
               <div class="segmented segmented-3" role="radiogroup" aria-label="Estilo">
                 <label><input type="radio" name="lt-look" value="modern" checked><span>Moderno</span></label>
@@ -1049,8 +1187,34 @@
                   <option value="bottom-right">Embaixo, à direita</option>
                   <option value="top-left">Em cima, à esquerda</option>
                   <option value="top-right">Em cima, à direita</option>
+                  <option value="custom">Onde arrastei na prévia</option>
+                </select>
+                <p class="muted small drag-hint">Dica: na prévia "Como vai ficar" dá para arrastar o nome para onde quiser e puxar o canto para mudar o tamanho.</p>
+              </div>
+              <div class="field">
+                <label for="lt-font">Fonte</label>
+                <select id="lt-font" data-font-select>
+                  <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
+                  <option value="Outfit, sans-serif">Outfit (moderna)</option>
+                  <option value="'Lora', serif">Lora (elegante, com serifa)</option>
+                  <option value="'Playfair Display', serif">Playfair Display (tradicional)</option>
+                  <option value="'Crimson Pro', serif">Crimson Pro (com serifa)</option>
                 </select>
               </div>
+              <div class="field">
+                <div class="field-row"><label for="lt-scale">Tamanho</label><output id="lt-scale-val">100%</output></div>
+                <input type="range" id="lt-scale" min="0.6" max="1.8" step="0.05" value="1">
+              </div>
+              <div class="color-grid">
+                <label class="color-field"><input type="color" id="lt-name-color" value="#ffffff"><span>Nome</span></label>
+                <label class="color-field"><input type="color" id="lt-subtitle-color" value="#cbd5e1"><span>Subtítulo</span></label>
+                <label class="color-field"><input type="color" id="lt-accent-color" value="#3b82f6"><span>Destaque</span></label>
+              </div>
+              <div class="field">
+                <label>Fundo</label>
+                <div id="lt-bg-editor"></div>
+              </div>
+              <div class="group-title">Transição</div>
               <div class="field">
                 <div class="field-row"><label for="lt-speed">Tempo da transição</label><output id="lt-speed-val">0,6 s</output></div>
                 <input type="range" id="lt-speed" min="0" max="1.5" step="0.1" value="0.6" title="Arraste até o começo para ficar sem transição">
@@ -1071,34 +1235,10 @@
                 </select>
               </div>
               <button type="button" id="btn-lt-preview" class="btn btn-secondary btn-sm" title="Mostra o efeito só nesta prévia; não vai para o OBS">Ver o efeito (só na prévia)</button>
-              <div class="field">
-                <label for="lt-font">Fonte</label>
-                <select id="lt-font">
-                  <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
-                  <option value="Outfit, sans-serif">Outfit (moderna)</option>
-                  <option value="'Lora', serif">Lora (elegante, com serifa)</option>
-                  <option value="'Playfair Display', serif">Playfair Display (tradicional)</option>
-                  <option value="'Crimson Pro', serif">Crimson Pro (com serifa)</option>
-                </select>
-              </div>
-              <div class="field">
-                <div class="field-row"><label for="lt-scale">Tamanho</label><output id="lt-scale-val">100%</output></div>
-                <input type="range" id="lt-scale" min="0.6" max="1.8" step="0.05" value="1">
-              </div>
-              <div class="color-grid">
-                <label class="color-field"><input type="color" id="lt-name-color" value="#ffffff"><span>Nome</span></label>
-                <label class="color-field"><input type="color" id="lt-subtitle-color" value="#cbd5e1"><span>Subtítulo</span></label>
-                <label class="color-field"><input type="color" id="lt-accent-color" value="#3b82f6"><span>Destaque</span></label>
-                <label class="color-field"><input type="color" id="lt-bg-color" value="#0a0f1e"><span>Fundo</span></label>
-              </div>
-              <div class="field">
-                <div class="field-row"><label for="lt-bg-opacity">Opacidade do fundo</label><output id="lt-opacity-val">85%</output></div>
-                <input type="range" id="lt-bg-opacity" min="0" max="100" value="85">
-              </div>
               <button id="btn-lt-reset" class="btn btn-text btn-sm">Restaurar padrão do nome</button>
             </fieldset>
 
-            <fieldset>
+            <fieldset data-look-part="sp">
               <legend>Louvor especial</legend>
               <div class="segmented segmented-3" role="radiogroup" aria-label="Estilo">
                 <label><input type="radio" name="sp-look" value="modern" checked><span>Moderno</span></label>
@@ -1113,8 +1253,42 @@
                   <option value="bottom-right">Embaixo, à direita</option>
                   <option value="top-left">Em cima, à esquerda</option>
                   <option value="top-right">Em cima, à direita</option>
+                  <option value="custom">Onde arrastei na prévia</option>
+                </select>
+                <p class="muted small drag-hint">Dica: na prévia "Como vai ficar" dá para arrastar o nome para onde quiser e puxar o canto para mudar o tamanho.</p>
+              </div>
+              <div class="field">
+                <label for="sp-font">Fonte</label>
+                <select id="sp-font" data-font-select>
+                  <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
+                  <option value="Outfit, sans-serif">Outfit (moderna)</option>
+                  <option value="'Lora', serif">Lora (elegante, com serifa)</option>
+                  <option value="'Playfair Display', serif">Playfair Display (tradicional)</option>
+                  <option value="'Crimson Pro', serif">Crimson Pro (com serifa)</option>
                 </select>
               </div>
+              <div class="field">
+                <div class="field-row"><label for="sp-scale">Tamanho</label><output id="sp-scale-val">100%</output></div>
+                <input type="range" id="sp-scale" min="0.6" max="1.8" step="0.05" value="1">
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="sp-name-size">Nome do louvor</label><output id="sp-name-size-val">100%</output></div>
+                <input type="range" id="sp-name-size" min="0.5" max="2" step="0.05" value="1">
+              </div>
+              <div class="field">
+                <div class="field-row"><label for="sp-subtitle-size">Quem canta</label><output id="sp-subtitle-size-val">100%</output></div>
+                <input type="range" id="sp-subtitle-size" min="0.5" max="2" step="0.05" value="1">
+              </div>
+              <div class="color-grid">
+                <label class="color-field"><input type="color" id="sp-name-color" value="#ffffff"><span>Louvor</span></label>
+                <label class="color-field"><input type="color" id="sp-subtitle-color" value="#cbd5e1"><span>Cantores</span></label>
+                <label class="color-field"><input type="color" id="sp-accent-color" value="#f2b632"><span>Destaque</span></label>
+              </div>
+              <div class="field">
+                <label>Fundo</label>
+                <div id="sp-bg-editor"></div>
+              </div>
+              <div class="group-title">Transição</div>
               <div class="field">
                 <div class="field-row"><label for="sp-speed">Tempo da transição</label><output id="sp-speed-val">0,6 s</output></div>
                 <input type="range" id="sp-speed" min="0" max="1.5" step="0.1" value="0.6" title="Arraste até o começo para ficar sem transição">
@@ -1136,30 +1310,6 @@
               </div>
               <button type="button" id="btn-sp-preview" class="btn btn-secondary btn-sm" title="Mostra o efeito só nesta prévia; não vai para o OBS">Ver o efeito (só na prévia)</button>
               <div class="field">
-                <label for="sp-font">Fonte</label>
-                <select id="sp-font">
-                  <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
-                  <option value="Outfit, sans-serif">Outfit (moderna)</option>
-                  <option value="'Lora', serif">Lora (elegante, com serifa)</option>
-                  <option value="'Playfair Display', serif">Playfair Display (tradicional)</option>
-                  <option value="'Crimson Pro', serif">Crimson Pro (com serifa)</option>
-                </select>
-              </div>
-              <div class="field">
-                <div class="field-row"><label for="sp-scale">Tamanho</label><output id="sp-scale-val">100%</output></div>
-                <input type="range" id="sp-scale" min="0.6" max="1.8" step="0.05" value="1">
-              </div>
-              <div class="color-grid">
-                <label class="color-field"><input type="color" id="sp-name-color" value="#ffffff"><span>Louvor</span></label>
-                <label class="color-field"><input type="color" id="sp-subtitle-color" value="#cbd5e1"><span>Cantores</span></label>
-                <label class="color-field"><input type="color" id="sp-accent-color" value="#f2b632"><span>Destaque</span></label>
-                <label class="color-field"><input type="color" id="sp-bg-color" value="#0a0f1e"><span>Fundo</span></label>
-              </div>
-              <div class="field">
-                <div class="field-row"><label for="sp-bg-opacity">Opacidade do fundo</label><output id="sp-opacity-val">85%</output></div>
-                <input type="range" id="sp-bg-opacity" min="0" max="100" value="85">
-              </div>
-              <div class="field">
                 <label for="sp-autohide">Esconder sozinho depois de</label>
                 <select id="sp-autohide">
                   <option value="0">Não esconder sozinho</option>
@@ -1174,11 +1324,11 @@
             </fieldset>
 
 
-            <fieldset>
+            <fieldset data-look-part="prayer">
               <legend>Pedidos de oração</legend>
               <div class="field">
                 <label for="prayer-font">Fonte dos nomes</label>
-                <select id="prayer-font">
+                <select id="prayer-font" data-font-select>
                   <option value="Montserrat, sans-serif">Montserrat (larga e forte)</option>
                   <option value="Outfit, sans-serif">Outfit (moderna)</option>
                   <option value="'Lora', serif">Lora (elegante, com serifa)</option>
@@ -1501,21 +1651,32 @@
             <p class="muted small">Use se a Bíblia não aparecer ou se quiser trocar o texto. A pasta tem as subpastas "1 Velho Testamento" e "2 Novo Testamento".</p>
           </div>
 
-          <div class="card">
-            <h2>Atalhos de teclado</h2>
-            <ul class="shortcuts">
-              <li><span>Próximo parágrafo</span><span><kbd>Espaço</kbd> <kbd>→</kbd> <kbd>PageDown</kbd></span></li>
-              <li><span>Parágrafo anterior</span><span><kbd>←</kbd> <kbd>PageUp</kbd></span></li>
-              <li><span>Exibir/ocultar texto</span><span><kbd>Esc</kbd> <kbd>.</kbd> <kbd>B</kbd></span></li>
-              <li><span>Buscar (na aba aberta)</span><span><kbd>Enter</kbd></span></li>
-              <li><span>Mostrar/esconder o nome do pregador</span><span><kbd>N</kbd></span></li>
-            </ul>
-            <p class="muted small">O passador <strong>Logitech R400</strong> funciona mesmo com o app minimizado (PageUp/PageDown).</p>
+          <div class="card shortcuts-card">
+            <div class="card-head">
+              <h2>Atalhos de teclado</h2>
+              <button type="button" id="btn-shortcuts-reset" class="btn btn-text btn-sm" title="Volta para as teclas de antes (Espaço, setas, Page Up/Down, Esc, B, N, Enter)">Restaurar padrão</button>
+            </div>
+            <p class="muted small">Clique em <strong>+ Tecla</strong> e aperte a tecla ou o botão do passador. Ação sem nenhuma tecla fica sem atalho.</p>
+            <div id="shortcut-list" class="shortcut-list"></div>
+            <p class="muted small">Nos atalhos do passador, use teclas que você não usa em outros programas: com o app aberto elas ficam reservadas para ele. O <strong>Logitech R400</strong> manda Page Down e Page Up.</p>
+          </div>
+
+          <div class="card feedback-inbox-card" id="feedback-inbox" hidden>
+            <div class="card-head">
+              <h2>Sugestões e problemas recebidos</h2>
+              <button type="button" id="btn-feedback-refresh" class="btn btn-text btn-sm">Atualizar</button>
+            </div>
+            <p class="muted small">Só você vê esta caixa (dono do app no banco online). As igrejas mandam pelo botão <strong>Sugestões</strong> do topo.</p>
+            <div class="segmented" role="radiogroup" aria-label="Mostrar">
+              <label><input type="radio" name="feedback-filter" value="open" checked><span>Em aberto</span></label>
+              <label><input type="radio" name="feedback-filter" value="all"><span>Todas</span></label>
+            </div>
+            <div id="feedback-inbox-list" class="feedback-inbox-list"><div class="empty">Carregando...</div></div>
           </div>
 
           <div class="card">
             <h2>Sobre</h2>
-            <p class="muted">A Mensagem Control <strong id="about-version">v2.1.10</strong></p>
+            <p class="muted">A Mensagem Control <strong id="about-version">v2.1.11-beta.1</strong></p>
             <p class="muted small">Feito para as equipes de mídia das igrejas do Tabernáculo da Fé.</p>
             <button id="btn-check-update" class="btn btn-secondary btn-sm">Verificar atualizações</button>
             <p id="update-status" class="muted small"></p>
@@ -1636,6 +1797,40 @@
     </div>
   </div>
 
+  <!-- Sugestões e problemas -->
+  <div id="feedback-modal" class="modal" hidden>
+    <form id="feedback-form" class="modal-card card feedback-card">
+      <div class="card-head">
+        <h2>Sugestão ou problema</h2>
+        <button type="button" class="btn-x" data-close>&times;</button>
+      </div>
+      <div class="segmented" role="radiogroup" aria-label="Tipo">
+        <label><input type="radio" name="feedback-kind" value="sugestao" checked><span>Sugestão de melhoria</span></label>
+        <label><input type="radio" name="feedback-kind" value="problema"><span>Reportar um problema</span></label>
+      </div>
+      <div class="field">
+        <label for="feedback-message" id="feedback-message-label">Qual é a sua ideia?</label>
+        <textarea id="feedback-message" rows="6" maxlength="4000"></textarea>
+      </div>
+      <div class="field">
+        <label for="feedback-contact">Seu nome ou WhatsApp <span class="muted small">(opcional, para a gente falar com você)</span></label>
+        <input type="text" id="feedback-contact" maxlength="120" autocomplete="off">
+      </div>
+      <label class="dropzone feedback-drop" id="feedback-drop">
+        <input type="file" id="feedback-files" accept="image/*,video/*" multiple>
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>
+        <strong>Anexar fotos ou vídeos</strong>
+        <span class="muted small">Mostre o problema ou a ideia. Até 6 arquivos, 50 MB cada.</span>
+      </label>
+      <div id="feedback-file-list" class="feedback-files"></div>
+      <p class="muted small">Só o responsável pelo app vê o que você mandar. Precisa de internet.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="feedback-send">Enviar</button>
+      </div>
+    </form>
+  </div>
+
   <!-- Confirmação genérica -->
   <div id="confirm-modal" class="modal" hidden>
     <div class="modal-card card modal-small" role="alertdialog" aria-labelledby="confirm-title">
@@ -1659,6 +1854,6 @@
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script type="module" src="js/admin/main.js?v=2.1.23"></script>
+  <script type="module" src="js/admin/main.js?v=2.1.29"></script>
 </body>
 </html>

@@ -88,9 +88,11 @@ export function setupTabs() {
   if (saved && document.querySelector(`.tab[data-tab="${saved}"]`)) selectTab(saved);
 }
 
-// Toca uma animação só nas prévias do painel (o overlay dentro do iframe); nunca chega no OBS
+// Toca uma animação só na prévia "Como vai ficar" do painel; nunca chega no OBS nem no quadro
+// "No OBS agora" (que tem que mostrar só o que está de fato no ar)
 export function previewInPanel(message) {
-  document.querySelectorAll('[data-stage] iframe').forEach(frame => {
+  const frames = document.querySelectorAll('[data-stage] iframe[data-next]');
+  (frames.length ? frames : document.querySelectorAll('[data-stage] iframe')).forEach(frame => {
     if (frame.contentWindow) frame.contentWindow.postMessage(message, window.location.origin);
   });
 }
@@ -122,6 +124,35 @@ export function setupSections() {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); toggle(); }
     };
   });
+}
+
+// Aparência com mais de um assunto (aba Culto): mostra só o grupo escolhido em cima e lembra a escolha
+export function setupAppearanceSwitches() {
+  document.querySelectorAll('.appearance-switch').forEach(group => {
+    const radios = [...group.querySelectorAll('input[type="radio"]')];
+    const aside = group.closest('.appearance');
+    const key = `amc.look.${radios[0].name}`;
+    const show = (value) => {
+      aside.querySelectorAll('[data-look-part]').forEach(part => { part.hidden = part.dataset.lookPart !== value; });
+      radios.forEach(r => { r.checked = r.value === value; });
+    };
+    let saved = null;
+    try { saved = localStorage.getItem(key); } catch (e) { /* sem armazenamento */ }
+    show(radios.some(r => r.value === saved) ? saved : radios[0].value);
+    radios.forEach(r => r.addEventListener('change', () => {
+      show(r.value);
+      try { localStorage.setItem(key, r.value); } catch (e) { /* sem armazenamento */ }
+    }));
+  });
+}
+
+// O painel do Culto escolhe sozinho o assunto da aparência quando o operador mexe naquela parte
+export function showAppearancePart(value) {
+  const radio = document.querySelector(`.appearance-switch input[value="${value}"]`);
+  if (radio && !radio.checked) {
+    radio.checked = true;
+    radio.dispatchEvent(new Event('change'));
+  }
 }
 
 export function setupModalClose(modal, onClose) {
