@@ -1,6 +1,7 @@
 // Aba Mensagem: biblioteca, leitura dos parágrafos, prévia e "continuar de onde parou".
 import { $, toast, confirmDialog, normalize, formatDay, setupModalClose } from './ui.js';
 import * as ws from './ws.js';
+import { postNext } from './next-preview.js';
 
 let sermons = [];          // lista da biblioteca
 let sermon = null;         // mensagem aberta (com parágrafos já divididos)
@@ -249,6 +250,7 @@ function renderLiveState() {
   let next = null;
   if (hasSermon) next = cue !== -1 ? sermon.paragraphs[cue] : isArmed ? sermon.paragraphs[index] : sermon.paragraphs[index + 1];
   el.nextLabel.textContent = next ? `Próximo · § ${next.number}` : 'Próximo';
+  postNext('message', next ? { title: sermon.title, number: next.number, text: next.text } : null);
   el.nextText.textContent = next ? next.text : (hasSermon && index >= total - 1 ? 'Fim da mensagem.' : '—');
 }
 

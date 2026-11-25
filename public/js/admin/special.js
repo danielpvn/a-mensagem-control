@@ -69,6 +69,12 @@ function fromForm() {
   };
 }
 
+// Louvor como vai aparecer (com um exemplo enquanto o formulário está vazio), para a prévia do painel
+export function specialPreviewLines() {
+  const lines = linesOf(fromForm());
+  return { name: lines.name || 'Grandioso És Tu', subtitle: lines.name ? lines.subtitle : `Maria Silva${SEPARATOR}João Pereira` };
+}
+
 // Sem nome do louvor, os nomes de quem canta vão em cima
 function linesOf({ title, singers }) {
   const names = singers.join(SEPARATOR);

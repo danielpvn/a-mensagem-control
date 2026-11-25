@@ -1,4 +1,5 @@
-// Editor de fundo das camadas de tela (Bíblia e Hinos): Cor, Degradê ou Imagem, e vinheta.
+// Editor de fundo: Cor, Degradê ou Imagem (da lista ou enviada do computador), e vinheta.
+// Usado na tela cheia de Bíblia e Hinos e nas caixas/faixas (Mensagem, nome do pregador, louvor).
 // Monta os controles dentro de `container` e avisa as mudanças por onChange(partial).
 import { createBackgroundPicker } from './backgrounds.js';
 
@@ -33,7 +34,7 @@ export const gradientCss = (g, alpha = 1) => (g.kind === 'radial'
   ? `radial-gradient(circle at 50% 38%, ${hexToRgba(g.from, alpha)}, ${hexToRgba(g.to, alpha)} 75%)`
   : `linear-gradient(${g.angle}deg, ${hexToRgba(g.from, alpha)}, ${hexToRgba(g.to, alpha)})`);
 
-export function createBackgroundEditor(container, { name, defaultColor = { hex: '#000000', opacity: 100 }, onChange }) {
+export function createBackgroundEditor(container, { name, defaultColor = { hex: '#000000', opacity: 100 }, vignette = true, onChange }) {
   container.classList.add('bg-editor');
   container.innerHTML = `
     <div class="segmented segmented-3" role="radiogroup" aria-label="Tipo de fundo">
@@ -77,9 +78,12 @@ export function createBackgroundEditor(container, { name, defaultColor = { hex: 
     <label class="switch"><input type="checkbox" data-k="vignette"><span class="switch-ui"></span>Vinheta (bordas mais escuras)</label>
   `;
 
+  // Caixa ou faixa pequena: a vinheta (bordas escuras da tela) não faz sentido
+  if (!vignette) container.querySelector('[data-k="vignette"]').closest('.switch').remove();
+
   const q = (k) => container.querySelector(`[data-k="${k}"]`);
   const modes = [...container.querySelectorAll(`input[name="${name}-mode"]`)];
-  const controls = ['from', 'to', 'angle', 'radial', 'animate', 'gopacity', 'color', 'opacity', 'vignette'].map(q);
+  const controls = ['from', 'to', 'angle', 'radial', 'animate', 'gopacity', 'color', 'opacity', 'vignette'].map(q).filter(Boolean);
   let image = null;
 
   const mode = () => (modes.find(r => r.checked) || modes[0]).value;
@@ -106,7 +110,7 @@ export function createBackgroundEditor(container, { name, defaultColor = { hex: 
       gradientKind: q('radial').checked ? 'radial' : 'linear',
       gradientAnimate: q('animate').checked,
       gradientOpacity: Number(q('gopacity').value) / 100,
-      bgVignette: q('vignette').checked
+      bgVignette: vignette && q('vignette').checked
     };
   }
 
@@ -164,7 +168,7 @@ export function createBackgroundEditor(container, { name, defaultColor = { hex: 
       q('radial').checked = s.gradientKind === 'radial';
       q('animate').checked = !!s.gradientAnimate;
       q('gopacity').value = Math.round((s.gradientOpacity ?? 1) * 100);
-      q('vignette').checked = !!s.bgVignette;
+      if (vignette) q('vignette').checked = !!s.bgVignette;
       image = s.bgImage || null;
       picker.render();
       updateView();

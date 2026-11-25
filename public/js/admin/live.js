@@ -53,6 +53,31 @@ export function setupLive(selectTab) {
   ws.on('init', render);
   ws.on('update-content', render);
 
+  // Detalhe escondido (não está em nenhum aviso para o operador): a bolinha vermelha da logo
+  // brilha enquanto há qualquer coisa na tela do OBS, inclusive nome do pregador, anúncio da
+  // leitura e vídeo/imagem dos agendamentos
+  const logo = $('brand-logo');
+  let lastState = null;
+  let schedOnScreen = false;
+  const glow = (state) => {
+    if (state) lastState = state;
+    if (!logo || !lastState) return;
+    const s = lastState;
+    const onAir = describeLive(s).kind === 'live'
+      || !!(s.lowerThird && s.lowerThird.visible)
+      || !!(s.readingAnnounce && s.readingAnnounce.visible)
+      || schedOnScreen;
+    logo.classList.toggle('is-on-air', onAir);
+  };
+  const setSched = (item) => {
+    schedOnScreen = !!(item && (item.kind === 'video' || item.image));
+    glow();
+  };
+  ws.on('init', (s) => { schedOnScreen = !!(s.soundNow && (s.soundNow.kind === 'video' || s.soundNow.image)); glow(s); });
+  ws.on('update-content', (s) => { if ('soundNow' in s) schedOnScreen = !!(s.soundNow && (s.soundNow.kind === 'video' || s.soundNow.image)); glow(s); });
+  ws.on('sound-play', setSched);
+  ws.on('sound-stop', () => setSched(null));
+
   // Clicar no chip leva para a aba do que está no ar
   chip.onclick = () => { if (target) selectTab(target); };
   $('btn-panic').onclick = () => ws.send('clear-screen');

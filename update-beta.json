@@ -1,5 +1,5 @@
 {
-  "version": "2.1.0-beta.6",
-  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.1.0-beta.6/A_Mensagem_Control.zip",
-  "notes": "Teste: aba Sons virou Agendamentos, com vídeos, playlists (um atrás do outro, com transição e tempo de transição) e agendar a hora de início da playlist; ícone sem o fundo azul; imagem do som no OBS; louvor especial na aba Culto; opção sem transição em tudo."
+  "version": "2.1.11-beta.2",
+  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.1.11-beta.2/A_Mensagem_Control.zip",
+  "notes": "Teste: OBS em outro computador mais fácil (link curto com o nome do PC, liberar no Firewall, aviso 'OBS conectado' no topo e aviso do som). Também: banco online baixa só o que é novo, caixinha de sugestões, atalhos de teclado, pastas de mídia, prévia 'Como vai ficar', anúncio da leitura com estilos novos, arrastar o nome e a passagem na prévia, tamanho separado do louvor e de quem canta, ícone novo e YouTube sem legenda."
 }

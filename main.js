@@ -1,5 +1,6 @@
 const { app, BrowserWindow, globalShortcut } = require('electron');
 const path = require('path');
+const { toAccelerator } = require('./public/js/shared/shortcuts.js');
 
 // Só uma cópia do app por vez: uma segunda abriria outro servidor na mesma porta 3000
 if (!app.requestSingleInstanceLock()) {
@@ -57,18 +58,30 @@ function createWindow() {
   });
 }
 
+function registerGlobalShortcuts(map) {
+  globalShortcut.unregisterAll();
+  const actions = { globalNext: () => server.next(), globalPrev: () => server.prev() };
+  Object.entries(actions).forEach(([id, run]) => {
+    (map[id] || []).forEach(key => {
+      const accelerator = toAccelerator(key);
+      if (!accelerator) return;
+      try {
+        if (!globalShortcut.register(accelerator, run)) console.warn(`Atalho ${accelerator} já usado por outro programa`);
+      } catch (err) {
+        console.warn(`Atalho inválido: ${key}`, err.message);
+      }
+    });
+  });
+}
+
 // Inicialização do Electron
 app.whenReady().then(() => {
   createWindow();
 
-  // Registra atalhos globais para controle (Logitech R400 ou teclado) mesmo com o app minimizado
-  globalShortcut.register('PageDown', () => {
-    server.next();
-  });
-
-  globalShortcut.register('PageUp', () => {
-    server.prev();
-  });
+  // Atalhos do passador (Logitech R400 ou teclado) que funcionam mesmo com o app minimizado.
+  // As teclas vêm de Configurações > Atalhos de teclado; mudou lá, registra de novo.
+  registerGlobalShortcuts(server.getShortcuts());
+  server.onShortcutsChange(registerGlobalShortcuts);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

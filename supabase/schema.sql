@@ -185,6 +185,69 @@ drop policy if exists "editores trocam fundos" on storage.objects;
 create policy "editores trocam fundos" on storage.objects
   for update to authenticated using (bucket_id = 'backgrounds' and public.is_editor());
 
+-- ---------- Caixinha de sugestões e problemas ----------
+-- Qualquer igreja com o app manda (mesmo sem login); só o dono do app lê, marca e apaga.
+create table if not exists public.app_owners (
+  user_id uuid primary key references auth.users (id) on delete cascade
+);
+alter table public.app_owners enable row level security;
+drop policy if exists "dono ve a propria linha" on public.app_owners;
+create policy "dono ve a propria linha" on public.app_owners
+  for select to authenticated using (user_id = auth.uid());
+
+create or replace function public.is_app_owner()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.app_owners where user_id = auth.uid());
+$$;
+grant execute on function public.is_app_owner() to anon, authenticated;
+
+create table if not exists public.feedback (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  kind text not null check (kind in ('sugestao', 'problema')),
+  message text not null check (char_length(message) between 3 and 4000),
+  contact text check (contact is null or char_length(contact) <= 120),
+  church text check (church is null or char_length(church) <= 120),
+  app_version text check (app_version is null or char_length(app_version) <= 30),
+  attachments jsonb not null default '[]'::jsonb,
+  status text not null default 'novo' check (status in ('novo', 'visto', 'resolvido')),
+  sender uuid default auth.uid()
+);
+alter table public.feedback enable row level security;
+grant insert on public.feedback to anon, authenticated;
+grant select, update, delete on public.feedback to authenticated;
+
+drop policy if exists "todos enviam" on public.feedback;
+create policy "todos enviam" on public.feedback
+  for insert to anon, authenticated with check (status = 'novo' and jsonb_array_length(attachments) <= 6);
+drop policy if exists "dono le" on public.feedback;
+create policy "dono le" on public.feedback for select to authenticated using (public.is_app_owner());
+drop policy if exists "dono marca" on public.feedback;
+create policy "dono marca" on public.feedback for update to authenticated using (public.is_app_owner()) with check (public.is_app_owner());
+drop policy if exists "dono apaga" on public.feedback;
+create policy "dono apaga" on public.feedback for delete to authenticated using (public.is_app_owner());
+
+-- Fotos e vídeos das mensagens (privado, até 50 MB por arquivo)
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('feedback', 'feedback', false, 52428800, array['image/*', 'video/*'])
+on conflict (id) do update set public = false, file_size_limit = 52428800, allowed_mime_types = array['image/*', 'video/*'];
+
+drop policy if exists "todos anexam" on storage.objects;
+create policy "todos anexam" on storage.objects
+  for insert to anon, authenticated with check (bucket_id = 'feedback');
+drop policy if exists "dono ve anexos" on storage.objects;
+create policy "dono ve anexos" on storage.objects
+  for select to authenticated using (bucket_id = 'feedback' and public.is_app_owner());
+drop policy if exists "dono apaga anexos" on storage.objects;
+create policy "dono apaga anexos" on storage.objects
+  for delete to authenticated using (bucket_id = 'feedback' and public.is_app_owner());
+
+-- Quem é o dono (só uma vez, troque o e-mail pelo do seu login no app):
+--
+--   insert into public.app_owners (user_id)
+--   select id from auth.users where email = 'seu-email@exemplo.com'
+--   on conflict do nothing;
+
 -- =====================================================================
 -- As igrejas pedem acesso pelo próprio app (Configurações > Banco online > Pedir acesso)
 -- e um editor aprova no app dele. Só o PRIMEIRO editor precisa ser definido aqui
