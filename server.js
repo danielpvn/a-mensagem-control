@@ -24,7 +24,7 @@ const tfSermons = require('./src/tf-sermons');
 const sounds = require('./src/sounds');
 const { createDesktopShortcut } = require('./src/shortcut');
 
-const CURRENT_VERSION = '2.1.11-beta.2';
+const CURRENT_VERSION = '2.1.11';
 const PORT = process.env.PORT || 3000;
 
 const app = express();
