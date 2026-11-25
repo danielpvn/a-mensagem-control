@@ -1,5 +1,5 @@
 {
-  "version": "2.1.10",
-  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.1.10/A_Mensagem_Control.zip",
-  "notes": "Favoritos na aba Bíblia: guarde as passagens que a igreja repete (como as da Santa Ceia) e abra com um clique. Transição com \"Sem transição\" no começo do controle de tempo, e a opção de usar a transição só na entrada e saída ou só entre parágrafos, estrofes, versículos e mídias. No OBS, a caixa da Mensagem não pisca mais vazia ao trocar de câmera. Depois de atualizar, clique em \"Atualizar cache da página atual\" no OBS."
+  "version": "2.1.11",
+  "url": "https://github.com/danielpvn/a-mensagem-control/releases/download/v2.1.11/A_Mensagem_Control.zip",
+  "notes": "OBS em outro computador mais fácil: link curto com o nome do PC, botão para liberar no Firewall, aviso \"OBS conectado\" no topo e aviso quando o som está saindo no computador errado. Prévia \"Como vai ficar\" ao lado do OBS, com o nome do pregador e a passagem arrastáveis. Anúncio da leitura com estilos novos e com a sua própria imagem. Tamanho separado para o nome do louvor e quem canta. Caixinha de sugestões, atalhos de teclado, pastas de mídia, ícone novo, YouTube sem legenda e banco online gastando bem menos dados. Depois de atualizar, clique em \"Atualizar cache da página atual\" no OBS."
 }
