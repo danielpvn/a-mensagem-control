@@ -10,7 +10,10 @@ const hymns = require('./src/hymns');
 const bible = require('./src/bible');
 const backgrounds = require('./src/backgrounds');
 const media = require('./src/media');
+const feedback = require('./src/feedback');
+const { cleanShortcuts, DEFAULT_SHORTCUTS } = require('./public/js/shared/shortcuts.js');
 const auth = require('./src/auth');
+const network = require('./src/network');
 const sync = require('./src/sync');
 
 // Primeira vez neste PC: traz a Bíblia e os fundos da pasta da igreja, se existirem
@@ -21,7 +24,7 @@ const tfSermons = require('./src/tf-sermons');
 const sounds = require('./src/sounds');
 const { createDesktopShortcut } = require('./src/shortcut');
 
-const CURRENT_VERSION = '2.1.10';
+const CURRENT_VERSION = '2.1.11';
 const PORT = process.env.PORT || 3000;
 
 const app = express();
@@ -35,7 +38,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Fontes servidas localmente: o overlay continua bonito mesmo se a internet da igreja cair
-['outfit', 'montserrat', 'lora', 'playfair-display', 'crimson-pro'].forEach(name => {
+['outfit', 'montserrat', 'lora', 'playfair-display', 'crimson-pro', 'poppins', 'roboto', 'open-sans', 'raleway', 'oswald', 'bebas-neue', 'merriweather', 'cinzel', 'great-vibes'].forEach(name => {
   const dir = path.dirname(require.resolve(`@fontsource/${name}/package.json`));
   app.use(`/fonts/${name}`, express.static(dir));
 });
@@ -142,6 +145,11 @@ const DEFAULT_LT_STYLES = {
   look: 'modern',                // 'modern' (barra colorida), 'minimal' (só texto e linha), 'solid' (faixa sólida)
   fontFamily: 'Montserrat, sans-serif',
   scale: 1,
+  nameSize: 1,                   // tamanho do nome (louvor) e da linha de baixo (quem canta), multiplicam o "Tamanho"
+  subtitleSize: 1,
+  posAnchor: 'left',             // position 'custom' (arrastado na prévia): lado que fica preso, x e y em % da tela
+  posX: 6,
+  posY: 80,
   nameColor: '#ffffff',
   subtitleColor: '#cbd5e1',
   accentColor: '#3b82f6',
@@ -238,8 +246,13 @@ let globalState = {
   hymnStyles: loadScreenStyles('styles.hymn', DEFAULT_HYMN_STYLES),
   // Lista de hinos que vão ser cantados no culto (na ordem)
   hymnPlaylist: db.getSetting('hymnPlaylist', []),
+  // Cor de cada pasta de mídia na lista da esquerda ({ pasta: '#cor' }); sem cor = a padrão
+  mediaFolderColors: db.getSetting('mediaFolderColors', {}),
+  // Atalhos do teclado escolhidos em Configurações (lista vazia = sem atalho)
+  shortcuts: cleanShortcuts(db.getSetting('shortcuts', null)),
   // Passagens favoritas da Bíblia (ex: as leituras da Santa Ceia): { id, book, bookName, chapter, verse, end }
   bibleFavorites: db.getSetting('bibleFavorites', []),
+  readingLooks: db.getSetting('readingLooks', []),
 
   // Bíblia: capítulo aberto, dividido em telas (versículos longos vêm em mais de uma tela)
   bible: {
@@ -611,6 +624,26 @@ function setHymnPlaylist(items) {
   broadcastContent();
 }
 
+function setMediaFolderColor(folder, color) {
+  const name = String(folder || '').slice(0, 80);
+  if (!name) return;
+  const colors = { ...globalState.mediaFolderColors };
+  if (/^#[0-9a-f]{6}$/i.test(String(color || ''))) colors[name] = color;
+  else delete colors[name];
+  globalState.mediaFolderColors = colors;
+  db.setSetting('mediaFolderColors', colors);
+  broadcastContent();
+}
+
+// Atalhos do teclado: o painel usa na hora; o main.js do Electron registra os do passador (app minimizado)
+const shortcutListeners = [];
+function setShortcuts(map) {
+  globalState.shortcuts = cleanShortcuts(map);
+  db.setSetting('shortcuts', globalState.shortcuts);
+  broadcast('update-shortcuts', globalState.shortcuts);
+  shortcutListeners.forEach(cb => { try { cb(globalState.shortcuts); } catch (err) { console.error('Atalhos:', err); } });
+}
+
 // Favoritos da Bíblia: só neste computador, na ordem em que o operador deixou
 function setBibleFavorites(items) {
   const { books } = require('./src/bible-books');
@@ -628,6 +661,29 @@ function setBibleFavorites(items) {
     .filter(f => f && !seen.has(f.id) && seen.add(f.id))
     .slice(0, 40);
   db.setSetting('bibleFavorites', globalState.bibleFavorites);
+  broadcastContent();
+}
+
+// Estilos do anúncio da leitura criados pelo operador (imagem dele + onde vai a passagem).
+// O estilo escolhido fica em readingStyles.look = 'custom:<id>'.
+function setReadingLooks(items) {
+  const clamp = (v, min, max, def) => (Number.isFinite(Number(v)) ? Math.min(max, Math.max(min, Number(v))) : def);
+  globalState.readingLooks = (Array.isArray(items) ? items : []).slice(0, 30).map((l, i) => ({
+    id: String((l && l.id) || '').replace(/[^\w-]/g, '').slice(0, 30) || `l${Date.now().toString(36)}${i}`,
+    name: String((l && l.name) || 'Estilo novo').trim().slice(0, 40) || 'Estilo novo',
+    image: typeof (l && l.image) === 'string' && l.image.startsWith('/backgrounds/') ? l.image : null,
+    format: l && l.format === 'full' ? 'full' : 'band',
+    align: ['left', 'center', 'right'].includes(l && l.align) ? l.align : 'center',
+    textY: clamp(l && l.textY, 5, 95, 50),
+    textWidth: clamp(l && l.textWidth, 20, 100, 80),
+    textX: l && l.textX != null && Number.isFinite(Number(l.textX)) ? clamp(l.textX, 0, 100, 50) : null,
+    bandHeight: clamp(l && l.bandHeight, 8, 100, 30)
+  }));
+  db.setSetting('readingLooks', globalState.readingLooks);
+  const look = globalState.readingStyles.look || '';
+  if (look.startsWith('custom:') && !globalState.readingLooks.some(l => `custom:${l.id}` === look)) {
+    updateReadingStyles({ look: 'photo' }); // o estilo escolhido foi apagado
+  }
   broadcastContent();
 }
 
@@ -1263,6 +1319,30 @@ function toggleClear(mode) {
   else toggleClearOnServer();
 }
 
+// Atalhos "Exibir" e "Ocultar" separados: um só põe no ar (o preparado, ou o de volta), o outro só tira.
+// O "Exibir/Ocultar" de sempre continua alternando pelo toggleClear.
+function layerNow(layer) {
+  if (layer === 'message') return { onAir: !globalState.isCleared, cue: globalState.cue };
+  const s = globalState[layer];
+  return { onAir: !!s && !s.isCleared, cue: s && s.cue !== undefined ? s.cue : -1 };
+}
+
+function showLayer(mode) {
+  const { onAir, cue } = layerNow(layerFor(mode));
+  if (onAir && cue === -1) return; // já está no ar e não tem outro preparado
+  toggleClear(mode);
+}
+
+function hideLayer(mode) {
+  const layer = layerFor(mode);
+  if (!layerNow(layer).onAir) return;
+  if (layer === 'hymn') hideHymn();
+  else if (layer === 'bible') hideBible();
+  else if (layer === 'media') hideMedia();
+  else hideMessage();
+  broadcastContent();
+}
+
 // Estilos são salvos no banco com um pequeno atraso para não gravar a cada movimento do slider
 let saveStylesTimer = null;
 function updateStyles(partial) {
@@ -1299,9 +1379,23 @@ function checkAdminConnections() {
   }
 }
 
+// Overlays do OBS conectados (sem ?preview): o painel mostra "OBS conectado" e de qual computador
+function obsStatus() {
+  const clients = [];
+  wss.clients.forEach(client => {
+    if (client.readyState !== WebSocket.OPEN || !client.isObs) return;
+    clients.push({ ip: client.obsIp, local: client.obsLocal, name: client.obsLocal ? network.hostname() : network.nameFor(client.obsIp, broadcastObsStatus) });
+  });
+  return { clients };
+}
+function broadcastObsStatus() {
+  broadcast('obs-status', obsStatus());
+}
+
 wss.on('connection', (ws, req) => {
   ws.canControl = auth.isAuthorized(req);
   ws.send(JSON.stringify({ type: 'init', payload: globalState }));
+  ws.send(JSON.stringify({ type: 'obs-status', payload: obsStatus() }));
 
   ws.on('message', (messageStr) => {
     try {
@@ -1311,6 +1405,14 @@ wss.on('connection', (ws, req) => {
       // Andamento do vídeo vem do overlay (que pode estar num PC sem PIN)
       if (data.type === 'media-progress') {
         onMediaProgress(payload);
+        return;
+      }
+      // O overlay do OBS se apresenta (vale sem PIN: o OBS pode estar em outro PC)
+      if (data.type === 'obs-hello') {
+        ws.isObs = true;
+        ws.obsIp = network.cleanAddress(req.socket.remoteAddress);
+        ws.obsLocal = auth.isLocal(req);
+        broadcastObsStatus();
         return;
       }
       // Fim do som que tocou no OBS (o painel volta para "Nada tocando")
@@ -1346,6 +1448,12 @@ wss.on('connection', (ws, req) => {
         case 'toggle-clear':
           toggleClear(payload.mode);
           break;
+        case 'show-layer':
+          showLayer(payload.mode);
+          break;
+        case 'hide-layer':
+          hideLayer(payload.mode);
+          break;
         case 'hymn-select':
           selectHymnOnServer(payload.id, payload.match);
           break;
@@ -1360,6 +1468,15 @@ wss.on('connection', (ws, req) => {
           break;
         case 'bible-favorites':
           setBibleFavorites(payload.items);
+          break;
+        case 'reading-looks':
+          setReadingLooks(payload.items);
+          break;
+        case 'shortcuts':
+          setShortcuts(payload.map);
+          break;
+        case 'reset-shortcuts':
+          setShortcuts(DEFAULT_SHORTCUTS);
           break;
         case 'update-hymn-styles':
           updateHymnStyles(payload);
@@ -1399,6 +1516,9 @@ wss.on('connection', (ws, req) => {
           break;
         case 'media-start':
           setMediaStart(payload);
+          break;
+        case 'media-folder-color':
+          setMediaFolderColor(payload.folder, payload.color);
           break;
         case 'media-order':
           setMediaOrder(payload.names);
@@ -1500,15 +1620,19 @@ wss.on('connection', (ws, req) => {
 
   ws.on('close', () => {
     setTimeout(checkAdminConnections, 2000);
+    if (ws.isObs) setTimeout(broadcastObsStatus, 100);
   });
 });
 
 // Endereços para abrir o painel em outro aparelho da mesma rede (celular, notebook)
 function getLanUrls() {
   const urls = [];
-  Object.values(os.networkInterfaces()).forEach(list => {
+  // Pula placas virtuais (WSL, Hyper-V, VirtualBox...) e endereço sem rede (169.254): só confundem o operador
+  const virtual = /vEthernet|WSL|Hyper-V|VirtualBox|VMware|Loopback|Bluetooth|Docker/i;
+  Object.entries(os.networkInterfaces()).forEach(([name, list]) => {
+    if (virtual.test(name)) return;
     (list || []).forEach(net => {
-      if (net.family === 'IPv4' && !net.internal) {
+      if (net.family === 'IPv4' && !net.internal && !net.address.startsWith('169.254.')) {
         urls.push(`http://${net.address}:${PORT}`);
       }
     });
@@ -1517,7 +1641,22 @@ function getLanUrls() {
 }
 
 app.get('/api/info', (req, res) => {
-  res.json({ version: CURRENT_VERSION, port: PORT, lanUrls: getLanUrls() });
+  res.json({ version: CURRENT_VERSION, port: PORT, lanUrls: getLanUrls(), hostname: network.hostname() });
+});
+
+// Link curto para o OBS (fácil de digitar no outro computador): /obs -> overlay
+app.get('/obs', (req, res) => {
+  const q = req.originalUrl.indexOf('?');
+  res.redirect(`/overlay.html${q >= 0 ? req.originalUrl.slice(q) : ''}`);
+});
+
+// Firewall do Windows: a porta precisa estar liberada para o OBS de outro PC abrir o link
+app.get('/api/firewall', async (req, res) => {
+  res.json(await network.firewallStatus());
+});
+app.post('/api/firewall', async (req, res) => {
+  if (!auth.isLocal(req)) return res.status(403).json({ error: 'Só dá para liberar no computador do programa.' });
+  res.json(await network.allowFirewall(PORT));
 });
 
 // API: Listar sermões disponíveis
@@ -1710,6 +1849,7 @@ app.post('/api/media/folders', (req, res) => {
 app.delete('/api/media/folders/:folder', (req, res) => {
   try {
     if (!media.removeFolder(req.params.folder)) return res.status(404).json({ error: 'Pasta não encontrada' });
+    if (globalState.mediaFolderColors[req.params.folder]) setMediaFolderColor(req.params.folder, null);
     if (globalState.media.folder === req.params.folder) {
       hideMedia();
       openMediaFolder(null);
@@ -1871,6 +2011,59 @@ app.delete('/api/preachers/:id', (req, res) => {
   res.json({ success: true });
 });
 
+// ---------- Caixinha de sugestões e problemas (só o dono do app lê) ----------
+
+// Anexo: o corpo é o próprio arquivo, que segue em streaming para o banco online
+app.post('/api/feedback/upload', async (req, res) => {
+  try {
+    const size = Number(req.headers['content-length']) || 0;
+    if (size > feedback.MAX_BYTES) return res.status(413).json({ error: 'Arquivo grande demais: o limite é 50 MB por arquivo.' });
+    res.json(await feedback.uploadAttachment(req, { name: req.query.name, type: req.headers['content-type'], size }));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/feedback', async (req, res) => {
+  try {
+    await feedback.submit(req.body || {}, CURRENT_VERSION);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: /fetch failed|ENOTFOUND|timeout/i.test(err.message) ? 'Sem internet agora. Tente de novo daqui a pouco.' : err.message });
+  }
+});
+
+app.get('/api/feedback/owner', async (req, res) => {
+  res.json({ owner: await feedback.isOwner() });
+});
+
+app.get('/api/feedback', async (req, res) => {
+  try {
+    if (!(await feedback.isOwner())) return res.status(403).json({ error: 'Só o responsável pelo app vê as mensagens.' });
+    res.json(await feedback.list());
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/feedback/:id', async (req, res) => {
+  try {
+    await feedback.setStatus(req.params.id, req.body.status);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/feedback/:id', async (req, res) => {
+  try {
+    await feedback.remove(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // ---------- Banco online (biblioteca compartilhada) ----------
 
 app.get('/api/cloud/status', (req, res) => {
@@ -2028,5 +2221,7 @@ module.exports = {
   PORT,
   next,
   prev,
-  toggleClear
+  toggleClear,
+  getShortcuts: () => globalState.shortcuts,
+  onShortcutsChange: (cb) => shortcutListeners.push(cb)
 };

@@ -3,6 +3,8 @@
 import { $, toast, confirmDialog, previewInPanel } from './ui.js';
 import * as ws from './ws.js';
 import { timeLabel } from './transition.js';
+import { createBackgroundEditor } from './background-editor.js';
+import { renderHints } from './shortcuts.js';
 
 // Velocidade 1 da faixa = 0,6 s (o controle mostra em segundos; 0 = sem transição)
 const LT_BASE_SECONDS = 0.6;
@@ -16,6 +18,7 @@ const preacherOnAir = () => lt.visible && lt.kind !== 'special';
 try { selectedId = localStorage.getItem('amc.preacher'); } catch (e) { /* sem armazenamento */ }
 
 const selected = () => preachers.find(p => p.id === selectedId) || null;
+export const selectedPreacherName = () => (selected() || {}).name || '';
 
 // ---------- Lista ----------
 
@@ -88,7 +91,8 @@ function renderButton() {
   btn.disabled = !onAir && !p;
   btn.classList.toggle('btn-danger', onAir);
   btn.classList.toggle('btn-primary', !onAir);
-  btn.innerHTML = onAir ? 'Esconder nome <kbd>N</kbd>' : 'Mostrar nome <kbd>N</kbd>';
+  btn.innerHTML = `${onAir ? 'Esconder' : 'Mostrar'} nome <kbd data-key-of="lowerThird"></kbd>`;
+  renderHints(); // a tecla do botão é a escolhida em Configurações
 
   // Lembrete no topo enquanto o nome (ou o louvor especial) está na tela
   const chip = $('lt-chip');
@@ -141,30 +145,23 @@ export function toggleLowerThird() {
 
 // ---------- Aparência (serve para o pregador e para o louvor especial) ----------
 
-function hexToRgba(hex, alpha) {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-function parseRgba(rgbaStr) {
-  const match = String(rgbaStr).match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-  if (!match) return { hex: '#0a0f1e', opacity: 85 };
-  const [r, g, b] = [match[1], match[2], match[3]].map(Number);
-  return { hex: '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1), opacity: match[4] ? Math.round(parseFloat(match[4]) * 100) : 100 };
-}
-
 // Liga os controles de aparência de uma faixa. `prefix` = começo dos ids no admin.html
 // ("lt" para o pregador, "sp" para o louvor especial); `type` = nome nas mensagens do
 // WebSocket ("lt" -> update-lt-styles / update-lt-style / reset-lt-styles).
 export function setupLtStyleControls({ prefix, type, stateKey, preview, defaults = {} }) {
   const id = (name) => $(`${prefix}-${name}`);
   const lookRadios = [...document.querySelectorAll(`input[name="${prefix}-look"]`)];
-  const inputs = ['autohide', 'position', 'speed', 'animation', 'font', 'scale', 'name-color', 'subtitle-color', 'accent-color', 'bg-color', 'bg-opacity'].map(id);
+  const inputs = ['autohide', 'position', 'speed', 'animation', 'font', 'scale', 'name-size', 'subtitle-size', 'name-color', 'subtitle-color', 'accent-color'].map(id).filter(Boolean);
+  // Fundo da faixa: cor com transparência, degradê ou imagem (da lista ou enviada do computador)
+  const editor = createBackgroundEditor(id('bg-editor'), {
+    name: `${prefix}-bg`,
+    defaultColor: { hex: '#0a0f1e', opacity: 85 },
+    vignette: false,
+    onChange: (partial) => ws.send(`update-${type}-styles`, partial)
+  });
 
   const fill = (s) => {
-    if (!s || inputs.includes(document.activeElement)) return;
+    if (!s || [...inputs, ...editor.controls].includes(document.activeElement)) return;
     id('autohide').value = String(s.autoHide ?? 8);
     id('position').value = s.position || 'bottom-left';
     // Antes "Sem transição" era um efeito da lista; agora é o tempo no zero
@@ -174,15 +171,23 @@ export function setupLtStyleControls({ prefix, type, stateKey, preview, defaults
     id('font').value = s.fontFamily || 'Montserrat, sans-serif';
     id('scale').value = s.scale ?? 1;
     id('scale-val').textContent = `${Math.round((s.scale ?? 1) * 100)}%`;
+    if (id('name-size')) {
+      id('name-size').value = s.nameSize ?? 1;
+      id('subtitle-size').value = s.subtitleSize ?? 1;
+      showSizes();
+    }
     id('name-color').value = s.nameColor || '#ffffff';
     id('subtitle-color').value = s.subtitleColor || '#cbd5e1';
     id('accent-color').value = s.accentColor || defaults.accentColor || '#3b82f6';
-    const { hex, opacity } = parseRgba(s.bgColor);
-    id('bg-color').value = hex;
-    id('bg-opacity').value = opacity;
-    id('opacity-val').textContent = `${opacity}%`;
+    editor.fill(s);
     lookRadios.forEach(r => { r.checked = r.value === (s.look || 'modern'); });
   };
+
+  function showSizes() {
+    if (!id('name-size')) return;
+    id('name-size-val').textContent = `${Math.round(Number(id('name-size').value) * 100)}%`;
+    id('subtitle-size-val').textContent = `${Math.round(Number(id('subtitle-size').value) * 100)}%`;
+  }
 
   function updateSpeed() {
     id('speed-val').textContent = timeLabel(id('speed').value);
@@ -191,9 +196,11 @@ export function setupLtStyleControls({ prefix, type, stateKey, preview, defaults
 
   const send = () => {
     id('scale-val').textContent = `${Math.round(Number(id('scale').value) * 100)}%`;
-    id('opacity-val').textContent = `${id('bg-opacity').value}%`;
     updateSpeed();
+    showSizes();
+    const sizes = id('name-size') ? { nameSize: Number(id('name-size').value), subtitleSize: Number(id('subtitle-size').value) } : {};
     ws.send(`update-${type}-styles`, {
+      ...sizes,
       autoHide: Number(id('autohide').value),
       position: id('position').value,
       animation: id('animation').value,
@@ -202,7 +209,6 @@ export function setupLtStyleControls({ prefix, type, stateKey, preview, defaults
       nameColor: id('name-color').value,
       subtitleColor: id('subtitle-color').value,
       accentColor: id('accent-color').value,
-      bgColor: hexToRgba(id('bg-color').value, Number(id('bg-opacity').value) / 100),
       look: (lookRadios.find(r => r.checked) || lookRadios[0]).value,
       speed: Math.round(Number(id('speed').value) / LT_BASE_SECONDS * 100) / 100
     });

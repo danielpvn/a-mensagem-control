@@ -18,9 +18,9 @@ let previewStyle = {};     // ajuste (fit/focus) igual ao do OBS
 let zoom = { scale: 1, x: 50, y: 50 };
 let interacting = false;   // enquanto arrasta/gira a rodinha, o servidor não sobrescreve a prévia
 let previewPlayer = null;  // tocador da prévia (vídeo ou YouTube)
+let lastColorsKey = '';
 
 const el = {
-  folder: $('media-folder'),
   grid: $('media-grid'),
   uploads: $('media-uploads'),
   title: $('media-current-title'),
@@ -69,7 +69,13 @@ function folderLabel(name) {
 
 const currentFolder = () => (state && state.media.folder) || general;
 
-// ---------- Pastas ----------
+// ---------- Pastas (lista da esquerda, como no explorador de arquivos) ----------
+
+// Cores para escolher na pasta (a primeira é a padrão)
+const FOLDER_COLORS = ['#e8b34b', '#3b82f6', '#22c55e', '#ef4444', '#a855f7', '#ec4899', '#14b8a6', '#f97316', '#94a3b8'];
+const folderColor = (name) => (state && state.mediaFolderColors && state.mediaFolderColors[name]) || FOLDER_COLORS[0];
+const FOLDER_ICON = '<svg viewBox="0 0 24 24" class="folder-icon"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.6l2 2.2h8.4A1.5 1.5 0 0 1 21 8.7v9.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5Z"/></svg>';
+let colorMenu = null;
 
 async function loadFolders() {
   try {
@@ -79,28 +85,169 @@ async function loadFolders() {
   } catch (err) {
     return;
   }
-  const names = new Set(folders.map(f => f.name));
-  el.folder.innerHTML = '';
-  if (!names.has(general)) folders.unshift({ name: general, count: 0 });
-  folders.forEach(f => {
-    const option = document.createElement('option');
-    option.value = f.name;
-    option.textContent = `${folderLabel(f.name)} (${f.count})`;
-    el.folder.appendChild(option);
-  });
-  el.folder.value = currentFolder();
-  updateDeleteFolder();
+  if (!folders.some(f => f.name === general)) folders.unshift({ name: general, count: 0 });
+  renderFolders();
   if (state && !state.media.folder) ws.send('media-folder', { folder: general });
 }
 
-// A pasta Geral não se apaga
-function updateDeleteFolder() {
-  $('btn-media-delete-folder').hidden = currentFolder() === general;
+function closeColorMenu() {
+  if (colorMenu) colorMenu.remove();
+  colorMenu = null;
+}
+
+function openColorMenu(folder, anchor) {
+  closeColorMenu();
+  colorMenu = document.createElement('div');
+  colorMenu.className = 'folder-color-menu';
+  FOLDER_COLORS.forEach(color => {
+    const swatch = document.createElement('button');
+    swatch.type = 'button';
+    swatch.className = 'folder-swatch';
+    swatch.style.background = color;
+    swatch.classList.toggle('active', folderColor(folder) === color);
+    swatch.title = color === FOLDER_COLORS[0] ? 'Cor padrão' : 'Usar esta cor';
+    swatch.onclick = () => {
+      ws.send('media-folder-color', { folder, color: color === FOLDER_COLORS[0] ? null : color });
+      closeColorMenu();
+    };
+    colorMenu.appendChild(swatch);
+  });
+  // Qualquer outra cor
+  const custom = document.createElement('label');
+  custom.className = 'folder-swatch folder-swatch-custom';
+  custom.title = 'Escolher outra cor';
+  const input = document.createElement('input');
+  input.type = 'color';
+  input.value = folderColor(folder);
+  input.onchange = () => {
+    ws.send('media-folder-color', { folder, color: input.value });
+    closeColorMenu();
+  };
+  custom.appendChild(input);
+  colorMenu.appendChild(custom);
+  document.body.appendChild(colorMenu);
+  const r = anchor.getBoundingClientRect();
+  colorMenu.style.left = `${Math.min(r.left, window.innerWidth - colorMenu.offsetWidth - 8)}px`;
+  colorMenu.style.top = `${r.bottom + 4}px`;
+}
+
+async function deleteFolder(folder) {
+  const info = folders.find(f => f.name === folder);
+  const ok = await confirmDialog({
+    title: 'Apagar esta pasta?',
+    text: `"${folderLabel(folder)}" e ${info ? info.count : 0} arquivo(s) dentro dela serão apagados deste computador.`,
+    okLabel: 'Apagar pasta',
+    danger: true
+  });
+  if (!ok) return;
+  await fetch(`/api/media/folders/${encodeURIComponent(folder)}`, { method: 'DELETE' });
+  toast('Pasta apagada.', 'success');
+  if (currentFolder() === folder) ws.send('media-folder', { folder: general });
+  loadFolders();
+}
+
+// Aba aberta (Arquivos ou YouTube) e, em Arquivos, se está vendo as pastas ou dentro de uma
+let source = 'local';
+let insideFolder = false;
+
+function folderButtons(name) {
+  const tools = document.createDocumentFragment();
+  const color = document.createElement('button');
+  color.type = 'button';
+  color.className = 'folder-action folder-color-btn';
+  color.title = 'Cor da pasta';
+  color.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg>';
+  color.onclick = (e) => {
+    e.stopPropagation();
+    if (colorMenu) closeColorMenu(); else openColorMenu(name, color);
+  };
+  tools.appendChild(color);
+  // A pasta Geral não se apaga
+  if (name !== general) {
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'folder-action folder-delete';
+    del.title = 'Apagar esta pasta e tudo dentro dela';
+    del.innerHTML = '<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>';
+    del.onclick = (e) => { e.stopPropagation(); deleteFolder(name); };
+    tools.appendChild(del);
+  }
+  return tools;
+}
+
+function openFolder(name) {
+  insideFolder = true;
+  if (name !== currentFolder()) ws.send('media-folder', { folder: name });
+  renderFolders();
+}
+
+// Mostra a parte certa do quadro conforme a aba e a pasta
+function updateView() {
+  const local = source === 'local';
+  $('media-folders-view').hidden = !local || insideFolder;
+  $('media-folder-view').hidden = !local || !insideFolder;
+  $('media-youtube-view').hidden = local;
+  const showGrid = !local || insideFolder;
+  el.grid.hidden = !showGrid;
+  $('media-grid-hint').hidden = !showGrid;
+}
+
+function renderFolders() {
+  const list = $('media-folder-list');
+  list.innerHTML = '';
+  const open = currentFolder();
+  const liveFolder = state && state.media && !state.media.isCleared && state.media.items[state.media.index] ? state.media.folder : null;
+  folders.forEach(f => {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'folder-card';
+    card.classList.toggle('live', f.name === liveFolder);
+    card.style.setProperty('--folder-color', folderColor(f.name));
+    card.title = `Abrir "${folderLabel(f.name)}"`;
+    card.innerHTML = FOLDER_ICON;
+    const name = document.createElement('span');
+    name.className = 'folder-name';
+    name.textContent = folderLabel(f.name);
+    const count = document.createElement('span');
+    count.className = 'folder-count';
+    count.textContent = `${f.count} ${f.count === 1 ? 'arquivo' : 'arquivos'}`;
+    card.append(name, count);
+    if (f.name === liveFolder) {
+      const dot = document.createElement('span');
+      dot.className = 'folder-live-dot';
+      dot.title = 'Tem mídia desta pasta no ar';
+      card.appendChild(dot);
+    }
+    card.onclick = () => openFolder(f.name);
+    list.appendChild(card);
+  });
+
+  // Dentro da pasta: nome, ícone colorido, cor e apagar
+  const info = folders.find(f => f.name === open);
+  $('media-folder-title').textContent = folderLabel(open);
+  $('media-folder-count').textContent = info ? `${info.count} ${info.count === 1 ? 'arquivo' : 'arquivos'}` : '';
+  const icon = $('media-folder-icon');
+  icon.style.setProperty('--folder-color', folderColor(open));
+  icon.innerHTML = FOLDER_ICON;
+  const tools = $('media-folder-tools');
+  tools.innerHTML = '';
+  tools.style.setProperty('--folder-color', folderColor(open));
+  tools.appendChild(folderButtons(open));
+
+  // YouTube: escolher de qual pasta guardar e mostrar
+  const select = $('media-yt-folder');
+  select.innerHTML = '';
+  folders.forEach(f => {
+    const option = document.createElement('option');
+    option.value = f.name;
+    option.textContent = folderLabel(f.name);
+    select.appendChild(option);
+  });
+  select.value = open;
+  updateView();
 }
 
 function setupFolders() {
-  el.folder.onchange = () => ws.send('media-folder', { folder: el.folder.value });
-
   const form = $('media-new-folder-form');
   $('btn-media-new-folder').onclick = () => {
     form.hidden = !form.hidden;
@@ -122,26 +269,23 @@ function setupFolders() {
     }
     form.hidden = true;
     form.reset();
-    ws.send('media-folder', { folder: data.folder });
     await loadFolders();
-    el.folder.value = data.folder;
+    openFolder(data.folder);
   };
-
-  $('btn-media-delete-folder').onclick = async () => {
-    const folder = currentFolder();
-    const info = folders.find(f => f.name === folder);
-    const ok = await confirmDialog({
-      title: 'Apagar esta pasta?',
-      text: `"${folderLabel(folder)}" e ${info ? info.count : 0} arquivo(s) dentro dela serão apagados deste computador.`,
-      okLabel: 'Apagar pasta',
-      danger: true
-    });
-    if (!ok) return;
-    await fetch(`/api/media/folders/${encodeURIComponent(folder)}`, { method: 'DELETE' });
-    toast('Pasta apagada.', 'success');
-    ws.send('media-folder', { folder: general });
-    loadFolders();
+  $('btn-media-back').onclick = () => {
+    insideFolder = false;
+    renderFolders();
   };
+  document.querySelectorAll('input[name="media-source"]').forEach(r => r.addEventListener('change', () => {
+    source = r.value;
+    renderedKey = ''; // a lista mostra outros itens (arquivos ou YouTube)
+    renderFolders();
+    if (state) renderGrid();
+  }));
+  $('media-yt-folder').onchange = (e) => ws.send('media-folder', { folder: e.target.value });
+  document.addEventListener('click', (e) => {
+    if (colorMenu && !colorMenu.contains(e.target)) closeColorMenu();
+  });
 }
 
 // ---------- Envio e YouTube ----------
@@ -254,16 +398,23 @@ function setupUpload() {
 
 // ---------- Grade de mídias ----------
 
+const inSource = (item) => (source === 'youtube' ? item.type === 'youtube' : item.type !== 'youtube');
+
 function renderGrid() {
   const m = state.media;
-  const key = `${m.folder}|${m.items.map(i => i.name).join('|')}`;
+  const key = `${source}|${m.folder}|${m.items.map(i => i.name).join('|')}`;
   if (key !== renderedKey) {
     renderedKey = key;
     el.grid.innerHTML = '';
-    if (m.items.length === 0) {
-      el.grid.innerHTML = '<div class="empty">Nenhuma mídia nesta pasta ainda.<br>Envie as fotos e vídeos que o pastor mandou.</div>';
+    // Aba Arquivos mostra fotos e vídeos; aba YouTube, só os links do YouTube
+    const shown = m.items.filter(inSource);
+    if (shown.length === 0) {
+      el.grid.innerHTML = source === 'youtube'
+        ? '<div class="empty">Nenhum vídeo do YouTube nesta pasta.<br>Cole o link acima.</div>'
+        : '<div class="empty">Nenhuma mídia nesta pasta ainda.<br>Envie as fotos e vídeos que o pastor mandou.</div>';
     }
     m.items.forEach((item, index) => {
+      if (!inSource(item)) return;
       const tile = document.createElement('button');
       tile.type = 'button';
       tile.className = 'media-tile';
@@ -705,7 +856,10 @@ const localAudio = (() => {
     current.loop = !!playback.loop;
     player.setMuted(!!playback.muted);
     player.setVolume(playback.volume ?? 1);
-    if (restart) player.seek(current.start);
+    if (restart) {
+      player.seek(current.start);
+      current.lastFix = Date.now();
+    }
     const seekId = playback.seek ? playback.seek.id : 0;
     if (seekId !== current.seekId) {
       current.seekId = seekId;
@@ -733,8 +887,8 @@ const localAudio = (() => {
         return;
       }
       stop();
-      const player = playerFor(item, { start: p.start || 0, muted: false });
-      current = { key, token: p.token, seekId: p.seek ? p.seek.id : 0, start: p.start || 0, loop: !!p.loop, player };
+      const player = playerFor(item, { start: p.start || 0, muted: false, bufferSeconds: 2 });
+      current = { key, token: p.token, seekId: p.seek ? p.seek.id : 0, start: p.start || 0, loop: !!p.loop, player, lastFix: Date.now() };
       host.appendChild(player.el);
       player.onEnded(() => {
         if (current && current.player === player && current.loop) {
@@ -744,10 +898,16 @@ const localAudio = (() => {
       });
       player.ready.then(() => { if (current && current.player === player) apply(state.media.playback, false); });
     },
-    // O telão manda o tempo do vídeo: se o som se afastar da imagem, acerta
+    // O telão manda o tempo do vídeo: se o som se afastar da imagem, acerta. Sem pular toda hora:
+    // no começo os dois ainda estão carregando, e cada pulo fazia o som engasgar.
     follow(p) {
-      if (!current || p.ended) return;
-      if (Math.abs(current.player.time() - p.currentTime) > 0.4) current.player.seek(p.currentTime + 0.1);
+      if (!current || p.ended || current.player.paused()) return;
+      const drift = Math.abs(current.player.time() - p.currentTime);
+      const now = Date.now();
+      if (drift > 0.6 && now - current.lastFix > 3000) {
+        current.lastFix = now;
+        current.player.seek(p.currentTime + 0.15);
+      }
     }
   };
 })();
@@ -827,9 +987,11 @@ function onServerState(newState) {
   state = newState;
   const m = state.media;
   if (!m.folder) ws.send('media-folder', { folder: general });
-  if (m.folder && m.folder !== hadFolder) {
-    el.folder.value = m.folder;
-    updateDeleteFolder();
+  // Pasta aberta, cores ou o que está no ar mudaram: redesenha as pastas (a bolinha verde mostra a pasta no ar)
+  const colorsKey = `${JSON.stringify(state.mediaFolderColors || {})}|${m.isCleared ? '' : m.folder}`;
+  if (m.folder !== hadFolder || colorsKey !== lastColorsKey) {
+    lastColorsKey = colorsKey;
+    renderFolders();
   }
 
   // A seleção acompanha a mídia que foi ao ar (passador, celular, Próximo)
@@ -878,7 +1040,10 @@ export function setupMedia() {
   el.btnNext.onclick = mediaControls.next;
   el.btnToggle.onclick = mediaControls.toggle;
   makeSortable(el.grid, '.media-tile', (from, to) => {
-    ws.send('media-order', { names: moveItem(state.media.items.map(i => i.name), from, to) });
+    const all = state.media.items;
+    const shown = moveItem(all.filter(inSource).map(i => i.name), from, to);
+    let next = 0;
+    ws.send('media-order', { names: all.map(i => (inSource(i) ? shown[next++] : i.name)) });
   }, { axis: 'x' });
   setupFolders();
   setupUpload();

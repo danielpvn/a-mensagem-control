@@ -241,6 +241,15 @@ body, html {
 .lt-layer.pos-bottom-left, .lt-layer.pos-top-left { justify-content: flex-start; }
 .lt-layer.pos-bottom-center { justify-content: center; text-align: center; }
 .lt-layer.pos-bottom-right, .lt-layer.pos-top-right { justify-content: flex-end; text-align: right; }
+/* Arrastado na prévia: preso pela esquerda, pelo centro ou pela direita (o nome cresce para o outro lado) */
+.lt-layer.pos-custom { top: var(--lt-y, 80%); right: auto; transform: translateY(-50%); transition: none; }
+.lt-layer.pos-custom.anchor-left { left: var(--lt-x, 6%); }
+.lt-layer.pos-custom.anchor-center { left: var(--lt-x, 50%); transform: translate(-50%, -50%); justify-content: center; text-align: center; }
+.lt-layer.pos-custom.anchor-right { left: auto; right: var(--lt-x, 6%); justify-content: flex-end; text-align: right; }
+.pos-custom.anchor-center .lt-box { transform-origin: center; }
+.pos-custom.anchor-right .lt-box { transform-origin: right center; }
+.look-solid.pos-custom.anchor-right .lt-subtitle { align-self: flex-end; }
+.look-solid.pos-custom.anchor-center .lt-subtitle { align-self: center; }
 
 .lt-box {
   display: inline-flex;
@@ -259,8 +268,8 @@ body, html {
   transition: opacity var(--lt-dur) ease, transform var(--lt-dur) cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.lt-name { color: var(--lt-name); font-size: 2.6em; font-weight: 700; line-height: 1.1; letter-spacing: 0.01em; }
-.lt-subtitle { color: var(--lt-subtitle); font-size: 1.35em; font-weight: 500; letter-spacing: 0.04em; }
+.lt-name { color: var(--lt-name); font-size: calc(2.6em * var(--lt-name-size, 1)); font-weight: 700; line-height: 1.1; letter-spacing: 0.01em; }
+.lt-subtitle { color: var(--lt-subtitle); font-size: calc(1.35em * var(--lt-sub-size, 1)); font-weight: 500; letter-spacing: 0.04em; }
 
 /* Moderno: caixa com barra colorida na lateral */
 .look-modern .lt-box {
@@ -270,7 +279,7 @@ body, html {
   border-radius: 0.4em;
   box-shadow: 0 1.2em 2.4em rgba(0, 0, 0, 0.35);
 }
-.look-modern.pos-bottom-right .lt-box, .look-modern.pos-top-right .lt-box { border-left: none; border-right: 0.45em solid var(--lt-accent); padding: 0.8em 1.3em 0.85em 1.6em; }
+.look-modern.pos-bottom-right .lt-box, .look-modern.pos-top-right .lt-box, .look-modern.pos-custom.anchor-right .lt-box { border-left: none; border-right: 0.45em solid var(--lt-accent); padding: 0.8em 1.3em 0.85em 1.6em; }
 
 /* Minimalista: só o texto, com uma linha de destaque */
 .look-minimal .lt-name { text-shadow: 0 0.12em 0.5em rgba(0, 0, 0, 0.6); }
@@ -695,6 +704,28 @@ body, html {
 @keyframes rd-fade-out { from { opacity: 1; } to { opacity: 0; } }
 
 
+/* Estilo criado pelo operador: imagem dele (faixa embaixo ou tela cheia) e a passagem onde ele escolheu */
+.rd-custom { display: none; position: fixed; left: 0; right: 0; bottom: 0; }
+.look-custom .rd-custom { display: block; }
+.rd-custom.fmt-full { top: 0; overflow: hidden; }
+.rd-custom-img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* Faixa: altura escolhida (% da tela); a imagem preenche a faixa sem distorcer */
+.rd-custom.fmt-band { height: var(--ch, 30vh); }
+.rd-custom.no-img { background: var(--rd-band); }
+.rd-custom.no-img .rd-custom-img { display: none; }
+.rd-custom-text { position: absolute; top: var(--cy, 50%); left: var(--cx, 50%); width: var(--cw, 80%); transform: translate(-50%, -50%); display: flex; justify-content: flex-start; text-align: left; }
+.rd-custom[data-align="center"] .rd-custom-text { justify-content: center; text-align: center; }
+.rd-custom[data-align="right"] .rd-custom-text { justify-content: flex-end; text-align: right; }
+.rd-custom-words { display: flex; flex-direction: column; gap: 0.4vw; align-items: flex-start; }
+.rd-custom[data-align="center"] .rd-custom-words { align-items: center; }
+.rd-custom[data-align="right"] .rd-custom-words { align-items: flex-end; }
+.rd-custom-label { color: var(--rd-border); font-family: Montserrat, sans-serif; font-weight: 700; font-size: calc(1.2vw * var(--rd-scale)); letter-spacing: 0.35em; text-transform: uppercase; text-shadow: 0 0.1em 0.4em rgba(0, 0, 0, 0.7); }
+.rd-custom-ref { color: var(--rd-text); font-weight: 700; font-size: calc(4.4vw * var(--rd-scale)); line-height: 1.1; white-space: nowrap; text-shadow: 0 0.05em 0.3em rgba(0, 0, 0, 0.8); }
+.reading-layer.show .rd-custom { animation: rd-bg-in .9s ease-out both; }
+.reading-layer.show .rd-custom-words { animation: rd-text-in .7s .5s ease-out both; }
+.reading-layer.leaving .rd-custom-words { animation: rd-text-out .35s ease-in both; }
+.reading-layer.leaving .rd-custom { animation: rd-fade-out .7s .3s ease-in both; }
+
 /* --- Sem transição (opção em cada conteúdo): aparece e some na hora --- */
 .anim-none, .anim-none.hidden { transition: none !important; }
 .anim-none.hidden { opacity: 0; }
@@ -704,3 +735,14 @@ body, html {
 .lt-anim-none.hidden .lt-box { opacity: 0; }
 .reading-layer.no-anim *, .reading-layer.no-anim { animation: none !important; transition: none !important; }
 .prayer-layer.no-anim, .prayer-layer.no-anim .prayer-frame { transition: none !important; }
+
+/* --- Ajustar arrastando (só na prévia "Como vai ficar" do painel, nunca no OBS) --- */
+.edit-on .lt-box, .edit-on .look-custom .rd-custom-text { pointer-events: auto; cursor: move; outline: 3px dashed rgba(252, 211, 77, 0); outline-offset: -3px; }
+.edit-on .lt-box:hover, .edit-on .look-custom .rd-custom-text:hover, .edit-on.editing .lt-box, .edit-on.editing .rd-custom-text { outline-color: rgba(252, 211, 77, 0.9); }
+.edit-handle { display: none; }
+.edit-on .edit-handle { display: block; position: absolute; pointer-events: auto; z-index: 5; }
+.edit-on .edit-size { right: 0; bottom: 0; width: 30px; height: 30px; border-radius: 50%; background: #fcd34d; border: 4px solid #1f2937; cursor: nwse-resize; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6); }
+.edit-on .lt-box { position: relative; }
+.edit-on .rd-custom.fmt-band .edit-band { left: 0; right: 0; top: -10px; height: 20px; cursor: ns-resize; }
+.edit-on .rd-custom.fmt-band .edit-band::after { content: ''; position: absolute; left: 50%; top: 4px; width: 120px; height: 12px; margin-left: -60px; border-radius: 6px; background: #fcd34d; border: 3px solid #1f2937; opacity: 0.85; }
+.edit-on.editing, .edit-on.editing * { cursor: grabbing !important; user-select: none; }

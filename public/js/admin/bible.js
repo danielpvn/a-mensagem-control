@@ -1,6 +1,7 @@
 // Aba Bíblia: busca por referência ou palavras, livros e capítulos, versículos ao vivo.
 import { $, toast, normalize } from './ui.js';
 import * as ws from './ws.js';
+import { postNext } from './next-preview.js';
 
 let books = [];            // [{ id, name, abbrev, testament, chapters }]
 let state = null;          // estado do servidor
@@ -326,7 +327,10 @@ function renderChapter() {
     if (next) nextName = `${b.bookName} ${b.chapter}:${verseLabel(next)}`;
     else if (b.chapter < b.chapters) nextName = `${b.bookName} ${b.chapter + 1}:1`;
   }
-  el.nextLabel.textContent = nextName ? `Próximo · ${nextName}` : 'Próximo';
+  el.nextLabel.dataset.verse = nextName ? `Próximo · ${nextName}` : 'Próximo';
+  const readingLook = (document.querySelector('input[name="bible-look-part"]:checked') || {}).value === 'reading';
+  el.nextLabel.textContent = readingLook ? 'Como vai ficar · anúncio da leitura' : el.nextLabel.dataset.verse;
+  postNext('bible', next ? { book: b.book, bookName: b.bookName, chapter: b.chapter, slide: next } : null);
   el.nextText.textContent = next ? next.text : (nextName ? 'Começo do próximo capítulo.' : has ? 'Fim do livro.' : '—');
 }
 

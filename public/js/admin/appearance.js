@@ -2,11 +2,12 @@
 import { $ } from './ui.js';
 import * as ws from './ws.js';
 import { timeLabel, savedTime, savedEffect, scopeRadios, checkedScope, setScope } from './transition.js';
+import { createBackgroundEditor } from './background-editor.js';
 
 const rgba = (r, g, b, a) => `rgba(${r}, ${g}, ${b}, ${a})`;
 // Tudo que um tema define, para um tema não herdar o resto do anterior.
 // O tamanho fica em 2.6: com mais que isso a caixa passa de 3 linhas e cobre o pregador.
-const base = { fontSize: '2.6rem', titleSize: '1.1rem', textOutline: false, outlineColor: '#000000', telaoMode: false };
+const base = { fontSize: '2.6rem', titleSize: '1.1rem', textOutline: false, outlineColor: '#000000', telaoMode: false, bgMode: 'color', bgImage: null };
 
 // Temas prontos para começar rápido (o operador pode ajustar depois)
 const THEMES = [
@@ -30,8 +31,6 @@ const input = {
   speed: $('style-speed'),
   textColor: $('style-text-color'),
   accentColor: $('style-accent-color'),
-  bgColor: $('style-bg-color-picker'),
-  bgOpacity: $('style-bg-opacity'),
   outlineColor: $('style-outline-color'),
   showTitle: $('style-show-title'),
   showNumber: $('style-show-paragraph-number'),
@@ -39,27 +38,11 @@ const input = {
   outline: $('style-text-outline')
 };
 const scope = scopeRadios('style-scope');
-
-function hexToRgba(hex, alpha) {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-function parseRgba(rgbaStr) {
-  const match = String(rgbaStr).match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-  if (!match) return { hex: '#0a0f1e', opacity: 85 };
-  const [r, g, b] = [match[1], match[2], match[3]].map(Number);
-  const opacity = match[4] ? Math.round(parseFloat(match[4]) * 100) : 100;
-  const hex = '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-  return { hex, opacity };
-}
+let editor = null;
 
 function updateLabels() {
   $('size-slider-val').textContent = input.size.value;
   $('title-size-slider-val').textContent = input.titleSize.value;
-  $('opacity-val').textContent = `${input.bgOpacity.value}%`;
   $('style-speed-val').textContent = timeLabel(input.speed.value);
   // Sem transição (tempo 0): o efeito e o "onde usar" não valem
   const noTransition = Number(input.speed.value) === 0;
@@ -70,8 +53,7 @@ function updateLabels() {
   // O tamanho do título vale para o título e para o número do parágrafo
   input.titleSize.closest('.field').hidden = !input.showTitle.checked && !input.showNumber.checked;
   // No modo telão o fundo é sempre preto
-  input.bgColor.closest('.color-field').hidden = input.telao.checked;
-  input.bgOpacity.closest('.field').hidden = input.telao.checked;
+  $('style-bg-group').hidden = input.telao.checked;
 }
 
 function renderThemes() {
@@ -102,7 +84,6 @@ function gatherStyles() {
     titleSize: `${input.titleSize.value}rem`,
     textColor: input.textColor.value,
     accentColor: input.accentColor.value,
-    bgColor: hexToRgba(input.bgColor.value, Number(input.bgOpacity.value) / 100),
     animationType: input.animation.value,
     transitionTime: Number(input.speed.value),
     transitionScope: checkedScope(scope),
@@ -126,22 +107,27 @@ function fillInputs(styles) {
   input.textColor.value = styles.textColor || '#ffffff';
   input.accentColor.value = styles.accentColor || '#2563eb';
   input.outlineColor.value = styles.outlineColor || '#000000';
-  const { hex, opacity } = parseRgba(styles.bgColor);
-  input.bgColor.value = hex;
-  input.bgOpacity.value = opacity;
   input.showTitle.checked = styles.showTitle !== false;
   input.showNumber.checked = styles.showParagraphNumber !== false;
   input.telao.checked = styles.telaoMode === true;
   input.outline.checked = styles.textOutline === true;
   updateLabels();
+  editor.fill(styles);
 }
 
 export function setupAppearance() {
+  // Fundo da caixa: cor com transparência, degradê ou imagem (da lista ou enviada do computador)
+  editor = createBackgroundEditor($('style-bg-editor'), {
+    name: 'style-bg',
+    defaultColor: { hex: '#0a0f1e', opacity: 85 },
+    vignette: false,
+    onChange: (partial) => ws.send('update-styles', partial)
+  });
   renderThemes();
   ws.on('init', (state) => fillInputs(state.styles));
   ws.on('update-style', (styles) => {
     // Não atrapalha quem está arrastando um controle neste painel
-    if (![...Object.values(input), ...scope].includes(document.activeElement)) {
+    if (![...Object.values(input), ...scope, ...editor.controls].includes(document.activeElement)) {
       fillInputs(styles);
     }
   });

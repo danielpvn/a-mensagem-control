@@ -1,6 +1,7 @@
 // Aba Hinos: busca por trecho da letra, estrofes, editor e importação.
 import { $, toast, confirmDialog, normalize, setupModalClose } from './ui.js';
 import * as ws from './ws.js';
+import { postNext } from './next-preview.js';
 import { parseLyrics, buildSequence, slideName } from '../shared/hymn-text.js';
 import { makeSortable, moveItem } from './sortable.js';
 
@@ -445,6 +446,7 @@ function renderTransport() {
   let next = null;
   if (has) next = cue !== -1 ? hymn.slides[cue] : hymn.armed || atStart ? hymn.slides[Math.max(0, hymn.slideIndex)] : hymn.slides[hymn.slideIndex + 1];
   el.nextLabel.textContent = next ? `Próximo · ${slideName(next)}` : 'Próximo';
+  postNext('hymn', next ? { id: hymn.id, number: hymn.number, title: hymn.title, collection: hymn.collection, slide: next } : null);
   el.nextText.textContent = next ? next.text : (has ? 'Fim do hino.' : '—');
 }
 

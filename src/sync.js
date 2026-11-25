@@ -98,8 +98,9 @@ async function api(pathAndQuery, { method = 'GET', body, headers = {}, raw = fal
     method,
     headers: { apikey: anonKey, Authorization: `Bearer ${token}`, ...(body && !raw ? { 'Content-Type': 'application/json' } : {}), ...headers },
     body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
+    duplex: raw ? 'half' : undefined, // corpo em streaming (vídeo da caixinha de sugestões)
     // Internet travada não pode deixar a sincronização presa para sempre
-    signal: AbortSignal.timeout(raw ? 120000 : 45000)
+    signal: AbortSignal.timeout(raw ? 600000 : 45000)
   });
   let res = await send(await accessToken());
   // Login vencido antes da hora que o PC calculou (relógio errado, por exemplo): renova e tenta de novo
@@ -128,11 +129,25 @@ async function login(email, password) {
   const data = await authRequest('password', { email: String(email || '').trim(), password: String(password || '') });
   saveSession(sessionFrom(data));
   await loadProfile();
-  // Sessão nova: busca a biblioteca inteira de novo
-  db.setSetting('cloudCursors', {});
+  resetCursorsIfOtherProject();
   setStatus({ state: 'idle', message: 'Conectado.', lastError: null });
   syncNow();
   return publicStatus();
+}
+
+// Entrar de novo no mesmo banco online continua de onde parou: a biblioteca já está no PC
+// (baixar tudo a cada login eram ~60 MB por vez). Só outro banco online começa do zero.
+function resetCursorsIfOtherProject() {
+  const url = config().url;
+  const known = db.getSetting('cloudCursorsUrl', null);
+  const hasCursors = Object.keys(db.getSetting('cloudCursors', {})).length > 0;
+  if (known === url || (known === null && hasCursors)) {
+    db.setSetting('cloudCursorsUrl', url);
+    return;
+  }
+  db.setSetting('cloudCursors', {});
+  db.setSetting('cloudSeen', {});
+  db.setSetting('cloudCursorsUrl', url);
 }
 
 // "Pedir acesso": cria o login da igreja, que fica aguardando a aprovação de um editor
@@ -157,8 +172,7 @@ async function signup(email, password, church) {
   if (!data.access_token) return { ...publicStatus(), needsConfirmation: true };
   saveSession(sessionFrom(data));
   await loadProfile();
-  // Conta nova: quando for aprovada, busca a biblioteca inteira
-  db.setSetting('cloudCursors', {});
+  resetCursorsIfOtherProject();
   setStatus({ state: 'pending', message: 'Pedido enviado. Aguardando a aprovação.' });
   return publicStatus();
 }
@@ -211,31 +225,71 @@ function setConfig({ url, anonKey }) {
 
 // ---------- Baixar (pull) ----------
 
+const inList = (keys) => `in.(${keys.map(k => `"${String(k).replace(/"/g, '\\"')}"`).join(',')})`;
+
 const cursors = () => db.getSetting('cloudCursors', {});
 function saveCursor(table, value) {
   db.setSetting('cloudCursors', { ...cursors(), [table]: value });
 }
 
-// Lê em páginas tudo o que mudou desde a última vez
+// Lê o que mudou desde a última vez.
+// Relê uma folga de alguns segundos para trás (um envio que terminou depois pode ter hora um pouco
+// mais antiga), mas primeiro só a chave e a hora (leve): o conteúdo inteiro só vem do que é novo
+// ou do que ainda não foi recebido. Antes ele baixava tudo da folga a cada minuto: 75 mensagens
+// enviadas no mesmo instante eram ~11 MB por minuto em cada PC, e estourou o limite do plano.
 async function pullTable(table, key, apply) {
   const since = cursors()[table];
-  const from = since ? new Date(new Date(since).getTime() - OVERLAP_MS).toISOString() : null;
-  let offset = 0;
-  let newest = since || null;
+  if (!since) return pullAll(table, key, apply);
+  const from = new Date(new Date(since).getTime() - OVERLAP_MS).toISOString();
+  const seen = new Set((db.getSetting('cloudSeen', {})[table] || []));
+
+  const list = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const res = await api(`/rest/v1/${table}?select=${key},updated_at&updated_at=gt.${encodeURIComponent(from)}&order=updated_at.asc,${key}.asc&limit=${PAGE}&offset=${offset}`);
+    const rows = await res.json();
+    list.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  const wanted = list.filter(r => r.updated_at > since || !seen.has(`${r[key]}@${r.updated_at}`));
+
   let changed = 0;
-  for (;;) {
-    const filter = from ? `&updated_at=gt.${encodeURIComponent(from)}` : '';
-    const res = await api(`/rest/v1/${table}?select=*${filter}&order=updated_at.asc,${key}.asc&limit=${PAGE}&offset=${offset}`);
+  // Conteúdo em lotes pequenos (mensagens são grandes)
+  const batch = table === 'library_sermons' ? 10 : 50;
+  for (let i = 0; i < wanted.length; i += batch) {
+    const keys = wanted.slice(i, i + batch).map(r => r[key]);
+    const res = await api(`/rest/v1/${table}?select=*&${key}=${encodeURIComponent(inList(keys))}&order=updated_at.asc,${key}.asc`);
+    for (const row of await res.json()) if (await apply(row)) changed++;
+  }
+  remember(table, list, key, since);
+  return changed;
+}
+
+// Primeira vez (ou banco novo): tudo, em páginas
+async function pullAll(table, key, apply) {
+  let changed = 0;
+  const list = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const res = await api(`/rest/v1/${table}?select=*&order=updated_at.asc,${key}.asc&limit=${PAGE}&offset=${offset}`);
     const rows = await res.json();
     for (const row of rows) {
       if (await apply(row)) changed++;
-      if (!newest || row.updated_at > newest) newest = row.updated_at;
+      list.push({ [key]: row[key], updated_at: row.updated_at });
     }
     if (rows.length < PAGE) break;
-    offset += PAGE;
   }
-  if (newest) saveCursor(table, newest);
+  remember(table, list, key, null);
   return changed;
+}
+
+// Guarda até onde leu e o que já recebeu dentro da folga (para não baixar de novo no próximo minuto)
+function remember(table, list, key, since) {
+  const newest = list.reduce((max, r) => (r.updated_at > max ? r.updated_at : max), since || '');
+  if (!newest) return;
+  saveCursor(table, newest);
+  const edge = new Date(new Date(newest).getTime() - OVERLAP_MS).toISOString();
+  const seen = db.getSetting('cloudSeen', {});
+  seen[table] = list.filter(r => r.updated_at > edge).map(r => `${r[key]}@${r.updated_at}`).slice(-2000);
+  db.setSetting('cloudSeen', seen);
 }
 
 const isEditor = () => (session() || {}).role === 'editor';
@@ -320,8 +374,6 @@ async function upsert(table, rows, key, batch = 200, select = '') {
   }
   return done;
 }
-
-const inList = (keys) => `in.(${keys.map(k => `"${String(k).replace(/"/g, '\\"')}"`).join(',')})`;
 
 async function pushDeletions(kind, table, key) {
   const keys = db.pendingDeletions(kind);
@@ -462,4 +514,27 @@ function stop() {
   clearTimeout(soonTimer);
 }
 
-module.exports = { start, stop, syncNow, login, signup, logout, setConfig, listMembers, setMemberRole, status: publicStatus };
+// Pedido avulso ao banco online (caixinha de sugestões): com o login desta igreja, ou como anônimo
+// quando o PC não entrou (as regras do banco dizem o que o anônimo pode fazer)
+async function request(pathAndQuery, options = {}) {
+  if (!isConfigured()) throw new Error('Banco online não configurado.');
+  if (session()) return api(pathAndQuery, options);
+  const { url, anonKey } = config();
+  const { method = 'GET', body, headers = {}, raw = false } = options;
+  const res = await fetch(`${url}${pathAndQuery}`, {
+    method,
+    headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, ...(body && !raw ? { 'Content-Type': 'application/json' } : {}), ...headers },
+    body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
+    duplex: raw ? 'half' : undefined,
+    signal: AbortSignal.timeout(raw ? 600000 : 45000)
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Banco online respondeu ${res.status}: ${text.slice(0, 200)}`);
+  }
+  return res;
+}
+
+const cloudUrl = () => config().url;
+
+module.exports = { start, stop, syncNow, login, signup, logout, setConfig, listMembers, setMemberRole, status: publicStatus, request, cloudUrl };
